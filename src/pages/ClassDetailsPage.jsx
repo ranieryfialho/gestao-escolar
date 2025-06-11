@@ -1,4 +1,5 @@
 // src/pages/ClassDetailsPage.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,12 +7,28 @@ import { useClasses } from '../contexts/ClassContext';
 import { useUsers } from '../contexts/UserContext';
 import StudentImporter from '../components/StudentImporter';
 import Gradebook from '../components/Gradebook';
-import TransferStudentModal from '../components/TransferStudentModal'; // Novo modal de transferência
+import TransferStudentModal from '../components/TransferStudentModal';
+
+// Função helper centralizada para chamar a nossa API
+const callApi = async (functionName, payload, token) => {
+  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
+  const response = await fetch(functionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ data: payload }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Ocorreu um erro no servidor.');
+  return result;
+};
 
 function ClassDetailsPage() {
   const { turmaId } = useParams();
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
   const { classes, updateClass, deleteClass } = useClasses();
   const { users } = useUsers();
 
@@ -20,13 +37,12 @@ function ClassDetailsPage() {
   const [newClassName, setNewClassName] = useState('');
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [teacherList, setTeacherList] = useState([]);
-
-  // Novos estados para transferência
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [studentToTransfer, setStudentToTransfer] = useState(null);
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [filteredStudents, setFilteredStudents] = useState([]);
 
-  const adminRoles = ['coordenador', 'diretor', 'admin'];
-  const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
+  const isUserAdmin = userProfile && ["diretor", "coordenador", "admin"].includes(userProfile.role);
 
   useEffect(() => {
     const foundTurma = classes.find(c => c.id === turmaId);
@@ -34,11 +50,35 @@ function ClassDetailsPage() {
       setTurma(foundTurma);
       setNewClassName(foundTurma.name);
       setSelectedTeacherId(foundTurma.professorId || '');
+      
+      const students = foundTurma.students || [];
+      if (studentSearchTerm === '') {
+        setFilteredStudents(students);
+      } else {
+        const results = students.filter(student => 
+          student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+          student.code.toString().toLowerCase().includes(studentSearchTerm.toLowerCase())
+        );
+        setFilteredStudents(results);
+      }
     }
     const rolesPermitidos = ['professor', 'coordenador', 'auxiliar_coordenacao'];
     const filteredTeachers = users.filter(user => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);
-  }, [turmaId, classes, users]);
+  }, [turmaId, classes, users, studentSearchTerm]);
+
+  const handleApiAction = async (action, payload, successCallback) => {
+    try {
+      if (!firebaseUser) throw new Error("Usuário não autenticado.");
+      const token = await firebaseUser.getIdToken();
+      const result = await callApi(action, payload, token);
+      alert(result.message);
+      if (successCallback) successCallback();
+    } catch (error) {
+      console.error(`Erro ao executar ${action}:`, error);
+      alert(`Erro: ${error.message}`);
+    }
+  };
 
   const handleSaveName = async () => {
     if (newClassName.trim() === '') return alert("O nome da turma não pode ficar em branco.");
@@ -58,24 +98,6 @@ function ClassDetailsPage() {
     }
   };
 
-  const handleStudentsImported = async (importedStudents) => {
-    const studentsWithGrades = importedStudents.map(student => ({
-      ...student,
-      grades: student.grades || {}
-    }));
-    await updateClass(turma.id, { students: studentsWithGrades });
-    alert(`${importedStudents.length} alunos importados com sucesso!`);
-  };
-
-  const handleSaveGrades = async (newGrades) => {
-    if (!turma || !turma.students) return;
-    const updatedStudents = turma.students.map(student => ({
-      ...student,
-      grades: { ...student.grades, ...newGrades[student.id] },
-    }));
-    await updateClass(turma.id, { students: updatedStudents });
-  };
-
   const handleDeleteClass = async () => {
     if (window.confirm("Tem a certeza que deseja apagar esta turma? Esta ação é irreversível.")) {
       await deleteClass(turma.id);
@@ -90,7 +112,19 @@ function ClassDetailsPage() {
     }
   };
 
-  // --- Funções para transferência ---
+  const handleStudentsImported = async (importedStudents) => {
+    const studentsWithGrades = importedStudents.map(s => ({ ...s, grades: s.grades || {} }));
+    await updateClass(turma.id, { students: studentsWithGrades });
+    alert(`${importedStudents.length} alunos importados com sucesso!`);
+  };
+
+  const handleSaveGrades = async (newGrades) => {
+    if (!turma || !turma.students) return;
+    const updatedStudents = turma.students.map(s => ({ ...s, grades: { ...s.grades, ...newGrades[s.id] } }));
+    await updateClass(turma.id, { students: updatedStudents });
+    alert("Notas salvas com sucesso!");
+  };
+
   const handleOpenTransferModal = (student) => {
     setStudentToTransfer(student);
     setIsTransferModalOpen(true);
@@ -101,16 +135,15 @@ function ClassDetailsPage() {
     setStudentToTransfer(null);
   };
 
-  const handleConfirmTransfer = async (student, sourceClassId, targetClassId) => {
-    // ** Implementar lógica futura aqui **
-    console.log(`Transferindo ${student.name} da turma ${sourceClassId} para a turma ${targetClassId}`);
-    alert("Função de transferir ainda não implementada. Veja o console.");
-    handleCloseTransferModal();
+  const handleConfirmTransfer = async (studentData, sourceClassId, targetClassId) => {
+    await handleApiAction(
+      'transferStudent',
+      { studentData, sourceClassId, targetClassId },
+      () => handleCloseTransferModal()
+    );
   };
 
-  if (!turma) {
-    return <div className="p-8">A carregar turma...</div>;
-  }
+  if (!turma) return <div className="p-8">A carregar turma...</div>;
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
@@ -119,122 +152,52 @@ function ClassDetailsPage() {
       {/* Bloco 1: Informações Gerais */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         {!isEditingName ? (
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
-            {isUserAdmin && (
-              <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">Editar</button>
-            )}
-          </div>
+          <div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>{isUserAdmin && <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">Editar</button>}</div>
         ) : (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newClassName}
-              onChange={(e) => setNewClassName(e.target.value)}
-              className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"
-            />
-            <button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">Salvar</button>
-            <button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">Cancelar</button>
-          </div>
+          <div className="flex items-center gap-2"><input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"/><button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">Salvar</button><button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">Cancelar</button></div>
         )}
         {isUserAdmin ? (
-          <div className="mt-4">
-            <label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">Professor(a) Responsável:</label>
-            <select
-              id="teacher-select"
-              value={selectedTeacherId}
-              onChange={handleTeacherChange}
-              className="mt-1 block w-full md:w-1/2 p-2 border rounded-md"
-            >
-              <option value="" disabled>Selecione um professor</option>
-              {teacherList.map(teacher => (
-                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <p className="text-md text-gray-600 mt-2">
-            Professor(a) Responsável: {turma.professorName || 'A definir'}
-          </p>
-        )}
+          <div className="mt-4"><label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">Professor(a) Responsável:</label><select id="teacher-select" value={selectedTeacherId} onChange={handleTeacherChange} className="mt-1 block w-full md:w-1/2 p-2 border rounded-md"><option value="" disabled>Selecione um professor</option>{teacherList.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}</select></div>
+        ) : (<p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || 'A definir'}</p>)}
       </div>
 
       {/* Bloco 2: Alunos e Notas */}
       <div className="mt-10">
-        <h2 className="text-2xl font-semibold">Alunos e Notas</h2>
-        {isUserAdmin && (
-          <div className="my-4">
-            <StudentImporter onStudentsImported={handleStudentsImported} />
-          </div>
-        )}
-        <Gradebook
-          students={turma.students || []}
-          modules={turma.modules || []}
-          onSaveGrades={handleSaveGrades}
-          onTransferClick={handleOpenTransferModal} // Nova prop
-          isUserAdmin={isUserAdmin} // Nova prop
-        />
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4"><h2 className="text-2xl font-semibold">Alunos e Notas</h2><input type="text" placeholder="Buscar por nome ou código do aluno..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="w-full md:w-1/3 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"/></div>
+        {isUserAdmin && <div className="my-4"><StudentImporter onStudentsImported={handleStudentsImported} /></div>}
+        <Gradebook students={filteredStudents} modules={turma.modules || []} onSaveGrades={handleSaveGrades} onTransferClick={handleOpenTransferModal} isUserAdmin={isUserAdmin}/>
       </div>
 
-      {/* Bloco 3: Módulos e Ementas */}
+      {/* Bloco 3: Módulos */}
       <div className="mt-10">
         <h2 className="text-2xl font-semibold">Módulos e Ementas da Turma</h2>
         <div className="mt-4 space-y-4">
-          {turma.modules && turma.modules.length > 0 ? (
-            turma.modules.map(module => (
-              <div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-lg">{module.title}</h3>
-                  <p className="text-gray-700 mt-1">{module.syllabus}</p>
-                </div>
-                {isUserAdmin && (
-                  <button
-                    onClick={() => handleRemoveModule(module.id)}
-                    className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0"
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>
-          )}
+            {(turma.modules && turma.modules.length > 0) ? (
+                turma.modules.map(module => (<div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start"><div><h3 className="font-bold text-lg">{module.title}</h3><p className="text-gray-700 mt-1">{module.syllabus}</p></div>{isUserAdmin && (<button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>)}</div>))
+            ) : (<p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>)}
         </div>
       </div>
 
-      {/* Bloco 4: Zona de Perigo */}
+      {/* Bloco 4: Zona de Perigo (Restaurado) */}
       {isUserAdmin && (
         <div className="mt-10 border-t-2 border-red-200 pt-6">
           <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
           <div className="mt-4 bg-red-50 p-6 rounded-lg shadow-inner">
-            <div className="flex flex-col sm:flex-row justify-between items-center">
-              <div>
-                <h3 className="font-bold">Apagar esta Turma</h3>
-                <p className="text-sm text-red-800 mt-1 max-w-2xl">
-                  Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita.
-                </p>
-              </div>
-              <button
-                onClick={handleDeleteClass}
-                className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0"
-              >
-                Apagar Turma
-              </button>
-            </div>
+             <div className="flex flex-col sm:flex-row justify-between items-center">
+                <div>
+                   <h3 className="font-bold">Apagar esta Turma</h3>
+                   <p className="text-sm text-red-800 mt-1 max-w-2xl">
+                      Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita.
+                   </p>
+                </div>
+                <button onClick={handleDeleteClass} className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0">Apagar Turma</button>
+             </div>
           </div>
         </div>
       )}
 
       {/* Modal de Transferência */}
-      <TransferStudentModal
-        isOpen={isTransferModalOpen}
-        onClose={handleCloseTransferModal}
-        student={studentToTransfer}
-        currentClass={turma}
-        allClasses={classes}
-        onConfirmTransfer={handleConfirmTransfer}
-      />
+      <TransferStudentModal isOpen={isTransferModalOpen} onClose={handleCloseTransferModal} student={studentToTransfer} currentClass={turma} allClasses={classes} onConfirmTransfer={handleConfirmTransfer}/>
     </div>
   );
 }
