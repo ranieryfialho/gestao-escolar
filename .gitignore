@@ -1,0 +1,14 @@
+# Dependências
+/node_modules
+/functions/node_modules
+
+# Ficheiros de Build
+/dist
+
+# Logs
+npm-debug.log*
+firebase-debug.log*
+
+# Ficheiros de ambiente (importante para o futuro)
+.env
+.env.local
