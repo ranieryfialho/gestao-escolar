@@ -1,7 +1,7 @@
 // src/components/Gradebook.jsx
 import React, { useState, useEffect } from 'react';
 
-function Gradebook({ students, modules, onSaveGrades }) {
+function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdmin }) {
   const [grades, setGrades] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -9,7 +9,6 @@ function Gradebook({ students, modules, onSaveGrades }) {
     const initialGrades = {};
     if (students) {
       students.forEach(student => {
-        // Inicializa o estado com as notas já existentes do aluno
         initialGrades[student.id] = student.grades || {};
       });
     }
@@ -17,9 +16,7 @@ function Gradebook({ students, modules, onSaveGrades }) {
   }, [students]);
 
   const handleGradeChange = (studentId, moduleId, value) => {
-    // Permite apenas números (0-9) e um único ponto ou vírgula
     const numericValue = value.replace(/[^0-9,.]/g, '').replace(',', '.');
-    // Impede notas maiores que 10 e mais de 4 caracteres (ex: 10.0)
     if (parseFloat(numericValue) > 10 || numericValue.length > 4) return;
 
     setGrades(prevGrades => ({
@@ -50,36 +47,21 @@ function Gradebook({ students, modules, onSaveGrades }) {
     <div className="mt-4">
       <div className="overflow-x-auto bg-white rounded-lg shadow">
         <table className="w-full min-w-[800px] text-sm text-left text-gray-700">
-          <thead className="text-xs text-gray-800 uppercase bg-gray-100 border-b-2 border-gray-200">
+          <thead className="text-xs text-gray-800 uppercase bg-gray-100 border-b-2">
             <tr>
-              {/* Coluna Código do Aluno */}
-              <th scope="col" className="px-6 py-3 font-bold tracking-wider">
-                Código
-              </th>
-              {/* Coluna Nome do Aluno */}
-              <th scope="col" className="px-6 py-3 font-bold tracking-wider">
-                Aluno(a)
-              </th>
-              {/* Colunas dos Módulos */}
+              <th scope="col" className="px-6 py-3 font-bold">Código</th>
+              <th scope="col" className="px-6 py-3 font-bold">Aluno(a)</th>
               {modules.map(module => (
-                <th key={module.id} scope="col" className="px-4 py-3 text-center font-bold tracking-wider">
-                  {module.title}
-                </th>
+                <th key={module.id} scope="col" className="px-4 py-3 text-center font-bold">{module.title}</th>
               ))}
+              {isUserAdmin && <th scope="col" className="px-6 py-3 font-bold">Ações</th>}
             </tr>
           </thead>
           <tbody>
             {students.map(student => (
-              <tr key={student.id} className="bg-white border-b hover:bg-blue-50 transition-colors duration-150">
-                {/* Célula Código */}
-                <td className="px-6 py-4 font-mono text-gray-500">
-                  {student.code}
-                </td>
-                {/* Célula Nome */}
-                <th scope="row" className="px-6 py-4 font-bold text-gray-900 whitespace-nowrap">
-                  {student.name}
-                </th>
-                {/* Células das Notas */}
+              <tr key={student.id} className="bg-white border-b hover:bg-blue-50">
+                <td className="px-6 py-4 font-mono text-gray-500">{student.code}</td>
+                <th scope="row" className="px-6 py-4 font-bold">{student.name}</th>
                 {modules.map(module => (
                   <td key={module.id} className="p-2">
                     <input
@@ -92,6 +74,16 @@ function Gradebook({ students, modules, onSaveGrades }) {
                     />
                   </td>
                 ))}
+                {isUserAdmin && (
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => onTransferClick(student)}
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      Transferir
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

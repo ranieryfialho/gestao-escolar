@@ -27,7 +27,7 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
         {/* Campo Nome da Turma */}
         <div>
           <label htmlFor="className" className="block text-sm font-medium text-gray-700 mb-1">Nome da Turma</label>
-          <input id="className" type="text" value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Ex: Tarde - Início em Julho" className="w-full px-3 py-2 border rounded-lg"/>
+          <input id="className" type="text" value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Ex: 2001-A (ESP) || 05.2025" className="w-full px-3 py-2 border rounded-lg"/>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
