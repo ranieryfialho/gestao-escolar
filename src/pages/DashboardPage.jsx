@@ -16,17 +16,23 @@ function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredClasses, setFilteredClasses] = useState([]);
 
+  // --- LÓGICA DE PERMISSÕES ATUALIZADA ---
+  // Perfis que podem apenas criar/editar turmas
   const adminRoles = ['coordenador', 'diretor', 'admin'];
-  const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
+  // Perfis que podem visualizar TODAS as turmas
+  const viewAllClassesRoles = ['diretor', 'coordenador', 'auxiliar_coordenacao', 'professor_apoio', 'financeiro', 'admin'];
 
-  // Efeito para preparar a lista de professores a partir dos usuários
+  const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
+  const canViewAll = userProfile && viewAllClassesRoles.includes(userProfile.role);
+  // --- FIM DA LÓGICA DE PERMISSÕES ---
+
+
   useEffect(() => {
     const rolesPermitidos = ['professor', 'coordenador', 'auxiliar_coordenacao', 'diretor'];
     const filteredTeachers = users.filter(user => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);
   }, [users]);
 
-  // Efeito principal para filtrar e ordenar as turmas
   useEffect(() => {
     if (!userProfile || loadingClasses) {
       setFilteredClasses([]);
@@ -36,13 +42,14 @@ function DashboardPage() {
     let userClasses = [];
     const validClasses = classes.filter(c => c && c.id && c.name);
 
-    if (isUserAdmin) {
+    // ** AQUI ESTÁ A CORREÇÃO **
+    // Usamos a nova variável 'canViewAll' para determinar a visibilidade
+    if (canViewAll) {
       userClasses = validClasses;
     } else if (userProfile.role === 'professor') {
       userClasses = validClasses.filter(c => c.professorId === userProfile.id);
     }
     
-    // 1. Filtra as turmas com base no termo de busca
     let results = userClasses.filter(turma => {
       const term = searchTerm.toLowerCase();
       if (turma.name.toLowerCase().includes(term)) return true;
@@ -56,11 +63,9 @@ function DashboardPage() {
       return false;
     });
 
-    // 2. Ordena os resultados com base no número inicial do nome da turma
     results.sort((a, b) => {
       const numA = parseInt(a.name, 10);
       const numB = parseInt(b.name, 10);
-      
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
@@ -69,13 +74,11 @@ function DashboardPage() {
 
     setFilteredClasses(results);
 
-  }, [userProfile, classes, loadingClasses, isUserAdmin, searchTerm]);
+  }, [userProfile, classes, loadingClasses, canViewAll, searchTerm]); // Usamos 'canViewAll' como dependência
 
-  // Função para criar uma nova turma no banco de dados
   const handleCreateClass = async (className, selectedPackageId, teacherId) => {
     const selectedPackage = modulePackages.find(p => p.id === selectedPackageId);
     const selectedTeacher = teacherList.find(t => t.id === teacherId);
-
     if (!selectedPackage || !selectedTeacher) {
       return alert("Por favor, selecione um pacote e um professor.");
     }
@@ -94,7 +97,6 @@ function DashboardPage() {
 
   return (
     <div className="p-4 md:p-8">
-      {/* Cartão de Boas-Vindas */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <h1 className="text-2xl font-bold text-gray-800">
           Bem-vindo(a), {userProfile?.name || 'Usuário'}!
@@ -104,7 +106,7 @@ function DashboardPage() {
         </p>
       </div>
 
-      {/* Formulário de Criação de Turma */}
+      {/* A criação de turmas continua restrita aos 'admins' */}
       {isUserAdmin && (
         <CreateClassForm 
           onClassCreated={handleCreateClass} 
@@ -113,10 +115,10 @@ function DashboardPage() {
         />
       )}
 
-      {/* Secção de Busca e Título */}
       <div className="my-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-2xl font-semibold text-gray-800 flex-shrink-0">
-          {isUserAdmin ? 'Todas as Turmas' : 'Minhas Turmas'}
+          {/* O título agora também usa 'canViewAll' */}
+          {canViewAll ? 'Todas as Turmas' : 'Minhas Turmas'}
         </h2>
         <div className="w-full md:flex-grow">
           <input 
@@ -129,7 +131,6 @@ function DashboardPage() {
         </div>
       </div>
       
-      {/* Exibição da Lista de Turmas */}
       {loadingClasses ? (
         <p>A carregar turmas...</p>
       ) : filteredClasses.length > 0 ? (
