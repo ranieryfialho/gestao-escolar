@@ -8,6 +8,7 @@ import { useUsers } from '../contexts/UserContext';
 import StudentImporter from '../components/StudentImporter';
 import Gradebook from '../components/Gradebook';
 import TransferStudentModal from '../components/TransferStudentModal';
+import SubGradesModal from '../components/SubGradesModal';
 
 // Função helper centralizada para chamar a nossa API
 const callApi = async (functionName, payload, token) => {
@@ -41,14 +42,13 @@ function ClassDetailsPage() {
   const [studentToTransfer, setStudentToTransfer] = useState(null);
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [filteredStudents, setFilteredStudents] = useState([]);
+  const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false);
+  const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null });
 
   // PERMISSÕES
   const isUserAdmin = userProfile && ["diretor", "coordenador", "admin"].includes(userProfile.role);
   const isUserFinancial = userProfile && userProfile.role === 'financeiro';
-  
-  // A role 'financeiro' não pode editar notas, então o diário será somente leitura.
   const isGradebookReadOnly = isUserFinancial; 
-  // Apenas admins podem fazer edições gerais (nome, professor, módulos, etc.)
   const canUserEditClass = isUserAdmin;
 
   useEffect(() => {
@@ -87,6 +87,7 @@ function ClassDetailsPage() {
     }
   };
 
+  // FUNÇÕES RESTAURADAS 👇
   const handleSaveName = async () => {
     if (newClassName.trim() === '') return alert("O nome da turma não pode ficar em branco.");
     await updateClass(turma.id, { name: newClassName });
@@ -149,6 +150,51 @@ function ClassDetailsPage() {
       () => handleCloseTransferModal()
     );
   };
+  
+  // Funções do Modal de Sub-Notas
+  const handleOpenSubGradesModal = (student, module) => {
+    setSelectedGradeData({ student, module });
+    setIsSubGradesModalOpen(true);
+  };
+
+  const handleCloseSubGradesModal = () => {
+    setIsSubGradesModalOpen(false);
+    setSelectedGradeData({ student: null, module: null });
+  };
+
+  const handleSaveSubGrades = async (newSubGrades) => {
+    const { student, module } = selectedGradeData;
+    if (!student || !module) return;
+
+    const gradesAsNumbers = Object.values(newSubGrades)
+      .map(g => parseFloat(String(g).replace(',', '.')))
+      .filter(g => !isNaN(g));
+    
+    const average = gradesAsNumbers.length > 0
+      ? (gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length)
+      : 0;
+
+    const updatedGradeObject = {
+      finalGrade: average.toFixed(1),
+      subGrades: newSubGrades
+    };
+
+    const currentStudentGrades = turma.students.find(s => s.id === student.id)?.grades || {};
+    const updatedGradesForStudent = {
+      ...currentStudentGrades,
+      [module.id]: updatedGradeObject
+    };
+
+    const updatedStudents = turma.students.map(s =>
+      s.id === student.id
+        ? { ...s, grades: updatedGradesForStudent }
+        : s
+    );
+
+    await updateClass(turma.id, { students: updatedStudents });
+    alert("Notas do módulo salvas com sucesso!");
+    handleCloseSubGradesModal();
+  };
 
   if (!turma) return <div className="p-8">A carregar turma...</div>;
 
@@ -193,8 +239,9 @@ function ClassDetailsPage() {
           modules={turma.modules || []} 
           onSaveGrades={handleSaveGrades} 
           onTransferClick={handleOpenTransferModal} 
-          isReadOnly={isGradebookReadOnly} // Passando a nova propriedade
-          canUserEdit={canUserEditClass}
+          isUserAdmin={canUserEditClass}
+          isReadOnly={isGradebookReadOnly}
+          onOpenSubGradesModal={handleOpenSubGradesModal}
         />
       </div>
 
@@ -209,27 +256,20 @@ function ClassDetailsPage() {
                       <h3 className="font-bold text-lg">{module.title}</h3>
                       <p className="text-gray-700 mt-1">{module.syllabus}</p>
                     </div>
-                    {canUserEditClass && (
-                      <button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>
-                    )}
+                    {canUserEditClass && (<button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>)}
                   </div>
                 ))
             ) : (<p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>)}
         </div>
       </div>
-
+      
       {/* Bloco 4: Zona de Perigo */}
       {isUserAdmin && (
         <div className="mt-10 border-t-2 border-red-200 pt-6">
           <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
           <div className="mt-4 bg-red-50 p-6 rounded-lg shadow-inner">
              <div className="flex flex-col sm:flex-row justify-between items-center">
-                <div>
-                   <h3 className="font-bold">Apagar esta Turma</h3>
-                   <p className="text-sm text-red-800 mt-1 max-w-2xl">
-                      Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita.
-                   </p>
-                </div>
+                <div> <h3 className="font-bold">Apagar esta Turma</h3> <p className="text-sm text-red-800 mt-1 max-w-2xl"> Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita. </p> </div>
                 <button onClick={handleDeleteClass} className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0">Apagar Turma</button>
              </div>
           </div>
@@ -244,6 +284,20 @@ function ClassDetailsPage() {
         currentClass={turma} 
         allClasses={classes} 
         onConfirmTransfer={handleConfirmTransfer}
+      />
+
+      {/* Modal de Sub-Notas */}
+      <SubGradesModal
+        isOpen={isSubGradesModalOpen}
+        onClose={handleCloseSubGradesModal}
+        module={selectedGradeData.module}
+        student={selectedGradeData.student}
+        currentGrades={
+          selectedGradeData.student && selectedGradeData.module
+            ? turma.students.find(s => s.id === selectedGradeData.student.id)?.grades?.[selectedGradeData.module.id]
+            : {}
+        }
+        onSave={handleSaveSubGrades}
       />
     </div>
   );
