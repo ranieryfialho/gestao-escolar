@@ -16,7 +16,8 @@ const isAdmin = async (idToken) => {
     const userDoc = await db.collection("users").doc(decodedToken.uid).get();
     if (userDoc.exists) {
       const userRole = userDoc.data().role;
-      return ["diretor", "coordenador", "admin"].includes(userRole);
+      // 'auxiliar_coordenacao' adicionado à lista
+      return ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userRole);
     }
     return false;
   } catch (error) {
@@ -28,7 +29,7 @@ const isAdmin = async (idToken) => {
 exports.createNewUserAccount = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") return res.status(405).send("Método não permitido");
-    
+
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) return res.status(403).json({ error: "Ação não autorizada." });
 
@@ -52,7 +53,7 @@ exports.updateUserProfile = functions.https.onRequest((req, res) => {
 
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) return res.status(403).json({ error: "Ação não autorizada." });
-    
+
     const { uid, name, role } = req.body;
     if (!uid || !name || !role) return res.status(400).json({ error: "Dados em falta." });
 
@@ -70,7 +71,7 @@ exports.updateUserProfile = functions.https.onRequest((req, res) => {
 exports.deleteUserAccount = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") return res.status(405).send("Método não permitido");
-    
+
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) return res.status(403).json({ error: "Ação não autorizada." });
 
@@ -130,9 +131,9 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
 
         const targetStudents = targetData.students || [];
         if (!targetStudents.some(s => s.id === studentData.id)) {
-           targetStudents.push(studentData);
+          targetStudents.push(studentData);
         }
-        
+
         transaction.update(sourceClassRef, { students: updatedSourceStudents });
         transaction.update(targetClassRef, { students: targetStudents });
       });

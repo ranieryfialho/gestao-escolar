@@ -46,7 +46,7 @@ function ClassDetailsPage() {
   const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null });
 
   // PERMISSÕES
-  const isUserAdmin = userProfile && ["diretor", "coordenador", "admin"].includes(userProfile.role);
+  const isUserAdmin = userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role);
   const isUserFinancial = userProfile && userProfile.role === 'financeiro';
   const isGradebookReadOnly = isUserFinancial; 
   const canUserEditClass = isUserAdmin;
