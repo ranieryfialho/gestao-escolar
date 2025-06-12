@@ -42,7 +42,14 @@ function ClassDetailsPage() {
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [filteredStudents, setFilteredStudents] = useState([]);
 
+  // PERMISSÕES
   const isUserAdmin = userProfile && ["diretor", "coordenador", "admin"].includes(userProfile.role);
+  const isUserFinancial = userProfile && userProfile.role === 'financeiro';
+  
+  // A role 'financeiro' não pode editar notas, então o diário será somente leitura.
+  const isGradebookReadOnly = isUserFinancial; 
+  // Apenas admins podem fazer edições gerais (nome, professor, módulos, etc.)
+  const canUserEditClass = isUserAdmin;
 
   useEffect(() => {
     const foundTurma = classes.find(c => c.id === turmaId);
@@ -152,20 +159,43 @@ function ClassDetailsPage() {
       {/* Bloco 1: Informações Gerais */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         {!isEditingName ? (
-          <div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>{isUserAdmin && <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">Editar</button>}</div>
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
+            {canUserEditClass && <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">Editar</button>}
+          </div>
         ) : (
-          <div className="flex items-center gap-2"><input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"/><button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">Salvar</button><button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">Cancelar</button></div>
+          <div className="flex items-center gap-2">
+            <input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"/>
+            <button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">Salvar</button>
+            <button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">Cancelar</button>
+          </div>
         )}
-        {isUserAdmin ? (
-          <div className="mt-4"><label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">Professor(a) Responsável:</label><select id="teacher-select" value={selectedTeacherId} onChange={handleTeacherChange} className="mt-1 block w-full md:w-1/2 p-2 border rounded-md"><option value="" disabled>Selecione um professor</option>{teacherList.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}</select></div>
+        {canUserEditClass ? (
+          <div className="mt-4">
+            <label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">Professor(a) Responsável:</label>
+            <select id="teacher-select" value={selectedTeacherId} onChange={handleTeacherChange} className="mt-1 block w-full md:w-1/2 p-2 border rounded-md">
+              <option value="" disabled>Selecione um professor</option>
+              {teacherList.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+            </select>
+          </div>
         ) : (<p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || 'A definir'}</p>)}
       </div>
 
       {/* Bloco 2: Alunos e Notas */}
       <div className="mt-10">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4"><h2 className="text-2xl font-semibold">Alunos e Notas</h2><input type="text" placeholder="Buscar por nome ou código do aluno..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="w-full md:w-1/3 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"/></div>
-        {isUserAdmin && <div className="my-4"><StudentImporter onStudentsImported={handleStudentsImported} /></div>}
-        <Gradebook students={filteredStudents} modules={turma.modules || []} onSaveGrades={handleSaveGrades} onTransferClick={handleOpenTransferModal} isUserAdmin={isUserAdmin}/>
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+          <h2 className="text-2xl font-semibold">Alunos e Notas</h2>
+          <input type="text" placeholder="Buscar por nome ou código do aluno..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="w-full md:w-1/3 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"/>
+        </div>
+        {canUserEditClass && <div className="my-4"><StudentImporter onStudentsImported={handleStudentsImported} /></div>}
+        <Gradebook 
+          students={filteredStudents} 
+          modules={turma.modules || []} 
+          onSaveGrades={handleSaveGrades} 
+          onTransferClick={handleOpenTransferModal} 
+          isReadOnly={isGradebookReadOnly} // Passando a nova propriedade
+          canUserEdit={canUserEditClass}
+        />
       </div>
 
       {/* Bloco 3: Módulos */}
@@ -173,12 +203,22 @@ function ClassDetailsPage() {
         <h2 className="text-2xl font-semibold">Módulos e Ementas da Turma</h2>
         <div className="mt-4 space-y-4">
             {(turma.modules && turma.modules.length > 0) ? (
-                turma.modules.map(module => (<div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start"><div><h3 className="font-bold text-lg">{module.title}</h3><p className="text-gray-700 mt-1">{module.syllabus}</p></div>{isUserAdmin && (<button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>)}</div>))
+                turma.modules.map(module => (
+                  <div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-lg">{module.title}</h3>
+                      <p className="text-gray-700 mt-1">{module.syllabus}</p>
+                    </div>
+                    {canUserEditClass && (
+                      <button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>
+                    )}
+                  </div>
+                ))
             ) : (<p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>)}
         </div>
       </div>
 
-      {/* Bloco 4: Zona de Perigo (Restaurado) */}
+      {/* Bloco 4: Zona de Perigo */}
       {isUserAdmin && (
         <div className="mt-10 border-t-2 border-red-200 pt-6">
           <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
@@ -197,7 +237,14 @@ function ClassDetailsPage() {
       )}
 
       {/* Modal de Transferência */}
-      <TransferStudentModal isOpen={isTransferModalOpen} onClose={handleCloseTransferModal} student={studentToTransfer} currentClass={turma} allClasses={classes} onConfirmTransfer={handleConfirmTransfer}/>
+      <TransferStudentModal 
+        isOpen={isTransferModalOpen} 
+        onClose={handleCloseTransferModal} 
+        student={studentToTransfer} 
+        currentClass={turma} 
+        allClasses={classes} 
+        onConfirmTransfer={handleConfirmTransfer}
+      />
     </div>
   );
 }

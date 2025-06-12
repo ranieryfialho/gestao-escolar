@@ -1,11 +1,11 @@
 // src/components/Gradebook.jsx
 import React, { useState, useEffect } from 'react';
 
-function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdmin }) {
+// 1. Adicionamos a nova prop 'isReadOnly'
+function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdmin, isReadOnly }) {
   const [grades, setGrades] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Efeito para inicializar o estado das notas, já formatadas
   useEffect(() => {
     const initialGrades = {};
     if (students) {
@@ -23,16 +23,17 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
     setGrades(initialGrades);
   }, [students]);
 
-  // Formata as notas que vêm do banco de dados
   const formatGradeOnLoad = (value) => {
     if (!value && value !== 0) return '';
     const num = parseFloat(String(value).replace(',', '.'));
     if (isNaN(num)) return '';
-    return num.toFixed(1); // Garante sempre uma casa decimal
+    return num.toFixed(1);
   };
 
-  // Lida com a alteração enquanto o usuário digita
   const handleGradeChange = (studentId, moduleId, value) => {
+    // 2. Trava de segurança para o modo de leitura
+    if (isReadOnly) return;
+
     const sanitizedValue = value.replace(/[^0-9,.]/g, '').replace(',', '.');
     if (parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return;
     setGrades(prev => ({
@@ -41,8 +42,10 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
     }));
   };
 
-  // Formata a nota com .0 quando o usuário sai do campo
   const handleGradeBlur = (studentId, moduleId, value) => {
+    // 3. Trava de segurança para o modo de leitura
+    if (isReadOnly) return;
+
     if (!value) return;
     const num = parseFloat(value.replace(',', '.'));
     if (!isNaN(num)) {
@@ -56,9 +59,9 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
 
   const handleSave = async () => {
     setIsSaving(true);
+    // A função onSaveGrades não precisa mais do alert, pois ele já estava no componente pai
     await onSaveGrades(grades);
     setIsSaving(false);
-    alert("Notas salvas com sucesso!");
   };
 
   const getGradeStyle = (grade) => {
@@ -79,11 +82,9 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
   return (
     <div className="mt-4">
       <div className="overflow-x-auto bg-white rounded-lg shadow">
-        {/* MUDANÇA: A tabela agora é 'table-auto' para se ajustar ao conteúdo */}
         <table className="w-full table-auto text-sm text-left text-gray-700">
           <thead className="text-xs text-gray-800 uppercase bg-gray-100 border-b-2">
             <tr>
-              {/* MUDANÇA: Padding e width ajustados */}
               <th scope="col" className="px-4 py-2 font-bold w-24">Código</th>
               <th scope="col" className="px-4 py-2 font-bold w-64">Aluno(a)</th>
               {modules.map(module => (
@@ -95,22 +96,26 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
           <tbody>
             {students.map(student => (
               <tr key={student.id} className="bg-white border-b hover:bg-blue-50">
-                {/* MUDANÇA: Padding ajustado */}
                 <td className="px-4 py-2 font-mono text-gray-500">{student.code}</td>
                 <th scope="row" className="px-4 py-2 font-bold text-gray-900">{student.name}</th>
                 {modules.map(module => {
                   const gradeValue = grades[student.id]?.[module.id] || '';
                   const cellStyle = getGradeStyle(gradeValue);
                   return (
-                    // MUDANÇA: Padding do input ajustado
-                    <td key={module.id} className={`p-1 text-center transition-colors ${cellStyle}`}>
+                    <td key={module.id} className={`p-1 text-center transition-colors ${!isReadOnly ? cellStyle : ''}`}>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={gradeValue}
                         onChange={(e) => handleGradeChange(student.id, module.id, e.target.value)}
                         onBlur={(e) => handleGradeBlur(student.id, module.id, e.target.value)}
-                        className={`w-16 text-center border-none rounded-md p-2 mx-auto block bg-transparent focus:ring-2 focus:ring-blue-500 ${cellStyle}`}
+                        // 4. Lógica para desabilitar e estilizar o input
+                        disabled={isReadOnly}
+                        className={`w-16 text-center border-none rounded-md p-2 mx-auto block 
+                          ${isReadOnly 
+                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                            : `bg-transparent focus:ring-2 focus:ring-blue-500 ${cellStyle}`
+                          }`}
                         placeholder="-"
                       />
                     </td>
@@ -126,15 +131,19 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, isUserAdm
           </tbody>
         </table>
       </div>
-      <div className="mt-6 flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="bg-blue-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-blue-700 transition shadow-lg"
-        >
-          {isSaving ? 'A salvar...' : 'Salvar Todas as Notas'}
-        </button>
-      </div>
+      
+      {/* 5. O botão de salvar só aparece se NÃO for somente leitura */}
+      {!isReadOnly && (
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-blue-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-wait transition shadow-lg"
+          >
+            {isSaving ? 'A salvar...' : 'Salvar Todas as Notas'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
