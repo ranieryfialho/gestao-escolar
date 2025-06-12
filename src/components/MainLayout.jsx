@@ -1,6 +1,9 @@
+// src/components/MainLayout.jsx
+
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Footer from './Footer';
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
@@ -11,7 +14,7 @@ const MainLayout = () => {
   const inactiveLinkClass = "text-blue-100 hover:bg-blue-500 hover:text-white";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50"> 
       <header className="bg-blue-600 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -32,7 +35,10 @@ const MainLayout = () => {
           </div>
         </div>
       </header>
-      <main><Outlet /></main>
+      <main className="flex-grow">
+        <Outlet />
+      </main>
+      <Footer />
     </div>
   );
 };
