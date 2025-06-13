@@ -133,10 +133,19 @@ function ClassDetailsPage() {
   }
 
   const handleStudentsImported = async (importedStudents) => {
-    const studentsWithGrades = importedStudents.map((s) => ({ ...s, grades: s.grades || {} }))
-    await updateClass(turma.id, { students: studentsWithGrades })
-    alert(`${importedStudents.length} alunos importados com sucesso!`)
-  }
+    if (!importedStudents || importedStudents.length === 0) {
+      alert("Nenhum aluno válido encontrado no arquivo.");
+      return;
+    }
+
+    await handleApiAction(
+      'importStudentsBatch',
+      {
+        classId: turma.id,
+        studentsToImport: importedStudents
+      }
+    );
+  };
 
   const handleSaveGrades = async (newGrades) => {
     if (!turma || !turma.students) return

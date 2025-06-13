@@ -89,7 +89,7 @@ exports.deleteUserAccount = functions.https.onRequest((req, res) => {
 });
 
 // ================================================================= //
-//      FUNÇÃO TRANSFERSTUDENT CORRIGIDA PARA onRequest              //
+//      FUNÇÃO TRANSFERSTUDENT                                       //
 // ================================================================= //
 
 exports.transferStudent = functions.https.onRequest((req, res) => {
@@ -152,11 +152,8 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
 //      NOVA FUNÇÃO PARA ADICIONAR ALUNO À COLEÇÃO E À TURMA         //
 // ================================================================= //
 
-// Em functions/index.js
-
 exports.addStudentToClass = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    // ... (verificações de método e permissão continuam iguais)
 
     const { classId, studentCode, studentName } = req.body.data;
     if (!classId || !studentCode || !studentName) { /* ... */ }
@@ -185,16 +182,97 @@ exports.addStudentToClass = functions.https.onRequest((req, res) => {
         name: studentName,
         grades: {}
       };
-      
+
       await classRef.update({
         students: admin.firestore.FieldValue.arrayUnion(newStudentForClass)
       });
-      
+
       return res.status(200).json({ message: 'Aluno adicionado com sucesso!' });
 
     } catch (error) {
       console.error("Erro ao adicionar aluno:", error);
       return res.status(500).json({ error: error.message });
+    }
+  });
+});
+
+// ================================================================= //
+//      NOVA FUNÇÃO PARA IMPORTAR ALUNOS EM MASSA (VIA EXCEL)        //
+// ================================================================= //
+exports.importStudentsBatch = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+
+    const { classId, studentsToImport } = req.body.data;
+
+    if (!classId || !Array.isArray(studentsToImport) || studentsToImport.length === 0) {
+      return res.status(400).json({ error: 'Dados inválidos para importar alunos.' });
+    }
+
+    const studentsRef = db.collection('students');
+    const classRef = db.collection('classes').doc(classId);
+
+    try {
+      const batch = db.batch();
+      const studentsForClassArray = [];
+      let skippedCount = 0;
+
+      for (const student of studentsToImport) {
+        if (!student.code || !student.name) continue;
+
+        const studentCodeStr = String(student.code);
+
+        const existingStudentQuery = await studentsRef.where('code', '==', studentCodeStr).limit(1).get();
+        if (!existingStudentQuery.empty) {
+          console.log(`Aluno com código ${studentCodeStr} já existe. Pulando.`);
+          skippedCount++;
+          continue;
+        }
+
+        const newStudentRef = studentsRef.doc();
+
+        batch.set(newStudentRef, {
+          name: student.name,
+          code: studentCodeStr,
+          currentClassId: classId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        studentsForClassArray.push({
+          studentId: newStudentRef.id,
+          code: studentCodeStr,
+          name: student.name,
+          grades: {}
+        });
+      }
+
+      if (studentsForClassArray.length > 0) {
+
+        batch.update(classRef, {
+          students: admin.firestore.FieldValue.arrayUnion(...studentsForClassArray)
+        });
+      }
+
+      await batch.commit();
+
+      const importedCount = studentsForClassArray.length;
+      let message = `${importedCount} aluno(s) importado(s) com sucesso!`;
+      if (skippedCount > 0) {
+        message += ` ${skippedCount} aluno(s) foram ignorados por já existirem.`;
+      }
+
+      return res.status(200).json({ message });
+
+    } catch (error) {
+      console.error("Erro ao importar alunos em massa:", error);
+      return res.status(500).json({ error: 'Ocorreu um erro ao importar os alunos.' });
     }
   });
 });
