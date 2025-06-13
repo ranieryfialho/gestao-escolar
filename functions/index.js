@@ -147,3 +147,57 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+// ================================================================= //
+//      NOVA FUNÇÃO PARA ADICIONAR ALUNO À COLEÇÃO E À TURMA         //
+// ================================================================= //
+
+exports.addStudentToClass = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") return res.status(405).send("Método não permitido");
+
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isAdmin(idToken))) return res.status(403).json({ error: "Ação não autorizada." });
+
+    const { classId, studentCode, studentName } = req.body.data;
+
+    if (!classId || !studentCode || !studentName) {
+      return res.status(400).json({ error: "Dados incompletos para adicionar aluno." });
+    }
+
+    const studentsRef = db.collection("students");
+    const classRef = db.collection("classes").doc(classId);
+
+    try {
+      // Verifica se já existe um aluno com o mesmo código
+      const existingStudentQuery = await studentsRef.where("code", "==", studentCode).limit(1).get();
+      if (!existingStudentQuery.empty) {
+        return res.status(400).json({ error: `Já existe um aluno cadastrado com o código ${studentCode}.` });
+      }
+
+      // 1. Cria o novo aluno na coleção principal 'students'
+      const newStudentRef = await studentsRef.add({
+        name: studentName,
+        code: studentCode,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 2. Adiciona a referência do aluno e as notas na turma
+      const newStudentForClass = {
+        studentId: newStudentRef.id,
+        code: studentCode,
+        name: studentName,
+        grades: {}
+      };
+      
+      await classRef.update({
+        students: admin.firestore.FieldValue.arrayUnion(newStudentForClass)
+      });
+      
+      return res.status(200).json({ message: "Aluno adicionado com sucesso!" });
+    } catch (error) {
+      console.error("Erro ao adicionar aluno:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+});

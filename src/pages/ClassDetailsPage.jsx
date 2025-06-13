@@ -1,244 +1,386 @@
+"use client"
+
 // src/pages/ClassDetailsPage.jsx
 
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useClasses } from '../contexts/ClassContext';
-import { useUsers } from '../contexts/UserContext';
-import StudentImporter from '../components/StudentImporter';
-import Gradebook from '../components/Gradebook';
-import TransferStudentModal from '../components/TransferStudentModal';
-import SubGradesModal from '../components/SubGradesModal';
+import { useState, useEffect } from "react"
+import { useParams, Link, useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import { useClasses } from "../contexts/ClassContext"
+import { useUsers } from "../contexts/UserContext"
+import StudentImporter from "../components/StudentImporter"
+import Gradebook from "../components/Gradebook"
+import TransferStudentModal from "../components/TransferStudentModal"
+import SubGradesModal from "../components/SubGradesModal"
+import AddStudentModal from "../components/AddStudentModal"
+import EditStudentModal from "../components/EditStudentModal" // Importa o modal de edição
+import { UserPlus } from "lucide-react"
 
-// Função helper centralizada para chamar a nossa API
 const callApi = async (functionName, payload, token) => {
-  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
+  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`
   const response = await fetch(functionUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ data: payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Ocorreu um erro no servidor.');
-  return result;
-};
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error || "Ocorreu um erro no servidor.")
+  return result
+}
 
 function ClassDetailsPage() {
-  const { turmaId } = useParams();
-  const navigate = useNavigate();
-  const { userProfile, firebaseUser } = useAuth();
-  const { classes, updateClass, deleteClass } = useClasses();
-  const { users } = useUsers();
+  const { turmaId } = useParams()
+  const navigate = useNavigate()
+  const { userProfile, firebaseUser } = useAuth()
+  const { classes, updateClass, deleteClass } = useClasses()
+  const { users } = useUsers()
 
-  const [turma, setTurma] = useState(null);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [newClassName, setNewClassName] = useState('');
-  const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  const [teacherList, setTeacherList] = useState([]);
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [studentToTransfer, setStudentToTransfer] = useState(null);
-  const [studentSearchTerm, setStudentSearchTerm] = useState('');
-  const [filteredStudents, setFilteredStudents] = useState([]);
-  const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false);
-  const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null });
+  const [turma, setTurma] = useState(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [newClassName, setNewClassName] = useState("")
+  const [selectedTeacherId, setSelectedTeacherId] = useState("")
+  const [teacherList, setTeacherList] = useState([])
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+  const [studentToTransfer, setStudentToTransfer] = useState(null)
+  const [studentSearchTerm, setStudentSearchTerm] = useState("")
+  const [filteredStudents, setFilteredStudents] = useState([])
+  const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false)
+  const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null })
+
+  // Estados para o modal de adicionar aluno
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false)
+
+  // Estados para o modal de edição
+  const [isEditStudentModalOpen, setIsEditStudentModalOpen] = useState(false)
+  const [studentToEdit, setStudentToEdit] = useState(null)
 
   // PERMISSÕES
-  const isUserAdmin = userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role);
-  const isUserFinancial = userProfile && userProfile.role === 'financeiro';
-  const isGradebookReadOnly = isUserFinancial; 
-  const canUserEditClass = isUserAdmin;
+  const isUserAdmin =
+    userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
+  const isUserFinancial = userProfile && userProfile.role === "financeiro"
+  const isGradebookReadOnly = isUserFinancial
+  const canUserEditClass = isUserAdmin
 
   useEffect(() => {
-    const foundTurma = classes.find(c => c.id === turmaId);
+    const foundTurma = classes.find((c) => c.id === turmaId)
     if (foundTurma) {
-      setTurma(foundTurma);
-      setNewClassName(foundTurma.name);
-      setSelectedTeacherId(foundTurma.professorId || '');
-      
-      const students = foundTurma.students || [];
-      if (studentSearchTerm === '') {
-        setFilteredStudents(students);
+      setTurma(foundTurma)
+      setNewClassName(foundTurma.name)
+      setSelectedTeacherId(foundTurma.professorId || "")
+
+      const students = foundTurma.students || []
+      if (studentSearchTerm === "") {
+        setFilteredStudents(students)
       } else {
-        const results = students.filter(student => 
-          student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
-          student.code.toString().toLowerCase().includes(studentSearchTerm.toLowerCase())
-        );
-        setFilteredStudents(results);
+        const results = students.filter(
+          (student) =>
+            student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+            student.code.toString().toLowerCase().includes(studentSearchTerm.toLowerCase()),
+        )
+        setFilteredStudents(results)
       }
     }
-    const rolesPermitidos = ['professor', 'coordenador', 'auxiliar_coordenacao'];
-    const filteredTeachers = users.filter(user => rolesPermitidos.includes(user.role));
-    setTeacherList(filteredTeachers);
-  }, [turmaId, classes, users, studentSearchTerm]);
+    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao"]
+    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role))
+    setTeacherList(filteredTeachers)
+  }, [turmaId, classes, users, studentSearchTerm])
 
   const handleApiAction = async (action, payload, successCallback) => {
     try {
-      if (!firebaseUser) throw new Error("Usuário não autenticado.");
-      const token = await firebaseUser.getIdToken();
-      const result = await callApi(action, payload, token);
-      alert(result.message);
-      if (successCallback) successCallback();
+      if (!firebaseUser) throw new Error("Usuário não autenticado.")
+      const token = await firebaseUser.getIdToken()
+      const result = await callApi(action, payload, token)
+      alert(result.message)
+      if (successCallback) successCallback()
     } catch (error) {
-      console.error(`Erro ao executar ${action}:`, error);
-      alert(`Erro: ${error.message}`);
+      console.error(`Erro ao executar ${action}:`, error)
+      alert(`Erro: ${error.message}`)
     }
-  };
+  }
 
-  // FUNÇÕES RESTAURADAS 👇
   const handleSaveName = async () => {
-    if (newClassName.trim() === '') return alert("O nome da turma não pode ficar em branco.");
-    await updateClass(turma.id, { name: newClassName });
-    setIsEditingName(false);
-  };
+    if (newClassName.trim() === "") return alert("O nome da turma não pode ficar em branco.")
+    await updateClass(turma.id, { name: newClassName })
+    setIsEditingName(false)
+  }
 
   const handleTeacherChange = async (e) => {
-    const newTeacherId = e.target.value;
-    const selectedTeacher = teacherList.find(t => t.id === newTeacherId);
+    const newTeacherId = e.target.value
+    const selectedTeacher = teacherList.find((t) => t.id === newTeacherId)
     if (selectedTeacher) {
       await updateClass(turma.id, {
         professorId: selectedTeacher.id,
         professorName: selectedTeacher.name,
-      });
-      setSelectedTeacherId(newTeacherId);
+      })
+      setSelectedTeacherId(newTeacherId)
     }
-  };
+  }
 
   const handleDeleteClass = async () => {
     if (window.confirm("Tem a certeza que deseja apagar esta turma? Esta ação é irreversível.")) {
-      await deleteClass(turma.id);
-      navigate('/dashboard');
+      await deleteClass(turma.id)
+      navigate("/dashboard")
     }
-  };
+  }
 
   const handleRemoveModule = async (moduleIdToRemove) => {
     if (window.confirm("Tem a certeza que deseja remover este módulo da grade da turma?")) {
-      const updatedModules = turma.modules.filter(module => module.id !== moduleIdToRemove);
-      await updateClass(turma.id, { modules: updatedModules });
+      const updatedModules = turma.modules.filter((module) => module.id !== moduleIdToRemove)
+      await updateClass(turma.id, { modules: updatedModules })
     }
-  };
+  }
 
   const handleStudentsImported = async (importedStudents) => {
-    const studentsWithGrades = importedStudents.map(s => ({ ...s, grades: s.grades || {} }));
-    await updateClass(turma.id, { students: studentsWithGrades });
-    alert(`${importedStudents.length} alunos importados com sucesso!`);
-  };
+    const studentsWithGrades = importedStudents.map((s) => ({ ...s, grades: s.grades || {} }))
+    await updateClass(turma.id, { students: studentsWithGrades })
+    alert(`${importedStudents.length} alunos importados com sucesso!`)
+  }
 
   const handleSaveGrades = async (newGrades) => {
-    if (!turma || !turma.students) return;
-    const updatedStudents = turma.students.map(s => ({ ...s, grades: { ...s.grades, ...newGrades[s.id] } }));
-    await updateClass(turma.id, { students: updatedStudents });
-    alert("Notas salvas com sucesso!");
-  };
+    if (!turma || !turma.students) return
+    const updatedStudents = turma.students.map((s) => ({ ...s, grades: { ...s.grades, ...newGrades[s.id] } }))
+    await updateClass(turma.id, { students: updatedStudents })
+    alert("Notas salvas com sucesso!")
+  }
 
   const handleOpenTransferModal = (student) => {
-    setStudentToTransfer(student);
-    setIsTransferModalOpen(true);
-  };
+    setStudentToTransfer(student)
+    setIsTransferModalOpen(true)
+  }
 
   const handleCloseTransferModal = () => {
-    setIsTransferModalOpen(false);
-    setStudentToTransfer(null);
-  };
+    setIsTransferModalOpen(false)
+    setStudentToTransfer(null)
+  }
 
   const handleConfirmTransfer = async (studentData, sourceClassId, targetClassId) => {
-    await handleApiAction(
-      'transferStudent',
-      { studentData, sourceClassId, targetClassId },
-      () => handleCloseTransferModal()
-    );
-  };
-  
+    await handleApiAction("transferStudent", { studentData, sourceClassId, targetClassId }, () =>
+      handleCloseTransferModal(),
+    )
+  }
+
   // Funções do Modal de Sub-Notas
   const handleOpenSubGradesModal = (student, module) => {
-    setSelectedGradeData({ student, module });
-    setIsSubGradesModalOpen(true);
-  };
+    setSelectedGradeData({ student, module })
+    setIsSubGradesModalOpen(true)
+  }
 
   const handleCloseSubGradesModal = () => {
-    setIsSubGradesModalOpen(false);
-    setSelectedGradeData({ student: null, module: null });
-  };
+    setIsSubGradesModalOpen(false)
+    setSelectedGradeData({ student: null, module: null })
+  }
 
   const handleSaveSubGrades = async (newSubGrades) => {
-    const { student, module } = selectedGradeData;
-    if (!student || !module) return;
+    const { student, module } = selectedGradeData
+    if (!student || !module) return
 
     const gradesAsNumbers = Object.values(newSubGrades)
-      .map(g => parseFloat(String(g).replace(',', '.')))
-      .filter(g => !isNaN(g));
-    
-    const average = gradesAsNumbers.length > 0
-      ? (gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length)
-      : 0;
+      .map((g) => Number.parseFloat(String(g).replace(",", ".")))
+      .filter((g) => !isNaN(g))
+
+    const average = gradesAsNumbers.length > 0 ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length : 0
 
     const updatedGradeObject = {
       finalGrade: average.toFixed(1),
-      subGrades: newSubGrades
-    };
+      subGrades: newSubGrades,
+    }
 
-    const currentStudentGrades = turma.students.find(s => s.id === student.id)?.grades || {};
+    const currentStudentGrades = turma.students.find((s) => s.id === student.id)?.grades || {}
     const updatedGradesForStudent = {
       ...currentStudentGrades,
-      [module.id]: updatedGradeObject
-    };
+      [module.id]: updatedGradeObject,
+    }
 
-    const updatedStudents = turma.students.map(s =>
-      s.id === student.id
-        ? { ...s, grades: updatedGradesForStudent }
-        : s
+    const updatedStudents = turma.students.map((s) =>
+      s.id === student.id ? { ...s, grades: updatedGradesForStudent } : s,
+    )
+
+    await updateClass(turma.id, { students: updatedStudents })
+    alert("Notas do módulo salvas com sucesso!")
+    handleCloseSubGradesModal()
+  }
+
+  // Funções para controlar o modal de adicionar aluno
+  const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)
+  const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false)
+
+  const handleAddStudent = async (newStudentData) => {
+    await handleApiAction(
+      'addStudentToClass',
+      {
+        classId: turma.id,
+        studentCode: newStudentData.code,
+        studentName: newStudentData.name
+      },
+      () => handleCloseAddStudentModal()
     );
-
-    await updateClass(turma.id, { students: updatedStudents });
-    alert("Notas do módulo salvas com sucesso!");
-    handleCloseSubGradesModal();
   };
 
-  if (!turma) return <div className="p-8">A carregar turma...</div>;
+  // Funções para controlar o modal de edição de aluno
+  const handleOpenEditStudentModal = (student) => {
+    setStudentToEdit(student)
+    setIsEditStudentModalOpen(true)
+  }
+
+  const handleCloseEditStudentModal = () => {
+    setIsEditStudentModalOpen(false)
+    setStudentToEdit(null)
+  }
+
+  const handleUpdateStudent = async (updatedStudentData) => {
+    if (!turma) return
+
+    // Verifica se o novo código já pertence a OUTRO aluno na turma
+    const codeExists = turma.students.some(
+      (student) => student.code === updatedStudentData.code && student.id !== updatedStudentData.id,
+    )
+
+    if (codeExists) {
+      alert("Erro: Já existe outro aluno com este código na turma.")
+      return
+    }
+
+    const updatedStudents = turma.students.map((student) => {
+      if (student.id === updatedStudentData.id) {
+        // Retorna o aluno com os dados atualizados
+        return { ...student, name: updatedStudentData.name, code: updatedStudentData.code }
+      }
+      return student
+    })
+
+    try {
+      await updateClass(turma.id, { students: updatedStudents })
+      alert("Dados do aluno atualizados com sucesso!")
+      handleCloseEditStudentModal()
+    } catch (error) {
+      alert("Erro ao atualizar dados do aluno.")
+      console.error(error)
+    }
+  }
+
+  const handleDeleteStudent = async (studentId) => {
+    if (!turma || !turma.students) return
+
+    const studentNameToDelete = turma.students.find((s) => s.id === studentId)?.name || "este aluno"
+
+    if (
+      window.confirm(
+        `Tem certeza que deseja remover "${studentNameToDelete}" da turma? Todas as suas notas serão perdidas.`,
+      )
+    ) {
+      const updatedStudents = turma.students.filter((student) => student.id !== studentId)
+
+      try {
+        await updateClass(turma.id, { students: updatedStudents })
+        alert("Aluno removido com sucesso.")
+      } catch (error) {
+        alert("Erro ao remover o aluno.")
+        console.error("Erro ao remover aluno:", error)
+      }
+    }
+  }
+
+  if (!turma) return <div className="p-8">A carregar turma...</div>
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <Link to="/dashboard" className="text-blue-600 hover:underline mb-6 block">&larr; Voltar para o Dashboard</Link>
+      <Link to="/dashboard" className="text-blue-600 hover:underline mb-6 block">
+        &larr; Voltar para o Dashboard
+      </Link>
 
       {/* Bloco 1: Informações Gerais */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         {!isEditingName ? (
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
-            {canUserEditClass && <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">Editar</button>}
+            {canUserEditClass && (
+              <button onClick={() => setIsEditingName(true)} className="text-sm text-blue-600 font-semibold">
+                Editar
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <input type="text" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"/>
-            <button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">Salvar</button>
-            <button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">Cancelar</button>
+            <input
+              type="text"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+              className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"
+            />
+            <button onClick={handleSaveName} className="bg-green-500 text-white px-3 py-1 rounded">
+              Salvar
+            </button>
+            <button onClick={() => setIsEditingName(false)} className="text-sm text-gray-500">
+              Cancelar
+            </button>
           </div>
         )}
         {canUserEditClass ? (
           <div className="mt-4">
-            <label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">Professor(a) Responsável:</label>
-            <select id="teacher-select" value={selectedTeacherId} onChange={handleTeacherChange} className="mt-1 block w-full md:w-1/2 p-2 border rounded-md">
-              <option value="" disabled>Selecione um professor</option>
-              {teacherList.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+            <label htmlFor="teacher-select" className="block text-sm font-medium text-gray-700">
+              Professor(a) Responsável:
+            </label>
+            <select
+              id="teacher-select"
+              value={selectedTeacherId}
+              onChange={handleTeacherChange}
+              className="mt-1 block w-full md:w-1/2 p-2 border rounded-md"
+            >
+              <option value="" disabled>
+                Selecione um professor
+              </option>
+              {teacherList.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.name}
+                </option>
+              ))}
             </select>
           </div>
-        ) : (<p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || 'A definir'}</p>)}
+        ) : (
+          <p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || "A definir"}</p>
+        )}
       </div>
 
       {/* Bloco 2: Alunos e Notas */}
       <div className="mt-10">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
           <h2 className="text-2xl font-semibold">Alunos e Notas</h2>
-          <input type="text" placeholder="Buscar por nome ou código do aluno..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="w-full md:w-1/3 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"/>
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              placeholder="Buscar por nome ou código do aluno..."
+              value={studentSearchTerm}
+              onChange={(e) => setStudentSearchTerm(e.target.value)}
+              className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+            />
+
+            {canUserEditClass && (
+              <button
+                onClick={handleOpenAddStudentModal}
+                className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"
+              >
+                <UserPlus size={18} />
+                <span>Adicionar</span>
+              </button>
+            )}
+          </div>
         </div>
-        {canUserEditClass && <div className="my-4"><StudentImporter onStudentsImported={handleStudentsImported} /></div>}
-        <Gradebook 
-          students={filteredStudents} 
-          modules={turma.modules || []} 
-          onSaveGrades={handleSaveGrades} 
-          onTransferClick={handleOpenTransferModal} 
+
+        {canUserEditClass && (
+          <div className="my-4">
+            <StudentImporter onStudentsImported={handleStudentsImported} />
+          </div>
+        )}
+
+        <Gradebook
+          students={filteredStudents}
+          modules={turma.modules || []}
+          onSaveGrades={handleSaveGrades}
+          onTransferClick={handleOpenTransferModal}
+          onEditClick={handleOpenEditStudentModal} // Passa a função correta de edição
+          onDeleteClick={handleDeleteStudent}
           isUserAdmin={canUserEditClass}
           isReadOnly={isGradebookReadOnly}
           onOpenSubGradesModal={handleOpenSubGradesModal}
@@ -249,40 +391,60 @@ function ClassDetailsPage() {
       <div className="mt-10">
         <h2 className="text-2xl font-semibold">Módulos e Ementas da Turma</h2>
         <div className="mt-4 space-y-4">
-            {(turma.modules && turma.modules.length > 0) ? (
-                turma.modules.map(module => (
-                  <div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg">{module.title}</h3>
-                      <p className="text-gray-700 mt-1">{module.syllabus}</p>
-                    </div>
-                    {canUserEditClass && (<button onClick={() => handleRemoveModule(module.id)} className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0">Remover</button>)}
-                  </div>
-                ))
-            ) : (<p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>)}
+          {turma.modules && turma.modules.length > 0 ? (
+            turma.modules.map((module) => (
+              <div key={module.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-lg">{module.title}</h3>
+                  <p className="text-gray-700 mt-1">{module.syllabus}</p>
+                </div>
+                {canUserEditClass && (
+                  <button
+                    onClick={() => handleRemoveModule(module.id)}
+                    className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0"
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500 bg-white p-4 rounded-lg shadow">Nenhum módulo cadastrado para esta turma.</p>
+          )}
         </div>
       </div>
-      
+
       {/* Bloco 4: Zona de Perigo */}
       {isUserAdmin && (
         <div className="mt-10 border-t-2 border-red-200 pt-6">
           <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
           <div className="mt-4 bg-red-50 p-6 rounded-lg shadow-inner">
-             <div className="flex flex-col sm:flex-row justify-between items-center">
-                <div> <h3 className="font-bold">Apagar esta Turma</h3> <p className="text-sm text-red-800 mt-1 max-w-2xl"> Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita. </p> </div>
-                <button onClick={handleDeleteClass} className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0">Apagar Turma</button>
-             </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center">
+              <div>
+                <h3 className="font-bold">Apagar esta Turma</h3>
+                <p className="text-sm text-red-800 mt-1 max-w-2xl">
+                  Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não
+                  pode ser desfeita.
+                </p>
+              </div>
+              <button
+                onClick={handleDeleteClass}
+                className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0"
+              >
+                Apagar Turma
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Modal de Transferência */}
-      <TransferStudentModal 
-        isOpen={isTransferModalOpen} 
-        onClose={handleCloseTransferModal} 
-        student={studentToTransfer} 
-        currentClass={turma} 
-        allClasses={classes} 
+      <TransferStudentModal
+        isOpen={isTransferModalOpen}
+        onClose={handleCloseTransferModal}
+        student={studentToTransfer}
+        currentClass={turma}
+        allClasses={classes}
         onConfirmTransfer={handleConfirmTransfer}
       />
 
@@ -294,13 +456,24 @@ function ClassDetailsPage() {
         student={selectedGradeData.student}
         currentGrades={
           selectedGradeData.student && selectedGradeData.module
-            ? turma.students.find(s => s.id === selectedGradeData.student.id)?.grades?.[selectedGradeData.module.id]
+            ? turma.students.find((s) => s.id === selectedGradeData.student.id)?.grades?.[selectedGradeData.module.id]
             : {}
         }
         onSave={handleSaveSubGrades}
       />
+
+      {/* Modal de Adicionar Aluno */}
+      <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
+
+      {/* Modal de Editar Aluno */}
+      <EditStudentModal
+        isOpen={isEditStudentModalOpen}
+        onClose={handleCloseEditStudentModal}
+        onSave={handleUpdateStudent}
+        studentToEdit={studentToEdit}
+      />
     </div>
-  );
+  )
 }
 
-export default ClassDetailsPage;
+export default ClassDetailsPage
