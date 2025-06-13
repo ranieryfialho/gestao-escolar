@@ -98,19 +98,22 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
       return res.status(405).send("Método não permitido");
     }
 
-    // Usamos a sua função helper 'isAdmin' para consistência
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
     }
 
-    // Lemos os dados do corpo do pedido, que o seu frontend encapsula em 'data'
     const { studentData, sourceClassId, targetClassId } = req.body.data;
 
     if (!studentData || !sourceClassId || !targetClassId || sourceClassId === targetClassId) {
       return res.status(400).json({ error: 'Dados inválidos para a transferência.' });
     }
 
+    if (!studentData.studentId) {
+        return res.status(400).json({ error: 'Dados do aluno inválidos, studentId não encontrado.' });
+    }
+
+    const db = admin.firestore();
     const sourceClassRef = db.collection('classes').doc(sourceClassId);
     const targetClassRef = db.collection('classes').doc(targetClassId);
 
@@ -127,18 +130,24 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
         const targetData = targetDoc.data();
 
         const sourceStudents = sourceData.students || [];
-        const updatedSourceStudents = sourceStudents.filter(s => s.id !== studentData.id);
+        const updatedSourceStudents = sourceStudents.filter(s => s.studentId !== studentData.studentId);
 
-        const targetStudents = targetData.students || [];
-        if (!targetStudents.some(s => s.id === studentData.id)) {
-          targetStudents.push(studentData);
+        if (updatedSourceStudents.length === sourceStudents.length) {
+            throw new Error(`Aluno com ID ${studentData.studentId} não foi encontrado na turma de origem.`);
         }
 
+        const targetStudents = targetData.students || [];
+        if (targetStudents.some(s => s.studentId === studentData.studentId)) {
+          console.log(`Aluno ${studentData.studentId} já existe na turma de destino.`);
+        } else {
+           targetStudents.push(studentData);
+        }
+        
         transaction.update(sourceClassRef, { students: updatedSourceStudents });
         transaction.update(targetClassRef, { students: targetStudents });
       });
 
-      console.log(`Aluno ${studentData.id} transferido com sucesso da turma ${sourceClassId} para ${targetClassId}.`);
+      console.log(`Aluno ${studentData.studentId} transferido com sucesso da turma ${sourceClassId} para ${targetClassId}.`);
       return res.status(200).json({ message: 'Aluno transferido com sucesso!' });
 
     } catch (error) {

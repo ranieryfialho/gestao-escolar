@@ -149,7 +149,7 @@ function ClassDetailsPage() {
 
   const handleSaveGrades = async (newGrades) => {
     if (!turma || !turma.students) return
-    const updatedStudents = turma.students.map((s) => ({ ...s, grades: { ...s.grades, ...newGrades[s.id] } }))
+    const updatedStudents = turma.students.map(s => ({ ...s, grades: { ...s.grades, ...newGrades[s.studentId || s.id] } }));
     await updateClass(turma.id, { students: updatedStudents })
     alert("Notas salvas com sucesso!")
   }
