@@ -220,13 +220,17 @@ exports.importStudentsBatch = functions.https.onRequest((req, res) => {
     const classRef = db.collection('classes').doc(classId);
 
     try {
-      const batch = db.batch();
-      const studentsForClassArray = [];
       let skippedCount = 0;
+      let importedCount = 0;
+
+      const classDoc = await classRef.get();
+      if (!classDoc.exists) {
+        throw new Error("A turma de destino não foi encontrada.");
+      }
+      const existingStudentsInClass = classDoc.data().students || [];
 
       for (const student of studentsToImport) {
         if (!student.code || !student.name) continue;
-
         const studentCodeStr = String(student.code);
 
         const existingStudentQuery = await studentsRef.where('code', '==', studentCodeStr).limit(1).get();
@@ -236,38 +240,29 @@ exports.importStudentsBatch = functions.https.onRequest((req, res) => {
           continue;
         }
 
-        const newStudentRef = studentsRef.doc();
-
-        batch.set(newStudentRef, {
+        const newStudentRef = await studentsRef.add({
           name: student.name,
           code: studentCodeStr,
           currentClassId: classId,
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        studentsForClassArray.push({
+        existingStudentsInClass.push({
           studentId: newStudentRef.id,
           code: studentCodeStr,
           name: student.name,
           grades: {}
         });
+        importedCount++;
       }
 
-      if (studentsForClassArray.length > 0) {
+      await classRef.update({ students: existingStudentsInClass });
 
-        batch.update(classRef, {
-          students: admin.firestore.FieldValue.arrayUnion(...studentsForClassArray)
-        });
-      }
-
-      await batch.commit();
-
-      const importedCount = studentsForClassArray.length;
       let message = `${importedCount} aluno(s) importado(s) com sucesso!`;
       if (skippedCount > 0) {
         message += ` ${skippedCount} aluno(s) foram ignorados por já existirem.`;
       }
-
+      
       return res.status(200).json({ message });
 
     } catch (error) {

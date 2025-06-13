@@ -1,4 +1,4 @@
-// src/components/Gradebook.jsx
+// src/components/Gradebook.jsx (CÓDIGO COMPLETO E CORRIGIDO)
 import React, { useState, useEffect } from 'react';
 import { Pencil, Trash2, ArrowRightLeft } from 'lucide-react';
 
@@ -21,7 +21,7 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, onEditCli
             }
           });
         }
-        initialGrades[student.id] = studentGrades;
+        initialGrades[student.studentId || student.id] = studentGrades;
       });
     }
     setGrades(initialGrades);
@@ -87,12 +87,13 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, onEditCli
           </thead>
           <tbody>
             {students.map(student => (
-              <tr key={student.id} className="bg-white border-b hover:bg-blue-50">
+              <tr key={student.studentId || student.id} className="bg-white border-b hover:bg-blue-50">
                 <td className="px-4 py-2 font-mono text-gray-500">{student.code}</td>
                 <th scope="row" className="px-4 py-2 font-bold text-gray-900">{student.name}</th>
                 
                 {modules.map(module => {
-                  const gradeValue = grades[student.id]?.[module.id];
+                  const studentId = student.studentId || student.id;
+                  const gradeValue = grades[studentId]?.[module.id];
                   if (module.subGrades) {
                     const finalGrade = gradeValue?.finalGrade ? formatGradeOnLoad(gradeValue.finalGrade) : '-';
                     const cellStyle = getGradeStyle(finalGrade);
@@ -108,7 +109,7 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, onEditCli
                     const cellStyle = getGradeStyle(gradeValue);
                     return (
                       <td key={module.id} className={`p-1 text-center transition-colors ${!isReadOnly ? cellStyle : ''}`}>
-                        <input type="text" inputMode="decimal" value={gradeValue || ''} onChange={(e) => handleGradeChange(student.id, module.id, e.target.value)} onBlur={(e) => handleGradeBlur(student.id, module.id, e.target.value)} disabled={isReadOnly} className={`w-16 text-center border-none rounded-md p-2 mx-auto block ${ isReadOnly ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : `bg-transparent focus:ring-2 focus:ring-blue-500 ${cellStyle}`}`} placeholder="-" />
+                        <input type="text" inputMode="decimal" value={gradeValue || ''} onChange={(e) => handleGradeChange(studentId, module.id, e.target.value)} onBlur={(e) => handleGradeBlur(studentId, module.id, e.target.value)} disabled={isReadOnly} className={`w-16 text-center border-none rounded-md p-2 mx-auto block ${ isReadOnly ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : `bg-transparent focus:ring-2 focus:ring-blue-500 ${cellStyle}`}`} placeholder="-" />
                       </td>
                     );
                   }
@@ -123,7 +124,7 @@ function Gradebook({ students, modules, onSaveGrades, onTransferClick, onEditCli
                       <button onClick={() => onTransferClick(student)} className="text-gray-500 hover:text-green-600 transition-colors" title="Transferir Aluno">
                         <ArrowRightLeft size={16} />
                       </button>
-                      <button onClick={() => onDeleteClick(student.id)} className="text-gray-500 hover:text-red-600 transition-colors" title="Apagar Aluno">
+                      <button onClick={() => onDeleteClick(student.studentId || student.id)} className="text-gray-500 hover:text-red-600 transition-colors" title="Apagar Aluno">
                         <Trash2 size={16} />
                       </button>
                     </div>

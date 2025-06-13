@@ -19,8 +19,7 @@ function EditStudentModal({ isOpen, onClose, onSave, studentToEdit }) {
       alert('Por favor, preencha o código e o nome do aluno.');
       return;
     }
-    // Passa o ID do aluno junto com os dados atualizados
-    onSave({ id: studentToEdit.id, code, name });
+    onSave({ id: studentToEdit.studentId || studentToEdit.id, code, name });
   };
 
   if (!isOpen) return null;

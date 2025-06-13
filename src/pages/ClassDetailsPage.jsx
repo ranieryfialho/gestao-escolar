@@ -239,57 +239,56 @@ function ClassDetailsPage() {
   }
 
   const handleUpdateStudent = async (updatedStudentData) => {
-    if (!turma) return
+    if (!turma) return;
+    const { id, code, name } = updatedStudentData;
 
-    // Verifica se o novo código já pertence a OUTRO aluno na turma
     const codeExists = turma.students.some(
-      (student) => student.code === updatedStudentData.code && student.id !== updatedStudentData.id,
-    )
+      (s) => s.code === code && (s.studentId || s.id) !== id,
+    );
 
     if (codeExists) {
-      alert("Erro: Já existe outro aluno com este código na turma.")
-      return
+      alert("Erro: Já existe outro aluno com este código na turma.");
+      return;
     }
 
     const updatedStudents = turma.students.map((student) => {
-      if (student.id === updatedStudentData.id) {
-        // Retorna o aluno com os dados atualizados
-        return { ...student, name: updatedStudentData.name, code: updatedStudentData.code }
+      if ((student.studentId || student.id) === id) {
+        return { ...student, name: name, code: code };
       }
-      return student
-    })
+      return student;
+    });
 
     try {
-      await updateClass(turma.id, { students: updatedStudents })
-      alert("Dados do aluno atualizados com sucesso!")
-      handleCloseEditStudentModal()
+      await updateClass(turma.id, { students: updatedStudents });
+      alert("Dados do aluno atualizados com sucesso!");
+      handleCloseEditStudentModal();
     } catch (error) {
-      alert("Erro ao atualizar dados do aluno.")
-      console.error(error)
+      alert("Erro ao atualizar dados do aluno.");
+      console.error(error);
     }
-  }
+  };
 
   const handleDeleteStudent = async (studentId) => {
-    if (!turma || !turma.students) return
+    if (!turma || !turma.students) return;
 
-    const studentNameToDelete = turma.students.find((s) => s.id === studentId)?.name || "este aluno"
+    const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno";
 
     if (
       window.confirm(
         `Tem certeza que deseja remover "${studentNameToDelete}" da turma? Todas as suas notas serão perdidas.`,
       )
     ) {
-      const updatedStudents = turma.students.filter((student) => student.id !== studentId)
+      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId);
 
       try {
-        await updateClass(turma.id, { students: updatedStudents })
-        alert("Aluno removido com sucesso.")
+        await updateClass(turma.id, { students: updatedStudents });
+        alert("Aluno removido com sucesso.");
       } catch (error) {
-        alert("Erro ao remover o aluno.")
-        console.error("Erro ao remover aluno:", error)
+        alert("Erro ao remover o aluno.");
+        console.error("Erro ao remover aluno:", error);
       }
     }
-  }
+  };
 
   if (!turma) return <div className="p-8">A carregar turma...</div>
 

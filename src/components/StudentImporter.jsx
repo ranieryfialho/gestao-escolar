@@ -1,15 +1,11 @@
-// src/components/StudentImporter.jsx
+// src/components/StudentImporter.jsx (CORRIGIDO)
 
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 
-// Função helper para "limpar" e normalizar os nomes dos cabeçalhos
 const normalizeHeader = (header) => {
   if (typeof header !== 'string') return '';
-  return header
-    .trim() // Remove espaços no início e no fim
-    .toLowerCase() // Converte para minúsculas
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+  return header.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
 function StudentImporter({ onStudentsImported }) {
@@ -33,12 +29,9 @@ function StudentImporter({ onStudentsImported }) {
         const json = XLSX.utils.sheet_to_json(worksheet);
 
         if (json.length === 0) {
-          alert("A planilha parece estar vazia ou num formato incorreto.");
-          setLoading(false);
-          return;
+          throw new Error("A planilha parece estar vazia ou num formato incorreto.");
         }
 
-        // --- LÓGICA DE DETECÇÃO INTELIGENTE DE CABEÇALHOS ---
         const firstStudent = json[0];
         const headers = Object.keys(firstStudent);
         
@@ -48,14 +41,10 @@ function StudentImporter({ onStudentsImported }) {
         if (!nameHeader || !codeHeader) {
           throw new Error("Não foi possível encontrar as colunas 'Nome do Aluno' e 'Código' na planilha.");
         }
-        // --- FIM DA LÓGICA DE DETECÇÃO ---
 
-        const formattedStudents = json.map((student, index) => ({
-          id: Date.now() + index,
-          // Usamos os cabeçalhos que encontrámos para aceder aos dados
+        const formattedStudents = json.map((student) => ({
           name: student[nameHeader] || 'Nome não encontrado',
           code: student[codeHeader] || 'Código não encontrado',
-          grades: {},
         }));
         
         onStudentsImported(formattedStudents);
@@ -64,10 +53,10 @@ function StudentImporter({ onStudentsImported }) {
         alert(error.message || "Ocorreu um erro ao ler a planilha.");
       } finally {
         setLoading(false);
+        event.target.value = '';
       }
     };
     reader.readAsBinaryString(file);
-    event.target.value = '';
   };
 
   return (
