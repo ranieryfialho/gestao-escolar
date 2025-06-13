@@ -4,6 +4,7 @@
 
 # Ficheiros de Build
 /dist
+/scripts-migracao
 
 # Logs
 npm-debug.log*
