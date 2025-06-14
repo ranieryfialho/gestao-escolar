@@ -182,34 +182,42 @@ function ClassDetailsPage() {
   }
 
   const handleSaveSubGrades = async (newSubGrades) => {
-    const { student, module } = selectedGradeData
-    if (!student || !module) return
+    const { student, module } = selectedGradeData;
+    if (!student || !module) return;
+
+    const uniqueStudentId = student.studentId || student.id;
 
     const gradesAsNumbers = Object.values(newSubGrades)
-      .map((g) => Number.parseFloat(String(g).replace(",", ".")))
-      .filter((g) => !isNaN(g))
-
-    const average = gradesAsNumbers.length > 0 ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length : 0
+      .map(g => parseFloat(String(g).replace(',', '.')))
+      .filter(g => !isNaN(g));
+    
+    const average = gradesAsNumbers.length > 0
+      ? (gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length)
+      : 0;
 
     const updatedGradeObject = {
       finalGrade: average.toFixed(1),
-      subGrades: newSubGrades,
-    }
+      subGrades: newSubGrades
+    };
 
-    const currentStudentGrades = turma.students.find((s) => s.id === student.id)?.grades || {}
+    const currentStudentInClass = turma.students.find(s => (s.studentId || s.id) === uniqueStudentId);
+    const currentStudentGrades = currentStudentInClass?.grades || {};
+    
     const updatedGradesForStudent = {
       ...currentStudentGrades,
-      [module.id]: updatedGradeObject,
-    }
+      [module.id]: updatedGradeObject
+    };
 
-    const updatedStudents = turma.students.map((s) =>
-      s.id === student.id ? { ...s, grades: updatedGradesForStudent } : s,
-    )
+    const updatedStudents = turma.students.map(s =>
+      (s.studentId || s.id) === uniqueStudentId
+        ? { ...s, grades: updatedGradesForStudent }
+        : s
+    );
 
-    await updateClass(turma.id, { students: updatedStudents })
-    alert("Notas do módulo salvas com sucesso!")
-    handleCloseSubGradesModal()
-  }
+    await updateClass(turma.id, { students: updatedStudents });
+    alert("Notas do módulo salvas com sucesso!");
+    handleCloseSubGradesModal();
+};
 
   // Funções para controlar o modal de adicionar aluno
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)

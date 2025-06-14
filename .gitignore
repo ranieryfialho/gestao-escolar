@@ -13,3 +13,6 @@ firebase-debug.log*
 # Ficheiros de ambiente (importante para o futuro)
 .env
 .env.local
+
+# Firebase
+/.firebase

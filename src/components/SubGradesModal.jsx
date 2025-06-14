@@ -1,13 +1,17 @@
 // src/components/SubGradesModal.jsx
+
 import React, { useState, useEffect } from 'react';
 
 const SubGradesModal = ({ isOpen, onClose, module, student, currentGrades, onSave }) => {
   const [subGrades, setSubGrades] = useState({});
 
+  // EFEITO CORRIGIDO 👇
   useEffect(() => {
-    // Popula o estado inicial com as notas existentes quando o modal abre
-    if (currentGrades) {
-      setSubGrades(currentGrades.subGrades || {});
+    // Este efeito roda toda vez que o modal abre ou os dados mudam
+    if (isOpen) {
+      // Se o aluno atual tiver sub-notas, nós as usamos.
+      // Se não, GARANTIMOS que o estado comece como um objeto vazio, limpando qualquer dado antigo.
+      setSubGrades(currentGrades?.subGrades || {});
     }
   }, [isOpen, currentGrades]);
 
@@ -22,10 +26,10 @@ const SubGradesModal = ({ isOpen, onClose, module, student, currentGrades, onSav
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !module || !student) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <h2 className="text-xl font-bold mb-2">Lançar Notas - {module.title}</h2>
         <p className="text-sm text-gray-600 mb-6">Aluno(a): <span className="font-semibold">{student.name}</span></p>
