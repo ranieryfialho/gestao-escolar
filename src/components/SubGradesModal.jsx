@@ -1,28 +1,14 @@
-// src/components/SubGradesModal.jsx
+// src/components/SubGradesModal.jsx (VERSÃO CONTROLADA)
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-const SubGradesModal = ({ isOpen, onClose, module, student, currentGrades, onSave }) => {
-  const [subGrades, setSubGrades] = useState({});
-
-  // EFEITO CORRIGIDO 👇
-  useEffect(() => {
-    // Este efeito roda toda vez que o modal abre ou os dados mudam
-    if (isOpen) {
-      // Se o aluno atual tiver sub-notas, nós as usamos.
-      // Se não, GARANTIMOS que o estado comece como um objeto vazio, limpando qualquer dado antigo.
-      setSubGrades(currentGrades?.subGrades || {});
-    }
-  }, [isOpen, currentGrades]);
-
-  const handleGradeChange = (subGradeName, value) => {
-    const sanitizedValue = value.replace(/[^0-9,.]/g, '').replace(',', '.');
-    if (parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return;
-    setSubGrades(prev => ({ ...prev, [subGradeName]: sanitizedValue }));
-  };
-
+// REMOVIDO: useState, useEffect. O modal não controla mais seu próprio estado.
+// ALTERADO: Novas props 'gradesToDisplay' e 'onGradeChange'
+const SubGradesModal = ({ isOpen, onClose, module, student, gradesToDisplay, onGradeChange, onSave }) => {
+  
+  // A função handleSave agora chama onSave diretamente.
   const handleSave = () => {
-    onSave(subGrades);
+    onSave();
     onClose();
   };
 
@@ -41,8 +27,10 @@ const SubGradesModal = ({ isOpen, onClose, module, student, currentGrades, onSav
               <input
                 type="text"
                 inputMode="decimal"
-                value={subGrades[subGradeName] || ''}
-                onChange={e => handleGradeChange(subGradeName, e.target.value)}
+                // ALTERADO: O valor vem diretamente da nova prop
+                value={gradesToDisplay[subGradeName] || ''}
+                // ALTERADO: O onChange agora chama a nova prop
+                onChange={e => onGradeChange(subGradeName, e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                 placeholder="0.0"
               />

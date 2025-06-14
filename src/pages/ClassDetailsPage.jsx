@@ -1,6 +1,6 @@
 "use client"
 
-// src/pages/ClassDetailsPage.jsx
+// src/pages/ClassDetailsPage.jsx (VERSÃO FINAL COMPLETA)
 
 import { useState, useEffect } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
@@ -12,7 +12,7 @@ import Gradebook from "../components/Gradebook"
 import TransferStudentModal from "../components/TransferStudentModal"
 import SubGradesModal from "../components/SubGradesModal"
 import AddStudentModal from "../components/AddStudentModal"
-import EditStudentModal from "../components/EditStudentModal" // Importa o modal de edição
+import EditStudentModal from "../components/EditStudentModal"
 import { UserPlus } from "lucide-react"
 
 const callApi = async (functionName, payload, token) => {
@@ -55,6 +55,9 @@ function ClassDetailsPage() {
   // Estados para o modal de edição
   const [isEditStudentModalOpen, setIsEditStudentModalOpen] = useState(false)
   const [studentToEdit, setStudentToEdit] = useState(null)
+
+  // NOVO: Estado para controlar as notas DENTRO do modal
+  const [editingSubGrades, setEditingSubGrades] = useState({})
 
   // PERMISSÕES
   const isUserAdmin =
@@ -134,22 +137,22 @@ function ClassDetailsPage() {
 
   const handleStudentsImported = async (importedStudents) => {
     if (!importedStudents || importedStudents.length === 0) {
-      alert("Nenhum aluno válido encontrado no arquivo.");
-      return;
+      alert("Nenhum aluno válido encontrado no arquivo.")
+      return
     }
 
-    await handleApiAction(
-      'importStudentsBatch',
-      {
-        classId: turma.id,
-        studentsToImport: importedStudents
-      }
-    );
-  };
+    await handleApiAction("importStudentsBatch", {
+      classId: turma.id,
+      studentsToImport: importedStudents,
+    })
+  }
 
   const handleSaveGrades = async (newGrades) => {
     if (!turma || !turma.students) return
-    const updatedStudents = turma.students.map(s => ({ ...s, grades: { ...s.grades, ...newGrades[s.studentId || s.id] } }));
+    const updatedStudents = turma.students.map((s) => ({
+      ...s,
+      grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
+    }))
     await updateClass(turma.id, { students: updatedStudents })
     alert("Notas salvas com sucesso!")
   }
@@ -170,54 +173,61 @@ function ClassDetailsPage() {
     )
   }
 
-  // Funções do Modal de Sub-Notas
+  // Lógica de Sub-Notas ATUALIZADA
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module })
+    // Ao abrir o modal, popula o novo estado com as notas atuais do aluno ou um objeto vazio
+    const currentGrades = student.grades?.[module.id]
+    setEditingSubGrades(currentGrades?.subGrades || {})
     setIsSubGradesModalOpen(true)
   }
 
   const handleCloseSubGradesModal = () => {
     setIsSubGradesModalOpen(false)
     setSelectedGradeData({ student: null, module: null })
+    setEditingSubGrades({}) // Limpa o estado ao fechar
   }
 
-  const handleSaveSubGrades = async (newSubGrades) => {
-    const { student, module } = selectedGradeData;
-    if (!student || !module) return;
+  // NOVO: Função para atualizar o estado enquanto o usuário digita no modal
+  const handleEditingSubGradeChange = (subGradeName, value) => {
+    const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".")
+    if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return
+    setEditingSubGrades((prev) => ({ ...prev, [subGradeName]: sanitizedValue }))
+  }
 
-    const uniqueStudentId = student.studentId || student.id;
+  // ATUALIZADO: handleSaveSubGrades agora usa o estado local 'editingSubGrades'
+  const handleSaveSubGrades = async () => {
+    const { student, module } = selectedGradeData
+    if (!student || !module) return
 
-    const gradesAsNumbers = Object.values(newSubGrades)
-      .map(g => parseFloat(String(g).replace(',', '.')))
-      .filter(g => !isNaN(g));
-    
-    const average = gradesAsNumbers.length > 0
-      ? (gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length)
-      : 0;
+    const uniqueStudentId = student.studentId || student.id
+
+    const gradesAsNumbers = Object.values(editingSubGrades)
+      .map((g) => Number.parseFloat(String(g).replace(",", ".")))
+      .filter((g) => !isNaN(g))
+    const average = gradesAsNumbers.length > 0 ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length : 0
 
     const updatedGradeObject = {
       finalGrade: average.toFixed(1),
-      subGrades: newSubGrades
-    };
+      subGrades: editingSubGrades,
+    }
 
-    const currentStudentInClass = turma.students.find(s => (s.studentId || s.id) === uniqueStudentId);
-    const currentStudentGrades = currentStudentInClass?.grades || {};
-    
+    const currentStudentInClass = turma.students.find((s) => (s.studentId || s.id) === uniqueStudentId)
+    const currentStudentGrades = currentStudentInClass?.grades || {}
+
     const updatedGradesForStudent = {
       ...currentStudentGrades,
-      [module.id]: updatedGradeObject
-    };
+      [module.id]: updatedGradeObject,
+    }
 
-    const updatedStudents = turma.students.map(s =>
-      (s.studentId || s.id) === uniqueStudentId
-        ? { ...s, grades: updatedGradesForStudent }
-        : s
-    );
+    const updatedStudents = turma.students.map((s) =>
+      (s.studentId || s.id) === uniqueStudentId ? { ...s, grades: updatedGradesForStudent } : s,
+    )
 
-    await updateClass(turma.id, { students: updatedStudents });
-    alert("Notas do módulo salvas com sucesso!");
-    handleCloseSubGradesModal();
-};
+    await updateClass(turma.id, { students: updatedStudents })
+    alert("Notas do módulo salvas com sucesso!")
+    handleCloseSubGradesModal()
+  }
 
   // Funções para controlar o modal de adicionar aluno
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)
@@ -225,15 +235,15 @@ function ClassDetailsPage() {
 
   const handleAddStudent = async (newStudentData) => {
     await handleApiAction(
-      'addStudentToClass',
+      "addStudentToClass",
       {
         classId: turma.id,
         studentCode: newStudentData.code,
-        studentName: newStudentData.name
+        studentName: newStudentData.name,
       },
-      () => handleCloseAddStudentModal()
-    );
-  };
+      () => handleCloseAddStudentModal(),
+    )
+  }
 
   // Funções para controlar o modal de edição de aluno
   const handleOpenEditStudentModal = (student) => {
@@ -247,56 +257,54 @@ function ClassDetailsPage() {
   }
 
   const handleUpdateStudent = async (updatedStudentData) => {
-    if (!turma) return;
-    const { id, code, name } = updatedStudentData;
+    if (!turma) return
+    const { id, code, name } = updatedStudentData
 
-    const codeExists = turma.students.some(
-      (s) => s.code === code && (s.studentId || s.id) !== id,
-    );
+    const codeExists = turma.students.some((s) => s.code === code && (s.studentId || s.id) !== id)
 
     if (codeExists) {
-      alert("Erro: Já existe outro aluno com este código na turma.");
-      return;
+      alert("Erro: Já existe outro aluno com este código na turma.")
+      return
     }
 
     const updatedStudents = turma.students.map((student) => {
       if ((student.studentId || student.id) === id) {
-        return { ...student, name: name, code: code };
+        return { ...student, name: name, code: code }
       }
-      return student;
-    });
+      return student
+    })
 
     try {
-      await updateClass(turma.id, { students: updatedStudents });
-      alert("Dados do aluno atualizados com sucesso!");
-      handleCloseEditStudentModal();
+      await updateClass(turma.id, { students: updatedStudents })
+      alert("Dados do aluno atualizados com sucesso!")
+      handleCloseEditStudentModal()
     } catch (error) {
-      alert("Erro ao atualizar dados do aluno.");
-      console.error(error);
+      alert("Erro ao atualizar dados do aluno.")
+      console.error(error)
     }
-  };
+  }
 
   const handleDeleteStudent = async (studentId) => {
-    if (!turma || !turma.students) return;
+    if (!turma || !turma.students) return
 
-    const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno";
+    const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno"
 
     if (
       window.confirm(
         `Tem certeza que deseja remover "${studentNameToDelete}" da turma? Todas as suas notas serão perdidas.`,
       )
     ) {
-      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId);
+      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId)
 
       try {
-        await updateClass(turma.id, { students: updatedStudents });
-        alert("Aluno removido com sucesso.");
+        await updateClass(turma.id, { students: updatedStudents })
+        alert("Aluno removido com sucesso.")
       } catch (error) {
-        alert("Erro ao remover o aluno.");
-        console.error("Erro ao remover aluno:", error);
+        alert("Erro ao remover o aluno.")
+        console.error("Erro ao remover aluno:", error)
       }
     }
-  };
+  }
 
   if (!turma) return <div className="p-8">A carregar turma...</div>
 
@@ -395,7 +403,7 @@ function ClassDetailsPage() {
           modules={turma.modules || []}
           onSaveGrades={handleSaveGrades}
           onTransferClick={handleOpenTransferModal}
-          onEditClick={handleOpenEditStudentModal} // Passa a função correta de edição
+          onEditClick={handleOpenEditStudentModal}
           onDeleteClick={handleDeleteStudent}
           isUserAdmin={canUserEditClass}
           isReadOnly={isGradebookReadOnly}
@@ -464,17 +472,14 @@ function ClassDetailsPage() {
         onConfirmTransfer={handleConfirmTransfer}
       />
 
-      {/* Modal de Sub-Notas */}
+      {/* Modal de Sub-Notas ATUALIZADO com as novas props */}
       <SubGradesModal
         isOpen={isSubGradesModalOpen}
         onClose={handleCloseSubGradesModal}
         module={selectedGradeData.module}
         student={selectedGradeData.student}
-        currentGrades={
-          selectedGradeData.student && selectedGradeData.module
-            ? turma.students.find((s) => s.id === selectedGradeData.student.id)?.grades?.[selectedGradeData.module.id]
-            : {}
-        }
+        gradesToDisplay={editingSubGrades}
+        onGradeChange={handleEditingSubGradeChange}
         onSave={handleSaveSubGrades}
       />
 
