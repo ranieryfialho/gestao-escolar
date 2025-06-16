@@ -13,6 +13,7 @@ import AddStudentModal from "../components/AddStudentModal"
 import EditStudentModal from "../components/EditStudentModal"
 import ObservationModal from "../components/ObservationModal"
 import { UserPlus } from "lucide-react"
+import toast from "react-hot-toast"
 
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`
@@ -25,8 +26,38 @@ const callApi = async (functionName, payload, token) => {
     body: JSON.stringify({ data: payload }),
   })
   const result = await response.json()
-  if (!response.ok) throw new Error(result.error || "Ocorreu um erro no servidor.")
-  return result
+  if (!response.ok) {
+    throw new Error(result.error?.message || result.error || "Ocorreu um erro no servidor.")
+  }
+  return result.result || result
+}
+
+const showConfirmationToast = (message, onConfirm) => {
+  toast(
+    (t) => (
+      <div className="flex flex-col gap-3 p-2">
+        <span className="text-white text-center">{message}</span>
+        <div className="flex gap-2">
+          <button
+            className="w-full bg-red-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-700"
+            onClick={() => {
+              onConfirm()
+              toast.dismiss(t.id)
+            }}
+          >
+            Confirmar
+          </button>
+          <button
+            className="w-full bg-gray-300 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-gray-400"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    ),
+    { duration: 6000 },
+  )
 }
 
 function ClassDetailsPage() {
@@ -88,24 +119,33 @@ function ClassDetailsPage() {
     setTeacherList(filteredTeachers)
   }, [turmaId, classes, users, studentSearchTerm])
 
-  // Função auxiliar para ações da API
+  // ATUALIZADO: 3. Funções de ação agora usam toasts
   const handleApiAction = async (action, payload, successCallback) => {
     try {
       if (!firebaseUser) throw new Error("Usuário não autenticado.")
       const token = await firebaseUser.getIdToken()
-      const result = await callApi(action, payload, token)
-      alert(result.message)
-      if (successCallback) successCallback()
+
+      const promise = callApi(action, payload, token)
+
+      await toast.promise(promise, {
+        loading: "Processando...",
+        success: (result) => {
+          if (successCallback) successCallback()
+          return result.message || "Operação realizada com sucesso!"
+        },
+        error: (err) => err.message || "Ocorreu um erro inesperado.",
+      })
     } catch (error) {
       console.error(`Erro ao executar ${action}:`, error)
-      alert(`Erro: ${error.message}`)
+      toast.error(`Erro: ${error.message}`)
     }
   }
 
   // Handlers para informações gerais da turma
   const handleSaveName = async () => {
-    if (newClassName.trim() === "") return alert("O nome da turma não pode ficar em branco.")
+    if (newClassName.trim() === "") return toast.error("O nome da turma não pode ficar em branco.")
     await updateClass(turma.id, { name: newClassName })
+    toast.success("Nome da turma atualizado!")
     setIsEditingName(false)
   }
 
@@ -117,28 +157,31 @@ function ClassDetailsPage() {
         professorId: selectedTeacher.id,
         professorName: selectedTeacher.name,
       })
+      toast.success("Professor responsável atualizado!")
       setSelectedTeacherId(newTeacherId)
     }
   }
 
   const handleDeleteClass = async () => {
-    if (window.confirm("Tem a certeza que deseja apagar esta turma? Esta ação é irreversível.")) {
+    showConfirmationToast("Apagar esta turma? Esta ação é irreversível.", async () => {
       await deleteClass(turma.id)
       navigate("/dashboard")
-    }
+      toast.success("Turma apagada com sucesso!")
+    })
   }
 
   const handleRemoveModule = async (moduleIdToRemove) => {
-    if (window.confirm("Tem a certeza que deseja remover este módulo da grade da turma?")) {
+    showConfirmationToast("Remover este módulo da grade da turma?", async () => {
       const updatedModules = turma.modules.filter((module) => module.id !== moduleIdToRemove)
       await updateClass(turma.id, { modules: updatedModules })
-    }
+      toast.success("Módulo removido com sucesso!")
+    })
   }
 
   // Handlers para estudantes
   const handleStudentsImported = async (importedStudents) => {
     if (!importedStudents || importedStudents.length === 0) {
-      alert("Nenhum aluno válido encontrado no arquivo.")
+      toast.error("Nenhum aluno válido encontrado no arquivo.")
       return
     }
 
@@ -155,7 +198,7 @@ function ClassDetailsPage() {
       grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
     }))
     await updateClass(turma.id, { students: updatedStudents })
-    alert("Notas salvas com sucesso!")
+    toast.success("Notas salvas com sucesso!")
   }
 
   // Handlers para modal de transferência
@@ -224,7 +267,7 @@ function ClassDetailsPage() {
     )
 
     await updateClass(turma.id, { students: updatedStudents })
-    alert("Notas do módulo salvas com sucesso!")
+    toast.success("Notas do módulo salvas com sucesso!")
     handleCloseSubGradesModal()
   }
 
@@ -262,7 +305,7 @@ function ClassDetailsPage() {
     const codeExists = turma.students.some((s) => s.code === code && (s.studentId || s.id) !== id)
 
     if (codeExists) {
-      alert("Erro: Já existe outro aluno com este código na turma.")
+      toast.error("Erro: Já existe outro aluno com este código na turma.")
       return
     }
 
@@ -275,34 +318,23 @@ function ClassDetailsPage() {
 
     try {
       await updateClass(turma.id, { students: updatedStudents })
-      alert("Dados do aluno atualizados com sucesso!")
+      toast.success("Dados do aluno atualizados com sucesso!")
       handleCloseEditStudentModal()
     } catch (error) {
-      alert("Erro ao atualizar dados do aluno.")
+      toast.error("Erro ao atualizar dados do aluno.")
       console.error(error)
     }
   }
 
   const handleDeleteStudent = async (studentId) => {
     if (!turma || !turma.students) return
-
     const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno"
 
-    if (
-      window.confirm(
-        `Tem certeza que deseja remover "${studentNameToDelete}" da turma? Todas as suas notas serão perdidas.`,
-      )
-    ) {
+    showConfirmationToast(`Remover "${studentNameToDelete}" da turma?`, async () => {
       const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId)
-
-      try {
-        await updateClass(turma.id, { students: updatedStudents })
-        alert("Aluno removido com sucesso.")
-      } catch (error) {
-        alert("Erro ao remover o aluno.")
-        console.error("Erro ao remover aluno:", error)
-      }
-    }
+      await updateClass(turma.id, { students: updatedStudents })
+      toast.success("Aluno removido com sucesso.")
+    })
   }
 
   // Handlers para modal de observação
@@ -328,10 +360,10 @@ function ClassDetailsPage() {
 
     try {
       await updateClass(turma.id, { students: updatedStudents })
-      alert("Observação salva com sucesso!")
+      toast.success("Observação salva com sucesso!")
       handleCloseObservationModal()
     } catch (error) {
-      alert("Erro ao salvar observação.")
+      toast.error("Erro ao salvar observação.")
       console.error(error)
     }
   }
