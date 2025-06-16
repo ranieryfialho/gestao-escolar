@@ -87,7 +87,6 @@ function ClassDetailsPage() {
 
   const [editingSubGrades, setEditingSubGrades] = useState({})
 
-  // PERMISSÕES - AJUSTE: Incluímos 'professor_apoio' na definição de quem é professor
   const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role)
   const isUserAdmin =
     userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
@@ -298,33 +297,26 @@ function ClassDetailsPage() {
     setStudentToEdit(null)
   }
 
-  const handleUpdateStudent = async (updatedStudentData) => {
-    if (!turma) return
-    const { id, code, name } = updatedStudentData
+const handleUpdateStudent = async (updatedStudentData) => {
+  if (!turma) return;
+  const { id, name } = updatedStudentData;
 
-    const codeExists = turma.students.some((s) => s.code === code && (s.studentId || s.id) !== id)
-
-    if (codeExists) {
-      toast.error("Erro: Já existe outro aluno com este código na turma.")
-      return
+  const updatedStudents = turma.students.map((student) => {
+    if ((student.studentId || student.id) === id) {
+      return { ...student, name: name };
     }
+    return student;
+  });
 
-    const updatedStudents = turma.students.map((student) => {
-      if ((student.studentId || student.id) === id) {
-        return { ...student, name: name, code: code }
-      }
-      return student
-    })
-
-    try {
-      await updateClass(turma.id, { students: updatedStudents })
-      toast.success("Dados do aluno atualizados com sucesso!")
-      handleCloseEditStudentModal()
-    } catch (error) {
-      toast.error("Erro ao atualizar dados do aluno.")
-      console.error(error)
-    }
+  try {
+    await updateClass(turma.id, { students: updatedStudents });
+    toast.success("Nome do aluno atualizado com sucesso!");
+    handleCloseEditStudentModal();
+  } catch (error) {
+    toast.error("Erro ao atualizar dados do aluno.");
+    console.error(error);
   }
+};
 
   const handleDeleteStudent = async (studentId) => {
     if (!turma || !turma.students) return
