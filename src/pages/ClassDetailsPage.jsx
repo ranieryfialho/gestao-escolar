@@ -1,7 +1,5 @@
 "use client"
 
-// src/pages/ClassDetailsPage.jsx (VERSÃO FINAL COMPLETA)
-
 import { useState, useEffect } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
@@ -13,6 +11,7 @@ import TransferStudentModal from "../components/TransferStudentModal"
 import SubGradesModal from "../components/SubGradesModal"
 import AddStudentModal from "../components/AddStudentModal"
 import EditStudentModal from "../components/EditStudentModal"
+import ObservationModal from "../components/ObservationModal"
 import { UserPlus } from "lucide-react"
 
 const callApi = async (functionName, payload, token) => {
@@ -42,24 +41,23 @@ function ClassDetailsPage() {
   const [newClassName, setNewClassName] = useState("")
   const [selectedTeacherId, setSelectedTeacherId] = useState("")
   const [teacherList, setTeacherList] = useState([])
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
-  const [studentToTransfer, setStudentToTransfer] = useState(null)
   const [studentSearchTerm, setStudentSearchTerm] = useState("")
   const [filteredStudents, setFilteredStudents] = useState([])
+
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+  const [studentToTransfer, setStudentToTransfer] = useState(null)
   const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false)
   const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null })
-
-  // Estados para o modal de adicionar aluno
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false)
-
-  // Estados para o modal de edição
   const [isEditStudentModalOpen, setIsEditStudentModalOpen] = useState(false)
   const [studentToEdit, setStudentToEdit] = useState(null)
+  const [isObservationModalOpen, setIsObservationModalOpen] = useState(false)
+  const [studentToObserve, setStudentToObserve] = useState(null)
 
-  // NOVO: Estado para controlar as notas DENTRO do modal
   const [editingSubGrades, setEditingSubGrades] = useState({})
 
-  // PERMISSÕES
+  // PERMISSÕES - AJUSTE: Incluímos 'professor_apoio' na definição de quem é professor
+  const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role)
   const isUserAdmin =
     userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
   const isUserFinancial = userProfile && userProfile.role === "financeiro"
@@ -85,11 +83,12 @@ function ClassDetailsPage() {
         setFilteredStudents(results)
       }
     }
-    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao"]
+    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"]
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role))
     setTeacherList(filteredTeachers)
   }, [turmaId, classes, users, studentSearchTerm])
 
+  // Função auxiliar para ações da API
   const handleApiAction = async (action, payload, successCallback) => {
     try {
       if (!firebaseUser) throw new Error("Usuário não autenticado.")
@@ -103,6 +102,7 @@ function ClassDetailsPage() {
     }
   }
 
+  // Handlers para informações gerais da turma
   const handleSaveName = async () => {
     if (newClassName.trim() === "") return alert("O nome da turma não pode ficar em branco.")
     await updateClass(turma.id, { name: newClassName })
@@ -135,6 +135,7 @@ function ClassDetailsPage() {
     }
   }
 
+  // Handlers para estudantes
   const handleStudentsImported = async (importedStudents) => {
     if (!importedStudents || importedStudents.length === 0) {
       alert("Nenhum aluno válido encontrado no arquivo.")
@@ -157,6 +158,7 @@ function ClassDetailsPage() {
     alert("Notas salvas com sucesso!")
   }
 
+  // Handlers para modal de transferência
   const handleOpenTransferModal = (student) => {
     setStudentToTransfer(student)
     setIsTransferModalOpen(true)
@@ -173,10 +175,9 @@ function ClassDetailsPage() {
     )
   }
 
-  // Lógica de Sub-Notas ATUALIZADA
+  // Handlers para modal de sub-notas
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module })
-    // Ao abrir o modal, popula o novo estado com as notas atuais do aluno ou um objeto vazio
     const currentGrades = student.grades?.[module.id]
     setEditingSubGrades(currentGrades?.subGrades || {})
     setIsSubGradesModalOpen(true)
@@ -185,17 +186,15 @@ function ClassDetailsPage() {
   const handleCloseSubGradesModal = () => {
     setIsSubGradesModalOpen(false)
     setSelectedGradeData({ student: null, module: null })
-    setEditingSubGrades({}) // Limpa o estado ao fechar
+    setEditingSubGrades({})
   }
 
-  // NOVO: Função para atualizar o estado enquanto o usuário digita no modal
   const handleEditingSubGradeChange = (subGradeName, value) => {
     const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".")
     if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return
     setEditingSubGrades((prev) => ({ ...prev, [subGradeName]: sanitizedValue }))
   }
 
-  // ATUALIZADO: handleSaveSubGrades agora usa o estado local 'editingSubGrades'
   const handleSaveSubGrades = async () => {
     const { student, module } = selectedGradeData
     if (!student || !module) return
@@ -229,7 +228,7 @@ function ClassDetailsPage() {
     handleCloseSubGradesModal()
   }
 
-  // Funções para controlar o modal de adicionar aluno
+  // Handlers para modal de adicionar aluno
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)
   const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false)
 
@@ -245,7 +244,7 @@ function ClassDetailsPage() {
     )
   }
 
-  // Funções para controlar o modal de edição de aluno
+  // Handlers para modal de edição de aluno
   const handleOpenEditStudentModal = (student) => {
     setStudentToEdit(student)
     setIsEditStudentModalOpen(true)
@@ -303,6 +302,37 @@ function ClassDetailsPage() {
         alert("Erro ao remover o aluno.")
         console.error("Erro ao remover aluno:", error)
       }
+    }
+  }
+
+  // Handlers para modal de observação
+  const handleOpenObservationModal = (student) => {
+    setStudentToObserve(student)
+    setIsObservationModalOpen(true)
+  }
+
+  const handleCloseObservationModal = () => {
+    setIsObservationModalOpen(false)
+    setStudentToObserve(null)
+  }
+
+  const handleSaveObservation = async (studentId, observationText) => {
+    if (!turma) return
+
+    const updatedStudents = turma.students.map((student) => {
+      if ((student.studentId || student.id) === studentId) {
+        return { ...student, observation: observationText }
+      }
+      return student
+    })
+
+    try {
+      await updateClass(turma.id, { students: updatedStudents })
+      alert("Observação salva com sucesso!")
+      handleCloseObservationModal()
+    } catch (error) {
+      alert("Erro ao salvar observação.")
+      console.error(error)
     }
   }
 
@@ -380,7 +410,8 @@ function ClassDetailsPage() {
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
 
-            {canUserEditClass && (
+            {/* AJUSTE: O botão agora é visível para Admins OU Professores */}
+            {(canUserEditClass || isUserProfessor) && (
               <button
                 onClick={handleOpenAddStudentModal}
                 className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"
@@ -405,7 +436,9 @@ function ClassDetailsPage() {
           onTransferClick={handleOpenTransferModal}
           onEditClick={handleOpenEditStudentModal}
           onDeleteClick={handleDeleteStudent}
+          onObservationClick={handleOpenObservationModal}
           isUserAdmin={canUserEditClass}
+          isUserProfessor={isUserProfessor}
           isReadOnly={isGradebookReadOnly}
           onOpenSubGradesModal={handleOpenSubGradesModal}
         />
@@ -462,7 +495,16 @@ function ClassDetailsPage() {
         </div>
       )}
 
-      {/* Modal de Transferência */}
+      {/* RENDERIZAÇÃO DOS MODAIS */}
+      <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
+
+      <EditStudentModal
+        isOpen={isEditStudentModalOpen}
+        onClose={handleCloseEditStudentModal}
+        onSave={handleUpdateStudent}
+        studentToEdit={studentToEdit}
+      />
+
       <TransferStudentModal
         isOpen={isTransferModalOpen}
         onClose={handleCloseTransferModal}
@@ -472,7 +514,6 @@ function ClassDetailsPage() {
         onConfirmTransfer={handleConfirmTransfer}
       />
 
-      {/* Modal de Sub-Notas ATUALIZADO com as novas props */}
       <SubGradesModal
         isOpen={isSubGradesModalOpen}
         onClose={handleCloseSubGradesModal}
@@ -483,15 +524,11 @@ function ClassDetailsPage() {
         onSave={handleSaveSubGrades}
       />
 
-      {/* Modal de Adicionar Aluno */}
-      <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
-
-      {/* Modal de Editar Aluno */}
-      <EditStudentModal
-        isOpen={isEditStudentModalOpen}
-        onClose={handleCloseEditStudentModal}
-        onSave={handleUpdateStudent}
-        studentToEdit={studentToEdit}
+      <ObservationModal
+        isOpen={isObservationModalOpen}
+        onClose={handleCloseObservationModal}
+        onSave={handleSaveObservation}
+        student={studentToObserve}
       />
     </div>
   )
