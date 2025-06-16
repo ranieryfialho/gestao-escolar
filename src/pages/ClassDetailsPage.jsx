@@ -56,8 +56,8 @@ function ClassDetailsPage() {
 
   const [editingSubGrades, setEditingSubGrades] = useState({})
 
-  // PERMISSÕES - MELHORADO COM IDENTIFICAÇÃO DE PROFESSOR
-  const isUserProfessor = userProfile && userProfile.role === "professor"
+  // PERMISSÕES - AJUSTE: Incluímos 'professor_apoio' na definição de quem é professor
+  const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role)
   const isUserAdmin =
     userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
   const isUserFinancial = userProfile && userProfile.role === "financeiro"
@@ -83,7 +83,7 @@ function ClassDetailsPage() {
         setFilteredStudents(results)
       }
     }
-    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao"]
+    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"]
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role))
     setTeacherList(filteredTeachers)
   }, [turmaId, classes, users, studentSearchTerm])
@@ -175,10 +175,9 @@ function ClassDetailsPage() {
     )
   }
 
-  // Handlers para modal de sub-notas (MELHORADO)
+  // Handlers para modal de sub-notas
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module })
-    // Ao abrir o modal, popula o novo estado com as notas atuais do aluno ou um objeto vazio
     const currentGrades = student.grades?.[module.id]
     setEditingSubGrades(currentGrades?.subGrades || {})
     setIsSubGradesModalOpen(true)
@@ -187,17 +186,15 @@ function ClassDetailsPage() {
   const handleCloseSubGradesModal = () => {
     setIsSubGradesModalOpen(false)
     setSelectedGradeData({ student: null, module: null })
-    setEditingSubGrades({}) // Limpa o estado ao fechar
+    setEditingSubGrades({})
   }
 
-  // Função para atualizar o estado enquanto o usuário digita no modal
   const handleEditingSubGradeChange = (subGradeName, value) => {
     const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".")
     if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return
     setEditingSubGrades((prev) => ({ ...prev, [subGradeName]: sanitizedValue }))
   }
 
-  // handleSaveSubGrades agora usa o estado local 'editingSubGrades'
   const handleSaveSubGrades = async () => {
     const { student, module } = selectedGradeData
     if (!student || !module) return
@@ -324,7 +321,6 @@ function ClassDetailsPage() {
 
     const updatedStudents = turma.students.map((student) => {
       if ((student.studentId || student.id) === studentId) {
-        // Retorna o aluno com a nova observação
         return { ...student, observation: observationText }
       }
       return student
@@ -333,7 +329,7 @@ function ClassDetailsPage() {
     try {
       await updateClass(turma.id, { students: updatedStudents })
       alert("Observação salva com sucesso!")
-      handleCloseObservationModal() // Fecha o modal após salvar
+      handleCloseObservationModal()
     } catch (error) {
       alert("Erro ao salvar observação.")
       console.error(error)
@@ -414,7 +410,8 @@ function ClassDetailsPage() {
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
 
-            {canUserEditClass && (
+            {/* AJUSTE: O botão agora é visível para Admins OU Professores */}
+            {(canUserEditClass || isUserProfessor) && (
               <button
                 onClick={handleOpenAddStudentModal}
                 className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"
@@ -441,7 +438,7 @@ function ClassDetailsPage() {
           onDeleteClick={handleDeleteStudent}
           onObservationClick={handleOpenObservationModal}
           isUserAdmin={canUserEditClass}
-          isUserProfessor={isUserProfessor} // NOVO: Passa a propriedade isUserProfessor
+          isUserProfessor={isUserProfessor}
           isReadOnly={isGradebookReadOnly}
           onOpenSubGradesModal={handleOpenSubGradesModal}
         />
