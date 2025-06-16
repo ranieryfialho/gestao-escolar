@@ -36,7 +36,6 @@ function ClassDetailsPage() {
   const { classes, updateClass, deleteClass } = useClasses()
   const { users } = useUsers()
 
-  // Estados principais
   const [turma, setTurma] = useState(null)
   const [isEditingName, setIsEditingName] = useState(false)
   const [newClassName, setNewClassName] = useState("")
@@ -45,7 +44,6 @@ function ClassDetailsPage() {
   const [studentSearchTerm, setStudentSearchTerm] = useState("")
   const [filteredStudents, setFilteredStudents] = useState([])
 
-  // Estados dos modais
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [studentToTransfer, setStudentToTransfer] = useState(null)
   const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false)
@@ -56,10 +54,10 @@ function ClassDetailsPage() {
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false)
   const [studentToObserve, setStudentToObserve] = useState(null)
 
-  // Estado para controlar as notas DENTRO do modal de sub-notas
   const [editingSubGrades, setEditingSubGrades] = useState({})
 
-  // PERMISSÕES
+  // PERMISSÕES - MELHORADO COM IDENTIFICAÇÃO DE PROFESSOR
+  const isUserProfessor = userProfile && userProfile.role === "professor"
   const isUserAdmin =
     userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
   const isUserFinancial = userProfile && userProfile.role === "financeiro"
@@ -443,6 +441,7 @@ function ClassDetailsPage() {
           onDeleteClick={handleDeleteStudent}
           onObservationClick={handleOpenObservationModal}
           isUserAdmin={canUserEditClass}
+          isUserProfessor={isUserProfessor} // NOVO: Passa a propriedade isUserProfessor
           isReadOnly={isGradebookReadOnly}
           onOpenSubGradesModal={handleOpenSubGradesModal}
         />
