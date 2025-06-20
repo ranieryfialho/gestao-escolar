@@ -16,3 +16,6 @@ firebase-debug.log*
 
 # Firebase
 /.firebase
+
+.env
+.env.*

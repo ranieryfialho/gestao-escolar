@@ -5,12 +5,12 @@ import { getFunctions } from "firebase/functions";
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyANMr7iik2i8ANNqXZFVg_Q_2U64qT2LpU",
-  authDomain: "boletim-escolar-app.firebaseapp.com",
-  projectId: "boletim-escolar-app",
-  storageBucket: "boletim-escolar-app.firebasestorage.app",
-  messagingSenderId: "629925665935",
-  appId: "1:629925665935:web:ac8ad56de85161f549e4fa"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Inicializa a aplicação Firebase
