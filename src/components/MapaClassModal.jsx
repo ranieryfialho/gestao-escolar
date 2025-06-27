@@ -55,7 +55,7 @@ function MapaClassModal({ isOpen, onClose, onSave, instructors }) {
             {dayOptions.map(day => ( <option key={day} value={day}>{day}</option> ))}
           </select>
           
-          <select name="instrutor" value={formData.instrutor} onChange={handleChange} required className="w-full px-3 py-2 border rounded-lg bg-white">
+          <select name="instrutor" value={formData.instrutor} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg bg-white">
             <option value="" disabled>Selecione um instrutor</option>
             {instructors && instructors.map(teacher => ( <option key={teacher.id} value={teacher.name}>{teacher.name}</option> ))}
           </select>

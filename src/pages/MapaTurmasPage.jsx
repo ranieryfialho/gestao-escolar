@@ -285,23 +285,26 @@ function MapaTurmasPage() {
       professorName: editedData.instrutor,
       sala: editedData.sala,
       horario: editedData.horario,
-      dia_semana: editedData.dia_semana,
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
-      modules: [{ id: editedData.modulo_atual || "" }, { id: editedData.proximo_modulo || "" }],
-    }
+      dia_semana: editedData.dia_semana,
+      modules: [
+        { id: editedData.modulo_atual || '' },
+        { id: editedData.proximo_modulo || '' }
+      ]
+    };
 
-    const classDocRef = doc(db, "classes", turmaId)
-    const promise = updateDoc(classDocRef, dataToSave)
+    const classDocRef = doc(db, 'classes', turmaId);
+    const promise = updateDoc(classDocRef, dataToSave);
 
     await toast.promise(promise, {
-      loading: "Salvando...",
-      success: "Turma atualizada com sucesso!",
-      error: "Erro ao atualizar a turma.",
-    })
+      loading: 'Salvando...',
+      success: 'Turma atualizada com sucesso!',
+      error: 'Erro ao atualizar a turma.',
+    });
 
-    handleCancelEdit()
-  }
+    handleCancelEdit();
+  };
 
   const handleDeleteMapClass = async (turmaId, turmaName) => {
     toast(
@@ -342,24 +345,24 @@ function MapaTurmasPage() {
       professorName: formData.instrutor,
       sala: formData.sala,
       horario: formData.horario,
+      dataInicio: formData.data_inicio || "",
+      dataTermino: formData.data_termino || "",
       dia_semana: formData.dia_semana,
-      dataInicio: formData.data_inicio,
-      dataTermino: formData.data_termino,
-      modules: [{ id: formData.modulo_atual || "" }],
+      modules: [{ id: formData.modulo_atual || '' }],
       isMapaOnly: true,
-      students: [],
-    }
+      students: []
+    };
 
-    const promise = addDoc(collection(db, "classes"), dataToSave)
+    const promise = addDoc(collection(db, 'classes'), dataToSave);
 
     await toast.promise(promise, {
-      loading: "Adicionando...",
-      success: "Turma de planejamento adicionada!",
-      error: "Erro ao adicionar turma.",
-    })
+      loading: 'Adicionando...',
+      success: 'Turma de planejamento adicionada!',
+      error: 'Erro ao adicionar turma.'
+    });
 
-    setIsAddModalOpen(false)
-  }
+    setIsAddModalOpen(false);
+  };
 
   const handleExportPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" })
@@ -412,7 +415,7 @@ function MapaTurmasPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas (Planejamento)</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas</h1>
         <div className="flex items-center gap-4">
           {canEditMap && (
             <button
