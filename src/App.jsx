@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Layouts e Componentes de Rota
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
+import MapaTurmasPage from './pages/MapaTurmasPage';
 
 // Páginas
 import LoginPage from './pages/LoginPage';
@@ -23,6 +24,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="mapa-turmas" element={<MapaTurmasPage />} />
           <Route path="turma/:turmaId" element={<ClassDetailsPage />} />
           <Route path="usuarios" element={<UsersPage />} />
         </Route>

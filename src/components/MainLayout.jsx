@@ -1,5 +1,3 @@
-// src/components/MainLayout.jsx
-
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +12,7 @@ const MainLayout = () => {
   const inactiveLinkClass = "text-blue-100 hover:bg-blue-500 hover:text-white";
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50"> 
+    <div className="flex flex-col min-h-screen bg-gray-50">
       <header className="bg-blue-600 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -22,15 +20,18 @@ const MainLayout = () => {
               <span className="font-bold text-white text-xl">Boletim Escolar</span>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
-                  <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Dashboard</NavLink>
+                  <NavLink to="/dashboard" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Dashboard</NavLink>
+                  <NavLink to="/mapa-turmas" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>
+                    Mapa de Turmas
+                  </NavLink>
                   {isUserAdmin && (
-                    <NavLink to="/usuarios" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Usuários</NavLink>
+                    <NavLink to="/usuarios" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Usuários</NavLink>
                   )}
                 </div>
               </div>
             </div>
             <div className="hidden md:block">
-               <button onClick={logout} className="bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600">Sair</button>
+              <button onClick={logout} className="bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600">Sair</button>
             </div>
           </div>
         </div>
