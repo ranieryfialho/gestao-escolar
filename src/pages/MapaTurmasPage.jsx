@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import { useClasses } from "../contexts/ClassContext"
 import { useUsers } from "../contexts/UserContext"
+import { useAuth } from "../contexts/AuthContext"
 import { masterModuleList } from "../data/mockData.js"
 import { Link } from "react-router-dom"
 import { db } from "../firebase.js"
@@ -166,6 +167,9 @@ const calculateDynamicModules = (turma) => {
 function MapaTurmasPage() {
   const { classes, loadingClasses } = useClasses()
   const { users } = useUsers()
+  const { userProfile } = useAuth()
+
+  const canEditMap = userProfile && userProfile.role === "coordenador"
 
   const [editingRowId, setEditingRowId] = useState(null)
   const [editedData, setEditedData] = useState({})
@@ -187,7 +191,7 @@ function MapaTurmasPage() {
     }
 
     return [...classes].sort((a, b) => {
-      const dayA = dayOrder[a.dia_semana] || 99 
+      const dayA = dayOrder[a.dia_semana] || 99
       const dayB = dayOrder[b.dia_semana] || 99
       if (dayA !== dayB) return dayA - dayB
 
@@ -408,15 +412,17 @@ function MapaTurmasPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas (Planejamento)</h1>
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
-          >
-            <PlusCircle size={18} />
-            <span>Adicionar Curso Extra/TB</span>
-          </button>
+          {canEditMap && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+            >
+              <PlusCircle size={18} />
+              <span>Adicionar Curso Extra/TB</span>
+            </button>
+          )}
           <button
             onClick={handleExportPDF}
             className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
@@ -465,9 +471,11 @@ function MapaTurmasPage() {
                 Instrutor
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sala</th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Ações
-              </th>
+              {canEditMap && (
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ações
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -479,7 +487,7 @@ function MapaTurmasPage() {
               return (
                 <tr key={turma.id} className={isEditing ? "bg-blue-50" : "hover:bg-gray-50"}>
                   <td className="p-1 font-semibold">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="dia_semana"
                         value={editedData.dia_semana}
@@ -498,7 +506,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="horario"
                         value={editedData.horario}
@@ -526,7 +534,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="modulo_atual"
                         value={editedData.modulo_atual}
@@ -555,7 +563,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="proximo_modulo"
                         value={editedData.proximo_modulo}
@@ -574,7 +582,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <input
                         type="date"
                         name="data_inicio"
@@ -587,7 +595,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <input
                         type="date"
                         name="data_termino"
@@ -600,7 +608,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="instrutor"
                         value={editedData.instrutor}
@@ -619,7 +627,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing ? (
+                    {isEditing && canEditMap ? (
                       <select
                         name="sala"
                         value={editedData.sala}
@@ -637,47 +645,49 @@ function MapaTurmasPage() {
                       turma.sala || "-"
                     )}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-4">
-                      {isEditing ? (
-                        <>
-                          <button
-                            onClick={() => handleSaveEdit(turma.id)}
-                            className="text-green-600 hover:text-green-800"
-                            title="Salvar"
-                          >
-                            <Save size={18} />
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="text-gray-500 hover:text-gray-700"
-                            title="Cancelar"
-                          >
-                            <X size={18} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleStartEdit(turma)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Editar Linha"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          {turma.isMapaOnly && (
+                  {canEditMap && (
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-4">
+                        {isEditing ? (
+                          <>
                             <button
-                              onClick={() => handleDeleteMapClass(turma.id, turma.name)}
-                              className="text-red-600 hover:text-red-800"
-                              title="Apagar Linha"
+                              onClick={() => handleSaveEdit(turma.id)}
+                              className="text-green-600 hover:text-green-800"
+                              title="Salvar"
                             >
-                              <Trash2 size={16} />
+                              <Save size={18} />
                             </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="text-gray-500 hover:text-gray-700"
+                              title="Cancelar"
+                            >
+                              <X size={18} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleStartEdit(turma)}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Editar Linha"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            {turma.isMapaOnly && (
+                              <button
+                                onClick={() => handleDeleteMapClass(turma.id, turma.name)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Apagar Linha"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -686,13 +696,15 @@ function MapaTurmasPage() {
         {filteredClasses.length === 0 && <p className="text-center text-gray-500 py-8">Nenhuma turma encontrada.</p>}
       </div>
 
-      <MapaClassModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSave={handleAddMapClass}
-        instructors={instructorOptions}
-        dayOptions={dayOptions}
-      />
+      {canEditMap && (
+        <MapaClassModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={handleAddMapClass}
+          instructors={instructorOptions}
+          dayOptions={dayOptions}
+        />
+      )}
     </div>
   )
 }
