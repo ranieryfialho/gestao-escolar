@@ -102,13 +102,13 @@ function ClassDetailsPage() {
       id: 'OFFA',
       title: 'OFFA - Office Aplicado',
       syllabus: 'Carga Horária: 40h, Duração: 5 meses',
-      subGrades: ['Avaliação de Excel', 'Avaliação de PowerPoint', 'Avaliação de Word']
+      subGrades: ['Avaliação de Word', 'Avaliação de Excel', 'Avaliação de PowerPoint']
     },
     {
       id: 'ADM',
       title: 'ADM - Assistente Administrativo',
       syllabus: 'Carga Horária: 48h, Duração: 6 meses',
-      subGrades: ['Prova Teórica', 'Trabalho Prático', 'Avaliação Contínua']
+      subGrades: ['Gestão de Pessoas e Pensamento Estratégico', 'Gestão Financeira', 'Projeto']
     },
   ];
 
