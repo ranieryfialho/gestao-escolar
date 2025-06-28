@@ -135,28 +135,12 @@ function ClassDetailsPage() {
     const foundTurma = classes.find((c) => c.id === turmaId)
 
     if (foundTurma) {
-      let finalTurmaData = { ...foundTurma };
-      let modulesToApply = [];
+      setTurma(foundTurma);
 
-      if (foundTurma.name.toLowerCase().includes('especialização') || foundTurma.name.includes('19') || foundTurma.name.toLowerCase().includes('(esp)')) {
-        modulesToApply = gradeEspecializacao19meses;
-      } else {
-        modulesToApply = gradeInformatica12meses;
-      }
+      setNewClassName(foundTurma.name);
+      setSelectedTeacherId(foundTurma.professorId || "");
 
-      finalTurmaData.modules = modulesToApply;
-
-      console.log("MÓDULOS A SEREM RENDERIZADOS:", finalTurmaData.modules);
-      if (finalTurmaData.students && finalTurmaData.students.length > 0) {
-        console.log("NOTAS DO PRIMEIRO ALUNO NO BANCO:", finalTurmaData.students[0].grades);
-      }
-
-      setTurma(finalTurmaData);
-
-      setNewClassName(finalTurmaData.name);
-      setSelectedTeacherId(finalTurmaData.professorId || "");
-
-      const students = finalTurmaData.students || [];
+      const students = foundTurma.students || [];
       if (studentSearchTerm === "") {
         setFilteredStudents(students);
       } else {
@@ -168,7 +152,7 @@ function ClassDetailsPage() {
         setFilteredStudents(results);
       }
     }
-
+    
     const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"];
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);
