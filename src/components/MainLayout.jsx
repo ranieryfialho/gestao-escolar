@@ -1,10 +1,7 @@
-// src/components/MainLayout.jsx
-
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from './Footer';
-// REMOVIDO: Importação do ThemeSwitcher
 import { Menu, X } from 'lucide-react';
 
 const MainLayout = () => {
@@ -20,7 +17,6 @@ const MainLayout = () => {
   const mobileLinkClass = "block py-3 px-4 text-lg text-white hover:bg-blue-700 rounded-md";
 
   return (
-    // REMOVIDO: Classes de modo dark
     <div className="flex flex-col min-h-screen bg-gray-100 text-gray-800">
       <header className="bg-blue-600 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -37,8 +33,7 @@ const MainLayout = () => {
                 </div>
               </div>
             </div>
-            
-            {/* ALTERADO: A div agora contém apenas o botão de Sair */}
+
             <div className="hidden md:flex items-center gap-4">
                <button onClick={logout} className="bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600">Sair</button>
             </div>
@@ -52,7 +47,6 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* O menu mobile foi simplificado para não incluir o seletor de tema */}
       <div className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="fixed inset-0 bg-black opacity-50" onClick={() => setIsMobileMenuOpen(false)}></div>
         <div className="relative w-64 h-full bg-blue-600 shadow-xl p-4">
