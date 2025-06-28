@@ -422,7 +422,7 @@ function MapaTurmasPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas (Planejamento)</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas</h1>
         <div className="flex items-center gap-4">
           {canEditMap && (
             <button
