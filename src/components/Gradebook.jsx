@@ -12,7 +12,7 @@ function Gradebook({
   onDeleteClick,
   onObservationClick,
   isUserAdmin,
-  isUserProfessor, // Nova prop adicionada
+  isUserProfessor,
   isReadOnly,
   onOpenSubGradesModal,
 }) {
@@ -100,7 +100,6 @@ function Gradebook({
     )
   }
 
-  // Define que a coluna Ações deve ser visível para Admins OU Professores
   const showActionsColumn = isUserAdmin || isUserProfessor
 
   return (
@@ -113,10 +112,9 @@ function Gradebook({
               <th className="px-4 py-2 font-bold w-64">Aluno(a)</th>
               {modules.map((module) => (
                 <th key={module.id} className="px-2 py-2 text-center font-bold w-32">
-                  {module.title}
+                  {module.title || module.id || 'Módulo'}
                 </th>
               ))}
-              {/* Usa a nova variável para mostrar/esconder o header da coluna */}
               {showActionsColumn && <th className="px-4 py-2 font-bold text-center w-40">Ações</th>}
             </tr>
           </thead>
@@ -146,8 +144,20 @@ function Gradebook({
                           </button>
                         </td>
                       )
+                    // +++ INÍCIO DA MELHORIA PARA EVITAR O ERRO [object] +++
                     } else {
-                      const cellStyle = getGradeStyle(gradeValue)
+                      const cellStyle = getGradeStyle(gradeValue);
+
+                      // Lógica defensiva para extrair o valor correto para exibição
+                      let displayValue = "";
+                      if (typeof gradeValue === 'object' && gradeValue !== null) {
+                        // Se a nota for um objeto, extrai a 'finalGrade'. Usa a função de formatação existente.
+                        displayValue = gradeValue.finalGrade ? formatGradeOnLoad(gradeValue.finalGrade) : "";
+                      } else {
+                        // Se for um valor simples (texto/número), usa-o diretamente.
+                        displayValue = gradeValue || "";
+                      }
+
                       return (
                         <td
                           key={module.id}
@@ -156,7 +166,7 @@ function Gradebook({
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={gradeValue || ""}
+                            value={displayValue} // Usamos o valor seguro que acabamos de calcular
                             onChange={(e) => handleGradeChange(studentId, module.id, e.target.value)}
                             onBlur={(e) => handleGradeBlur(studentId, module.id, e.target.value)}
                             disabled={isReadOnly}
@@ -170,13 +180,12 @@ function Gradebook({
                         </td>
                       )
                     }
+                    // +++ FIM DA MELHORIA +++
                   })}
 
-                  {/* Usa a nova variável para mostrar/esconder a célula de ações */}
                   {showActionsColumn && (
                     <td className="px-4 py-2 text-center">
                       <div className="flex justify-center items-center gap-4">
-                        {/* Botão de Observação (visível para ambos) */}
                         <button
                           onClick={() => onObservationClick(student)}
                           className="text-gray-500 hover:text-yellow-600 transition-colors"
@@ -185,7 +194,6 @@ function Gradebook({
                           <MessageSquareText size={16} />
                         </button>
 
-                        {/* Lógica para mostrar botões apenas para Admins */}
                         {isUserAdmin && (
                           <>
                             <button
@@ -205,7 +213,6 @@ function Gradebook({
                           </>
                         )}
 
-                        {/* Botão de Apagar (visível para ambos) */}
                         <button
                           onClick={() => onDeleteClick(studentId)}
                           className="text-gray-500 hover:text-red-600 transition-colors"
@@ -223,7 +230,6 @@ function Gradebook({
         </table>
       </div>
 
-      {/* Botão de salvar */}
       {!isReadOnly && (
         <div className="mt-6 flex justify-end">
           <button

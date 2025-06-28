@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
@@ -94,31 +92,89 @@ function ClassDetailsPage() {
   const isGradebookReadOnly = isUserFinancial
   const canUserEditClass = isUserAdmin
 
+  const gradeInformatica12meses = [
+    {
+      id: 'ICN',
+      title: 'ICN - Internet e Computação em Nuvem',
+      syllabus: 'Carga Horária: 16h, Duração: 2 meses'
+    },
+    {
+      id: 'OFFA',
+      title: 'OFFA - Office Aplicado',
+      syllabus: 'Carga Horária: 40h, Duração: 5 meses',
+      subGrades: ['Avaliação de Excel', 'Avaliação de PowerPoint', 'Avaliação de Word']
+    },
+    {
+      id: 'ADM',
+      title: 'ADM - Assistente Administrativo',
+      syllabus: 'Carga Horária: 48h, Duração: 6 meses',
+      subGrades: ['Prova Teórica', 'Trabalho Prático', 'Avaliação Contínua']
+    },
+  ];
+
+  const gradeEspecializacao19meses = [
+    ...gradeInformatica12meses,
+    {
+      id: 'PWB',
+      title: 'PWB - Power Bi',
+      syllabus: 'Carga Horária: 16h, Duração: 2 meses'
+    },
+    {
+      id: 'TRI',
+      title: 'TRI - Tratamento de Imagem com Photoshop',
+      syllabus: 'Carga Horária: 16h, Duração: 2 meses'
+    },
+    {
+      id: 'CMV',
+      title: 'CMV - Comunicação Visual com Illustrator',
+      syllabus: 'Carga Horária: 16h, Duração: 2 meses'
+    },
+  ];
+
   useEffect(() => {
     const foundTurma = classes.find((c) => c.id === turmaId)
-    if (foundTurma) {
-      setTurma(foundTurma)
-      setNewClassName(foundTurma.name)
-      setSelectedTeacherId(foundTurma.professorId || "")
 
-      const students = foundTurma.students || []
+    if (foundTurma) {
+      let finalTurmaData = { ...foundTurma };
+      let modulesToApply = [];
+
+      if (foundTurma.name.toLowerCase().includes('especialização') || foundTurma.name.includes('19') || foundTurma.name.toLowerCase().includes('(esp)')) {
+        modulesToApply = gradeEspecializacao19meses;
+      } else {
+        modulesToApply = gradeInformatica12meses;
+      }
+
+      finalTurmaData.modules = modulesToApply;
+
+      console.log("MÓDULOS A SEREM RENDERIZADOS:", finalTurmaData.modules);
+      if (finalTurmaData.students && finalTurmaData.students.length > 0) {
+        console.log("NOTAS DO PRIMEIRO ALUNO NO BANCO:", finalTurmaData.students[0].grades);
+      }
+
+      setTurma(finalTurmaData);
+
+      setNewClassName(finalTurmaData.name);
+      setSelectedTeacherId(finalTurmaData.professorId || "");
+
+      const students = finalTurmaData.students || [];
       if (studentSearchTerm === "") {
-        setFilteredStudents(students)
+        setFilteredStudents(students);
       } else {
         const results = students.filter(
           (student) =>
             student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
             student.code.toString().toLowerCase().includes(studentSearchTerm.toLowerCase()),
-        )
-        setFilteredStudents(results)
+        );
+        setFilteredStudents(results);
       }
     }
-    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"]
-    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role))
-    setTeacherList(filteredTeachers)
-  }, [turmaId, classes, users, studentSearchTerm])
 
-  // ATUALIZADO: 3. Funções de ação agora usam toasts
+    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"];
+    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
+    setTeacherList(filteredTeachers);
+
+  }, [turmaId, classes, users, studentSearchTerm]);
+
   const handleApiAction = async (action, payload, successCallback) => {
     try {
       if (!firebaseUser) throw new Error("Usuário não autenticado.")
@@ -140,7 +196,6 @@ function ClassDetailsPage() {
     }
   }
 
-  // Handlers para informações gerais da turma
   const handleSaveName = async () => {
     if (newClassName.trim() === "") return toast.error("O nome da turma não pode ficar em branco.")
     await updateClass(turma.id, { name: newClassName })
@@ -177,7 +232,6 @@ function ClassDetailsPage() {
     })
   }
 
-  // Handlers para estudantes
   const handleStudentsImported = async (importedStudents) => {
     if (!importedStudents || importedStudents.length === 0) {
       toast.error("Nenhum aluno válido encontrado no arquivo.")
@@ -200,7 +254,6 @@ function ClassDetailsPage() {
     toast.success("Notas salvas com sucesso!")
   }
 
-  // Handlers para modal de transferência
   const handleOpenTransferModal = (student) => {
     setStudentToTransfer(student)
     setIsTransferModalOpen(true)
@@ -217,7 +270,6 @@ function ClassDetailsPage() {
     )
   }
 
-  // Handlers para modal de sub-notas
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module })
     const currentGrades = student.grades?.[module.id]
@@ -270,7 +322,6 @@ function ClassDetailsPage() {
     handleCloseSubGradesModal()
   }
 
-  // Handlers para modal de adicionar aluno
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)
   const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false)
 
@@ -286,7 +337,6 @@ function ClassDetailsPage() {
     )
   }
 
-  // Handlers para modal de edição de aluno
   const handleOpenEditStudentModal = (student) => {
     setStudentToEdit(student)
     setIsEditStudentModalOpen(true)
@@ -297,26 +347,26 @@ function ClassDetailsPage() {
     setStudentToEdit(null)
   }
 
-const handleUpdateStudent = async (updatedStudentData) => {
-  if (!turma) return;
-  const { id, name } = updatedStudentData;
+  const handleUpdateStudent = async (updatedStudentData) => {
+    if (!turma) return;
+    const { id, name } = updatedStudentData;
 
-  const updatedStudents = turma.students.map((student) => {
-    if ((student.studentId || student.id) === id) {
-      return { ...student, name: name };
+    const updatedStudents = turma.students.map((student) => {
+      if ((student.studentId || student.id) === id) {
+        return { ...student, name: name };
+      }
+      return student;
+    });
+
+    try {
+      await updateClass(turma.id, { students: updatedStudents });
+      toast.success("Nome do aluno atualizado com sucesso!");
+      handleCloseEditStudentModal();
+    } catch (error) {
+      toast.error("Erro ao atualizar dados do aluno.");
+      console.error(error);
     }
-    return student;
-  });
-
-  try {
-    await updateClass(turma.id, { students: updatedStudents });
-    toast.success("Nome do aluno atualizado com sucesso!");
-    handleCloseEditStudentModal();
-  } catch (error) {
-    toast.error("Erro ao atualizar dados do aluno.");
-    console.error(error);
-  }
-};
+  };
 
   const handleDeleteStudent = async (studentId) => {
     if (!turma || !turma.students) return
@@ -329,7 +379,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
     })
   }
 
-  // Handlers para modal de observação
   const handleOpenObservationModal = (student) => {
     setStudentToObserve(student)
     setIsObservationModalOpen(true)
@@ -368,7 +417,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
         &larr; Voltar para o Dashboard
       </Link>
 
-      {/* Bloco 1: Informações Gerais */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         {!isEditingName ? (
           <div className="flex justify-between items-center">
@@ -421,7 +469,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
         )}
       </div>
 
-      {/* Bloco 2: Alunos e Notas */}
       <div className="mt-10">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
           <h2 className="text-2xl font-semibold">Alunos e Notas</h2>
@@ -434,7 +481,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
 
-            {/* AJUSTE: O botão agora é visível para Admins OU Professores */}
             {(canUserEditClass || isUserProfessor) && (
               <button
                 onClick={handleOpenAddStudentModal}
@@ -468,7 +514,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
         />
       </div>
 
-      {/* Bloco 3: Módulos */}
       <div className="mt-10">
         <h2 className="text-2xl font-semibold">Módulos e Ementas da Turma</h2>
         <div className="mt-4 space-y-4">
@@ -495,7 +540,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
         </div>
       </div>
 
-      {/* Bloco 4: Zona de Perigo */}
       {isUserAdmin && (
         <div className="mt-10 border-t-2 border-red-200 pt-6">
           <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
@@ -519,7 +563,6 @@ const handleUpdateStudent = async (updatedStudentData) => {
         </div>
       )}
 
-      {/* RENDERIZAÇÃO DOS MODAIS */}
       <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
 
       <EditStudentModal
