@@ -64,6 +64,15 @@ const formatDateForInput = (dateValue) => {
   return `${year}-${month}-${day}`
 }
 
+const formatTimestampForInput = (timestamp) => {
+  if (!timestamp || typeof timestamp.toDate !== "function") return ""
+  const date = timestamp.toDate()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 const parseDate = (dateValue) => {
   if (!dateValue) return null
 
@@ -170,15 +179,12 @@ function MapaTurmasPage() {
   const { userProfile } = useAuth()
 
   const canEditMap = userProfile && userProfile.role === "coordenador"
-
   const [editingRowId, setEditingRowId] = useState(null)
   const [editedData, setEditedData] = useState({})
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
   const [selectedInstructor, setSelectedInstructor] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
-
-  const dayOptions = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
 
   const sortedClasses = useMemo(() => {
     const dayOrder = {
@@ -190,20 +196,23 @@ function MapaTurmasPage() {
       Sábado: 6,
     }
 
-    return [...classes].sort((a, b) => {
-      const dayA = dayOrder[a.dia_semana] || 99
-      const dayB = dayOrder[b.dia_semana] || 99
-      if (dayA !== dayB) return dayA - dayB
+    // FILTRO PARA REMOVER CONCLUDENTES
+    return classes
+      .filter((turma) => turma.name !== "CONCLUDENTES") // Filtra para remover a turma 'CONCLUDENTES'
+      .sort((a, b) => {
+        const dayA = dayOrder[a.dia_semana] || 99
+        const dayB = dayOrder[b.dia_semana] || 99
+        if (dayA !== dayB) return dayA - dayB
 
-      const timeA = a.horario ? Number.parseInt(a.horario.replace(":", ""), 10) : 9999
-      const timeB = b.horario ? Number.parseInt(b.horario.replace(":", ""), 10) : 9999
-      if (timeA !== timeB) return timeA - timeB
+        const timeA = a.horario ? Number.parseInt(a.horario.replace(":", ""), 10) : 9999
+        const timeB = b.horario ? Number.parseInt(b.horario.replace(":", ""), 10) : 9999
+        if (timeA !== timeB) return timeA - timeB
 
-      const numA = Number.parseInt(a.name, 10)
-      const numB = Number.parseInt(b.name, 10)
-      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB
-      return a.name.localeCompare(b.name)
-    })
+        const numA = Number.parseInt(a.name, 10)
+        const numB = Number.parseInt(b.name, 10)
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB
+        return a.name.localeCompare(b.name)
+      })
   }, [classes])
 
   const instructorStats = useMemo(
@@ -252,6 +261,7 @@ function MapaTurmasPage() {
     "15:30 as 17:20",
     "19:00 as 21:20",
   ]
+  const dayOptions = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
 
   const handleStartEdit = (turma) => {
     setEditingRowId(turma.id)
@@ -288,23 +298,20 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
-      modules: [
-        { id: editedData.modulo_atual || '' },
-        { id: editedData.proximo_modulo || '' }
-      ]
-    };
+      modules: [{ id: editedData.modulo_atual || "" }, { id: editedData.proximo_modulo || "" }],
+    }
 
-    const classDocRef = doc(db, 'classes', turmaId);
-    const promise = updateDoc(classDocRef, dataToSave);
+    const classDocRef = doc(db, "classes", turmaId)
+    const promise = updateDoc(classDocRef, dataToSave)
 
     await toast.promise(promise, {
-      loading: 'Salvando...',
-      success: 'Turma atualizada com sucesso!',
-      error: 'Erro ao atualizar a turma.',
-    });
+      loading: "Salvando...",
+      success: "Turma atualizada com sucesso!",
+      error: "Erro ao atualizar a turma.",
+    })
 
-    handleCancelEdit();
-  };
+    handleCancelEdit()
+  }
 
   const handleDeleteMapClass = async (turmaId, turmaName) => {
     toast(
@@ -348,21 +355,21 @@ function MapaTurmasPage() {
       dataInicio: formData.data_inicio || "",
       dataTermino: formData.data_termino || "",
       dia_semana: formData.dia_semana,
-      modules: [{ id: formData.modulo_atual || '' }],
+      modules: [{ id: formData.modulo_atual || "" }],
       isMapaOnly: true,
-      students: []
-    };
+      students: [],
+    }
 
-    const promise = addDoc(collection(db, 'classes'), dataToSave);
+    const promise = addDoc(collection(db, "classes"), dataToSave)
 
     await toast.promise(promise, {
-      loading: 'Adicionando...',
-      success: 'Turma de planejamento adicionada!',
-      error: 'Erro ao adicionar turma.'
-    });
+      loading: "Adicionando...",
+      success: "Turma de planejamento adicionada!",
+      error: "Erro ao adicionar turma.",
+    })
 
-    setIsAddModalOpen(false);
-  };
+    setIsAddModalOpen(false)
+  }
 
   const handleExportPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" })
@@ -415,7 +422,7 @@ function MapaTurmasPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas (Planejamento)</h1>
         <div className="flex items-center gap-4">
           {canEditMap && (
             <button
@@ -484,7 +491,6 @@ function MapaTurmasPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredClasses.map((turma) => {
               const isEditing = editingRowId === turma.id
-
               const { moduloAtual, proximoModulo } = calculateDynamicModules(turma)
 
               return (
@@ -696,7 +702,9 @@ function MapaTurmasPage() {
             })}
           </tbody>
         </table>
-        {filteredClasses.length === 0 && <p className="text-center text-gray-500 py-8">Nenhuma turma encontrada.</p>}
+        {filteredClasses.length === 0 && (
+          <p className="text-center text-gray-500 py-8">Nenhuma turma de planejamento encontrada.</p>
+        )}
       </div>
 
       {canEditMap && (
