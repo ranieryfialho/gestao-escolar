@@ -54,7 +54,7 @@ const MainLayout = () => {
             <X size={24} />
           </button>
           <nav className="mt-16 space-y-2">
-            <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Dashboard</NavLink>
+            <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Boletim Escolar</NavLink>
             <NavLink to="/mapa-turmas" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Mapa de Turmas</NavLink>
             {isUserAdmin && (
               <NavLink to="/usuarios" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Usuários</NavLink>
