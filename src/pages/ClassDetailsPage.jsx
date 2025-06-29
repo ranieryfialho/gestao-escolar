@@ -132,15 +132,52 @@ function ClassDetailsPage() {
   ];
 
   useEffect(() => {
-    const foundTurma = classes.find((c) => c.id === turmaId)
+    const foundTurma = classes.find((c) => c.id === turmaId);
 
     if (foundTurma) {
-      setTurma(foundTurma);
+      let modulesToApply = [];
+      const finalTurmaData = { ...foundTurma };
 
-      setNewClassName(foundTurma.name);
-      setSelectedTeacherId(foundTurma.professorId || "");
+      // ====================================================================
+      // LÓGICA CENTRAL DE EXIBIÇÃO
+      // ====================================================================
 
-      const students = foundTurma.students || [];
+      // 1. LÓGICA PRIMÁRIA: Verifica se a turma tem o 'curriculumId' (formato novo).
+      if (finalTurmaData.curriculumId) {
+        if (finalTurmaData.curriculumId === 'grade_19_meses') {
+          modulesToApply = gradeEspecializacao19meses;
+        } else if (finalTurmaData.curriculumId === 'grade_12_meses') {
+          modulesToApply = gradeInformatica12meses;
+        } else {
+          // Se o ID for desconhecido, usa os módulos salvos como segurança.
+          modulesToApply = finalTurmaData.modules || [];
+        }
+      }
+      // 2. LÓGICA DE FALLBACK: Se não tem 'curriculumId', é uma turma antiga.
+      //    Aplica a regra baseada no nome para garantir a compatibilidade.
+      else {
+        const upperCaseName = finalTurmaData.name.toUpperCase();
+        if (upperCaseName.includes("ESP")) {
+          modulesToApply = gradeEspecializacao19meses;
+        } else if (upperCaseName.includes("INF. E ADM")) {
+          modulesToApply = gradeInformatica12meses;
+        } else {
+          // Fallback final para turmas antigas com nomes não padronizados.
+          modulesToApply = finalTurmaData.modules || [];
+        }
+      }
+
+      // Atribui a grade curricular correta ao objeto da turma
+      finalTurmaData.modules = modulesToApply;
+
+      // Define o estado com os dados corretos e consistentes
+      setTurma(finalTurmaData);
+
+      // O resto do código do useEffect permanece para carregar outros dados
+      setNewClassName(finalTurmaData.name);
+      setSelectedTeacherId(finalTurmaData.professorId || "");
+
+      const students = finalTurmaData.students || [];
       if (studentSearchTerm === "") {
         setFilteredStudents(students);
       } else {
@@ -152,7 +189,7 @@ function ClassDetailsPage() {
         setFilteredStudents(results);
       }
     }
-    
+
     const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"];
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);

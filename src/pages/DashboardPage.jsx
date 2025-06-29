@@ -76,27 +76,29 @@ function DashboardPage() {
   }, [userProfile, turmasDoBoletim, loadingClasses, canViewAll, searchTerm]) // ALTERADO: Usamos 'turmasDoBoletim' como dependência
 
   const handleCreateClass = async (className, selectedPackageId, teacherId) => {
-    const selectedPackage = modulePackages.find((p) => p.id === selectedPackageId)
-    const selectedTeacher = teacherList.find((t) => t.id === teacherId)
+    const selectedPackage = modulePackages.find((p) => p.id === selectedPackageId);
+    const selectedTeacher = teacherList.find((t) => t.id === teacherId);
     if (!selectedPackage || !selectedTeacher) {
-      return alert("Por favor, selecione um pacote e um professor.")
+      return alert("Por favor, selecione um pacote e um professor.");
     }
 
-    const classModules = selectedPackage.moduleKeys.map((key) => masterModuleList[key])
+    const classModules = selectedPackage.moduleKeys.map((key) => masterModuleList[key]);
+
     const newClassData = {
       name: className,
       professorId: selectedTeacher.id,
       professorName: selectedTeacher.name,
       modules: classModules,
+
+      curriculumId: selectedPackageId,
+
       createdAt: new Date(),
       students: [],
-    }
-    await addClass(newClassData)
-  }
+    };
 
-  if (loadingClasses) {
-    return <div>Carregando...</div>
-  }
+    await addClass(newClassData);
+    toast.success(`Turma "${className}" criada com sucesso!`);
+  };
 
   return (
     <div className="p-4 md:p-8">
