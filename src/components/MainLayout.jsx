@@ -22,10 +22,10 @@ const MainLayout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <span className="font-bold text-white text-xl">Boletim Escolar</span>
+              <span className="font-bold text-white text-xl">Gestão Escolar</span>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
-                  <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Dashboard</NavLink>
+                  <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Boletim Escolar</NavLink>
                   <NavLink to="/mapa-turmas" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Mapa de Turmas</NavLink>
                   {isUserAdmin && (
                     <NavLink to="/usuarios" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Usuários</NavLink>
