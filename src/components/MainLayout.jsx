@@ -27,6 +27,7 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Boletim Escolar</NavLink>
                   <NavLink to="/mapa-turmas" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Mapa de Turmas</NavLink>
+                  <NavLink to="/laboratorio" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Laboratório de Apoio</NavLink>
                   {isUserAdmin && (
                     <NavLink to="/usuarios" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Usuários</NavLink>
                   )}
@@ -56,6 +57,7 @@ const MainLayout = () => {
           <nav className="mt-16 space-y-2">
             <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Boletim Escolar</NavLink>
             <NavLink to="/mapa-turmas" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Mapa de Turmas</NavLink>
+             <NavLink to="/laboratorio" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Laboratório de Apoio</NavLink>
             {isUserAdmin && (
               <NavLink to="/usuarios" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Usuários</NavLink>
             )}
