@@ -32,7 +32,7 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
         setStudentClassName(studentData.className);
         setIsStudentFound(true);
       } else {
-        setStudentName("Aluno não encontrado");
+        setStudentName("");
         setStudentClassName("");
         setIsStudentFound(false);
       }
@@ -51,34 +51,34 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!isStudentFound) {
-      alert("Por favor, insira um código de aluno válido.");
+    if (!studentCode || !studentName) {
+      alert("Código e Nome do Aluno são obrigatórios.");
       return;
     }
 
     const entryData = {
-        studentCode, 
-        studentName,
-        studentClassName,
-        activity,
-        subject: conditionalActivities.includes(activity) ? subject : null,
-        isJustified,
-        observation,
-        timeSlot
+      studentCode,
+      studentName,
+      studentClassName: studentClassName || "Visitante",
+      activity,
+      subject: conditionalActivities.includes(activity) ? subject : null,
+      isJustified,
+      observation,
+      timeSlot
     };
 
     onSave(entryData);
     clearForm();
   };
-  
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl"> {/* Aumentei o tamanho do modal */}
+      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl">
         <h2 className="text-2xl font-bold mb-6">Adicionar Atendimento ao Laboratório</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="studentCode" className="block text-sm font-medium text-gray-700">Código do Aluno</label>
@@ -86,11 +86,25 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
             </div>
             <div>
               <label htmlFor="studentName" className="block text-sm font-medium text-gray-700">Nome do Aluno</label>
-              <input id="studentName" type="text" value={studentName} disabled className={`w-full px-3 py-2 border rounded-lg mt-1 bg-gray-100 ${isStudentFound ? 'text-black' : 'text-red-500'}`} />
+              <input 
+                id="studentName" 
+                type="text" 
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                disabled={isStudentFound}
+                className={`w-full px-3 py-2 border rounded-lg mt-1 ${isStudentFound ? 'bg-gray-100' : 'bg-white'}`} 
+              />
             </div>
             <div>
               <label htmlFor="studentClassName" className="block text-sm font-medium text-gray-700">Turma</label>
-              <input id="studentClassName" type="text" value={studentClassName} disabled className="w-full px-3 py-2 border rounded-lg mt-1 bg-gray-100" />
+              <input 
+                id="studentClassName" 
+                type="text" 
+                value={studentClassName} 
+                onChange={(e) => setStudentClassName(e.target.value)}
+                disabled={isStudentFound}
+                className={`w-full px-3 py-2 border rounded-lg mt-1 ${isStudentFound ? 'bg-gray-100' : 'bg-white'}`} 
+              />
             </div>
           </div>
 
@@ -110,20 +124,20 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
               </div>
             )}
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label htmlFor="timeSlot" className="block text-sm font-medium text-gray-700">Horário</label>
-                <select id="timeSlot" value={timeSlot} onChange={(e) => setTimeSlot(e.target.value)} className="w-full px-3 py-2 border rounded-lg mt-1">
-                    <option>07:30 - 08:30</option>
-                    <option>08:30 - 09:30</option>
-                    <option>09:30 - 10:30</option>
-                    <option>10:30 - 11:30</option>
-                    <option>13:30 - 14:30</option>
-                    <option>14:30 - 15:30</option>
-                    <option>15:30 - 16:30</option>
-                    <option>16:30 - 17:30</option>
-                </select>
+              <label htmlFor="timeSlot" className="block text-sm font-medium text-gray-700">Horário</label>
+              <select id="timeSlot" value={timeSlot} onChange={(e) => setTimeSlot(e.target.value)} className="w-full px-3 py-2 border rounded-lg mt-1">
+                <option>07:30 - 08:30</option>
+                <option>08:30 - 09:30</option>
+                <option>09:30 - 10:30</option>
+                <option>10:30 - 11:30</option>
+                <option>13:30 - 14:30</option>
+                <option>14:30 - 15:30</option>
+                <option>15:30 - 16:30</option>
+                <option>16:30 - 17:30</option>
+              </select>
             </div>
             <div>
               <label htmlFor="isJustified" className="block text-sm font-medium text-gray-700">Falta Justificada?</label>
