@@ -10,8 +10,8 @@ const isAdmin = async (idToken) => {
   try {
     if (!idToken) return false;
     const decodedToken = await auth.verifyIdToken(idToken);
-    const userRole = decodedToken.role; 
-    return ["diretor", "coordenador", "admin", "auxiliar_coordenacao", "professor"].includes(userRole);
+    const userRole = decodedToken.role;
+    return ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userRole);
   } catch (error) {
     console.error("Erro ao verificar token de admin:", error);
     return false;
