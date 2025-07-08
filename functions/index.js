@@ -260,3 +260,52 @@ exports.importStudentsBatch = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+exports.listAllUsers = functions.https.onRequest((req, res) => {
+  // A correção está aqui: garantimos que o cors envolva toda a lógica.
+  cors(req, res, async () => { 
+    if (req.method !== "GET") {
+      return res.status(405).send("Método não permitido");
+    }
+
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    
+    // ATENÇÃO: A função isAdmin precisa ser ajustada para permitir que
+    // qualquer usuário logado possa listar os outros, se for essa a intenção.
+    // Para a gestão de usuários, apenas admins devem poder listar.
+    // Vamos manter a verificação de admin por segurança.
+    const decodedToken = await auth.verifyIdToken(idToken);
+    const userRole = decodedToken.role;
+    const authorizedRoles = ["diretor", "coordenador", "admin", "auxiliar_coordenacao"];
+
+    if (!authorizedRoles.includes(userRole)) {
+       return res.status(403).json({ error: "Ação não autorizada para listar todos os usuários." });
+    }
+
+    try {
+      const listUsersResult = await auth.listUsers(1000);
+      const firestoreUsers = await db.collection('users').get();
+      
+      const usersData = new Map();
+      firestoreUsers.forEach(doc => {
+        usersData.set(doc.id, doc.data());
+      });
+
+      const combinedUsers = listUsersResult.users.map(userRecord => {
+        const firestoreData = usersData.get(userRecord.uid) || {};
+        return {
+          id: userRecord.uid,
+          name: userRecord.displayName || firestoreData.name, // Adiciona fallback para o nome
+          email: userRecord.email,
+          role: firestoreData.role || 'sem_perfil',
+        };
+      });
+
+      return res.status(200).json({ users: combinedUsers });
+
+    } catch (error) {
+      console.error("Erro ao listar usuários:", error);
+      return res.status(500).json({ error: "Ocorreu um erro no servidor ao buscar usuários." });
+    }
+  }); // Fechamento do cors
+});
