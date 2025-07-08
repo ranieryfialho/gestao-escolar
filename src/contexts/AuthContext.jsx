@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  sendPasswordResetEmail // 1. Importe a função de reset de senha
+  sendPasswordResetEmail
 } from "firebase/auth";
 
 const AuthContext = createContext(null);
@@ -19,13 +19,23 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    // A função onAuthStateChanged detecta mudanças de login/logout
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => { // Adicionamos 'async' aqui
       if (user) {
         setFirebaseUser(user);
+
+        // --- INÍCIO DA ALTERAÇÃO ---
+        // 1. Forçamos a atualização do token para pegar os 'claims' mais recentes.
+        const idTokenResult = await user.getIdTokenResult(true);
+        // 2. Extraímos o papel ('role') do token. Se não existir, será 'null'.
+        const userRole = idTokenResult.claims.role || null;
+        // --- FIM DA ALTERAÇÃO ---
+
         const profileDocRef = doc(db, "users", user.uid);
         const unsubscribeProfile = onSnapshot(profileDocRef, (doc) => {
           if (doc.exists()) {
-            setUserProfile({ id: doc.id, ...doc.data() });
+            // Adicionamos o 'role' do token ao perfil do usuário
+            setUserProfile({ id: doc.id, role: userRole, ...doc.data() });
           } else {
             setUserProfile(null);
           }
@@ -55,7 +65,6 @@ export const AuthProvider = ({ children }) => {
     navigate('/login');
   };
   
-  // 2. Adicione a nova função para redefinir a senha
   const resetPassword = async (email) => {
     if (!email) {
       return alert("Por favor, digite o seu email primeiro.");
@@ -69,7 +78,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 3. Adicione a nova função ao 'value' do contexto
   const value = { firebaseUser, userProfile, login, logout, loading, resetPassword };
 
   if (loading) {
