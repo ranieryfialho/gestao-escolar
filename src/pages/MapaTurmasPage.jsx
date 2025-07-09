@@ -178,7 +178,7 @@ function MapaTurmasPage() {
   const { users } = useUsers()
   const { userProfile } = useAuth()
 
-  const canEditMap = userProfile && userProfile.role === "coordenador"
+  const canEditMap = userProfile && ["coordenador", "auxiliar_coordenacao"].includes(userProfile.role);
   const [editingRowId, setEditingRowId] = useState(null)
   const [editedData, setEditedData] = useState({})
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -196,9 +196,8 @@ function MapaTurmasPage() {
       Sábado: 6,
     }
 
-    // FILTRO PARA REMOVER CONCLUDENTES
     return classes
-      .filter((turma) => turma.name !== "CONCLUDENTES") // Filtra para remover a turma 'CONCLUDENTES'
+      .filter((turma) => turma.name !== "CONCLUDENTES")
       .sort((a, b) => {
         const dayA = dayOrder[a.dia_semana] || 99
         const dayB = dayOrder[b.dia_semana] || 99

@@ -3,11 +3,13 @@ import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
 import { PlusCircle } from "lucide-react";
 import { useClasses } from "../contexts/ClassContext";
+import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 
 function LabSupportPage() {
+  const { userProfile } = useAuth();
   const { classes } = useClasses();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -22,7 +24,7 @@ function LabSupportPage() {
           if (aluno.code && aluno.name) {
             map.set(aluno.code.toString(), {
               name: aluno.name,
-              className: turma.name 
+              className: turma.name
             });
           }
         });
@@ -104,17 +106,19 @@ function LabSupportPage() {
           </label>
           <input id="date-filter" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="p-2 border border-gray-300 rounded-lg" />
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="mt-4 md:mt-0 flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-md">
-          <PlusCircle size={20} />
-          Adicionar Atendimento
-        </button>
+        {userProfile && userProfile.role !== 'financeiro' && (
+          <button onClick={() => setIsModalOpen(true)} className="mt-4 md:mt-0 flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-md">
+            <PlusCircle size={20} />
+            Adicionar Atendimento
+          </button>
+        )}
       </div>
 
       <div className="mt-8">
-        {loadingEntries ? (<p className="text-center text-gray-500">Carregando atendimentos...</p>) : 
+        {loadingEntries ? (<p className="text-center text-gray-500">Carregando atendimentos...</p>) :
         (<LabEntriesTable entries={labEntries} onStatusChange={handleStatusChange} onEntryUpdate={handleEntryUpdate} onEntryDelete={handleEntryDelete} />)}
       </div>
-      
+
       <AddLabEntryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleAddEntry} allStudentsMap={allStudentsMap} />
     </div>
   );

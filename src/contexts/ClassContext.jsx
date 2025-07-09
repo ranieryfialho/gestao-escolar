@@ -1,6 +1,6 @@
 import { createContext, useState, useContext, useEffect } from "react";
 import { db } from "../firebase.js";
-import { addDoc, updateDoc, doc, deleteDoc, collection } from "firebase/firestore";
+import { addDoc, updateDoc, doc, deleteDoc, collection, onSnapshot } from "firebase/firestore";
 import { useAuth } from './AuthContext';
 
 const ClassContext = createContext(null);
@@ -11,40 +11,29 @@ export const ClassesProvider = ({ children }) => {
   const { firebaseUser } = useAuth();
 
   useEffect(() => {
-    const fetchClasses = async () => {
-      if (!firebaseUser) {
-        setClasses([]);
-        setLoading(false);
-        return;
-      }
+    if (!firebaseUser) {
+      setClasses([]);
+      setLoading(false);
+      return;
+    }
 
-      setLoading(true);
-      try {
-        const token = await firebaseUser.getIdToken();
-        const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/listAllClasses`;
-        
-        const response = await fetch(functionUrl, {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+    setLoading(true);
+    const classesCollectionRef = collection(db, "classes");
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Falha ao buscar turmas.');
-        }
+    const unsubscribe = onSnapshot(classesCollectionRef, (querySnapshot) => {
+      const classesData = [];
+      querySnapshot.forEach((doc) => {
+        classesData.push({ id: doc.id, ...doc.data() });
+      });
+      setClasses(classesData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Erro ao escutar as alterações nas turmas:", error);
+      setClasses([]);
+      setLoading(false);
+    });
 
-        const result = await response.json();
-        setClasses(result.classes);
-
-      } catch (error) {
-        console.error("Erro ao carregar turmas via Cloud Function:", error);
-        setClasses([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClasses();
+    return () => unsubscribe();
 
   }, [firebaseUser]);
 

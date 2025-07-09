@@ -86,8 +86,7 @@ function ClassDetailsPage() {
   const [editingSubGrades, setEditingSubGrades] = useState({})
 
   const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role)
-  const isUserAdmin =
-    userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role)
+  const isUserAdmin = userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role);
   const isUserFinancial = userProfile && userProfile.role === "financeiro"
   const isGradebookReadOnly = isUserFinancial
   const canUserEditClass = isUserAdmin
@@ -138,23 +137,15 @@ function ClassDetailsPage() {
       let modulesToApply = [];
       const finalTurmaData = { ...foundTurma };
 
-      // ====================================================================
-      // LÓGICA CENTRAL DE EXIBIÇÃO
-      // ====================================================================
-
-      // 1. LÓGICA PRIMÁRIA: Verifica se a turma tem o 'curriculumId' (formato novo).
       if (finalTurmaData.curriculumId) {
         if (finalTurmaData.curriculumId === 'grade_19_meses') {
           modulesToApply = gradeEspecializacao19meses;
         } else if (finalTurmaData.curriculumId === 'grade_12_meses') {
           modulesToApply = gradeInformatica12meses;
         } else {
-          // Se o ID for desconhecido, usa os módulos salvos como segurança.
           modulesToApply = finalTurmaData.modules || [];
         }
       }
-      // 2. LÓGICA DE FALLBACK: Se não tem 'curriculumId', é uma turma antiga.
-      //    Aplica a regra baseada no nome para garantir a compatibilidade.
       else {
         const upperCaseName = finalTurmaData.name.toUpperCase();
         if (upperCaseName.includes("ESP")) {
@@ -162,18 +153,14 @@ function ClassDetailsPage() {
         } else if (upperCaseName.includes("INF. E ADM")) {
           modulesToApply = gradeInformatica12meses;
         } else {
-          // Fallback final para turmas antigas com nomes não padronizados.
           modulesToApply = finalTurmaData.modules || [];
         }
       }
 
-      // Atribui a grade curricular correta ao objeto da turma
       finalTurmaData.modules = modulesToApply;
 
-      // Define o estado com os dados corretos e consistentes
       setTurma(finalTurmaData);
 
-      // O resto do código do useEffect permanece para carregar outros dados
       setNewClassName(finalTurmaData.name);
       setSelectedTeacherId(finalTurmaData.professorId || "");
 
@@ -190,7 +177,7 @@ function ClassDetailsPage() {
       }
     }
 
-    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao"];
+    const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao", "diretor"];
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);
 
@@ -502,7 +489,7 @@ function ClassDetailsPage() {
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
 
-            {(canUserEditClass || isUserProfessor) && (
+            {canUserEditClass && (
               <button
                 onClick={handleOpenAddStudentModal}
                 className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"

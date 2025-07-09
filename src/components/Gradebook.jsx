@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useEffect } from "react"
 import { Pencil, Trash2, ArrowRightLeft, MessageSquareText } from "lucide-react"
 
@@ -126,7 +124,6 @@ function Gradebook({
                   <td className="px-4 py-2 font-mono text-gray-500">{student.code}</td>
                   <th className="px-4 py-2 font-bold text-gray-900">{student.name}</th>
 
-                  {/* Células de notas */}
                   {modules.map((module) => {
                     const gradeValue = grades[studentId]?.[module.id]
                     if (module.subGrades) {
@@ -144,17 +141,13 @@ function Gradebook({
                           </button>
                         </td>
                       )
-                    // +++ INÍCIO DA MELHORIA PARA EVITAR O ERRO [object] +++
                     } else {
                       const cellStyle = getGradeStyle(gradeValue);
 
-                      // Lógica defensiva para extrair o valor correto para exibição
                       let displayValue = "";
                       if (typeof gradeValue === 'object' && gradeValue !== null) {
-                        // Se a nota for um objeto, extrai a 'finalGrade'. Usa a função de formatação existente.
                         displayValue = gradeValue.finalGrade ? formatGradeOnLoad(gradeValue.finalGrade) : "";
                       } else {
-                        // Se for um valor simples (texto/número), usa-o diretamente.
                         displayValue = gradeValue || "";
                       }
 
@@ -166,7 +159,7 @@ function Gradebook({
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={displayValue} // Usamos o valor seguro que acabamos de calcular
+                            value={displayValue}
                             onChange={(e) => handleGradeChange(studentId, module.id, e.target.value)}
                             onBlur={(e) => handleGradeBlur(studentId, module.id, e.target.value)}
                             disabled={isReadOnly}
@@ -180,7 +173,6 @@ function Gradebook({
                         </td>
                       )
                     }
-                    // +++ FIM DA MELHORIA +++
                   })}
 
                   {showActionsColumn && (
