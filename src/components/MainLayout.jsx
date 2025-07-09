@@ -6,7 +6,7 @@ import { Menu, X } from 'lucide-react';
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
-  const adminRoles = ['coordenador', 'diretor', 'admin', 'auxiliar_coordenacao'];
+  const adminRoles = ['coordenador', 'diretor', 'admin'];
   const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

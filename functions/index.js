@@ -6,13 +6,18 @@ admin.initializeApp();
 const db = admin.firestore();
 const auth = admin.auth();
 
-// Função helper com as permissões de administrador consistentes e corretas.
 const isAdmin = async (idToken) => {
   try {
-    if (!idToken) return false;
+    if (!idToken) {
+        console.log("isAdmin check: Falhou porque o idToken não foi fornecido.");
+        return false;
+    }
     const decodedToken = await auth.verifyIdToken(idToken);
     const userRole = decodedToken.role;
-    // CORREÇÃO: "professor" foi removido. Apenas estes perfis são considerados administradores.
+
+    // LOG ADICIONADO AQUI: Vamos ver qual é o perfil que o backend está lendo.
+    console.log("Verificando permissão para o perfil (role):", userRole);
+
     return ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userRole);
   } catch (error) {
     console.error("Erro ao verificar token de admin:", error);
@@ -136,25 +141,32 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
     if (req.method !== "POST") {
       return res.status(405).send("Método não permitido");
     }
+
     const idToken = req.headers.authorization?.split("Bearer ")[1];
+
+    console.log("transferStudent - Iniciando verificação de permissão.");
     if (!(await isAdmin(idToken))) {
+      console.log("transferStudent - Bloqueado. O usuário não passou na verificação 'isAdmin'.");
       return res.status(403).json({ error: "Ação não autorizada." });
     }
+    console.log("transferStudent - Verificação de permissão OK. Prosseguindo com a transferência.");
+
     const { studentData, sourceClassId, targetClassId } = req.body.data;
+
     if (!studentData || !sourceClassId || !targetClassId || sourceClassId === targetClassId) {
-      return res.status(400).json({ error: 'Dados inválidos para a transferência.' });
+      return res.status(400).json({ error: "Dados inválidos para a transferência." });
     }
     if (!studentData.studentId) {
-        return res.status(400).json({ error: 'Dados do aluno inválidos, studentId não encontrado.' });
+        return res.status(400).json({ error: "Dados do aluno inválidos, studentId não encontrado." });
     }
-    const sourceClassRef = db.collection('classes').doc(sourceClassId);
-    const targetClassRef = db.collection('classes').doc(targetClassId);
+    const sourceClassRef = db.collection("classes").doc(sourceClassId);
+    const targetClassRef = db.collection("classes").doc(targetClassId);
     try {
       await db.runTransaction(async (transaction) => {
         const sourceDoc = await transaction.get(sourceClassRef);
         const targetDoc = await transaction.get(targetClassRef);
         if (!sourceDoc.exists || !targetDoc.exists) {
-          throw new Error('Turma de origem ou destino não encontrada.');
+          throw new Error("Turma de origem ou destino não encontrada.");
         }
         const sourceData = sourceDoc.data();
         const targetData = targetDoc.data();
@@ -170,10 +182,10 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
         transaction.update(sourceClassRef, { students: updatedSourceStudents });
         transaction.update(targetClassRef, { students: targetStudents });
       });
-      return res.status(200).json({ message: 'Aluno transferido com sucesso!' });
+      return res.status(200).json({ message: "Aluno transferido com sucesso!" });
     } catch (error) {
-      console.error('Erro na transação de transferência:', error);
-      return res.status(500).json({ error: 'Ocorreu um erro ao transferir o aluno.' });
+      console.error("Erro na transação de transferência:", error);
+      return res.status(500).json({ error: "Ocorreu um erro ao transferir o aluno." });
     }
   });
 });

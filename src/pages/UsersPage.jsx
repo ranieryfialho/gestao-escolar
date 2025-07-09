@@ -20,7 +20,7 @@ const callUserApi = async (functionName, payload, token) => {
 
 function UsersPage() {
   const { userProfile, firebaseUser } = useAuth();
-  const { users, loadingUsers } = useUsers();
+  const { users, loadingUsers, fetchUsers } = useUsers();
   const navigate = useNavigate();
 
   const [userName, setUserName] = useState('');
@@ -32,7 +32,7 @@ function UsersPage() {
 
   useEffect(() => {
     if (userProfile) {
-      const authorizedRoles = ['diretor', 'coordenador', 'admin', 'auxiliar_coordenacao'];
+      const authorizedRoles = ['diretor', 'coordenador', 'admin'];
       if (!authorizedRoles.includes(userProfile.role)) {
         navigate('/dashboard');
       }
@@ -62,6 +62,7 @@ function UsersPage() {
         setUserName('');
         setUserEmail('');
         setUserRole('professor');
+        fetchUsers();
       }
     );
     setIsCreating(false);
@@ -74,14 +75,19 @@ function UsersPage() {
     await handleApiAction(
       'updateUserProfile',
       { uid: editingUser.id, name: editingUser.name, role: editingUser.role },
-      () => setEditingUser(null)
+      () => {
+        setEditingUser(null);
+        fetchUsers();
+      }
     );
     setIsUpdating(false);
   };
 
   const handleDeleteUser = async (userToDelete) => {
     if (window.confirm(`Tem a certeza que deseja apagar o usuário ${userToDelete.name}?`)) {
-      await handleApiAction('deleteUserAccount', { uid: userToDelete.id });
+      await handleApiAction('deleteUserAccount', { uid: userToDelete.id }, () => {
+        fetchUsers();
+      });
     }
   };
   
@@ -92,8 +98,6 @@ function UsersPage() {
     return <div className="p-8 text-center">A verificar permissões...</div>;
   }
 
-  // O resto do seu JSX (a parte visual) continua exatamente o mesmo.
-  // ... cole aqui toda a parte do `return (...)` do seu arquivo original ...
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Gestão de Usuários</h1>

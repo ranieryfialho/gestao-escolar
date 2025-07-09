@@ -1,21 +1,62 @@
-import { useState, useEffect, useMemo } from "react"
-import { Link } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
-import { useClasses } from "../contexts/ClassContext"
-import { useUsers } from "../contexts/UserContext"
-import CreateClassForm from "../components/CreateClassForm"
-import { modulePackages, masterModuleList } from "../data/mockData"
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { useClasses } from "../contexts/ClassContext";
+import { useUsers } from "../contexts/UserContext";
+import CreateClassForm from "../components/CreateClassForm";
+import { modulePackages, masterModuleList } from "../data/mockData";
+import toast from "react-hot-toast";
 
 function DashboardPage() {
-  const { userProfile } = useAuth()
-  const { classes, addClass, loadingClasses } = useClasses()
-  const { users } = useUsers()
+  const { userProfile, firebaseUser } = useAuth();
+  const { classes, addClass, loadingClasses } = useClasses();
+  const { users } = useUsers();
 
-  const [teacherList, setTeacherList] = useState([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filteredClasses, setFilteredClasses] = useState([])
+  const [teacherList, setTeacherList] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredClasses, setFilteredClasses] = useState([]);
 
-  const adminRoles = ["coordenador", "diretor", "admin"]
+  useEffect(() => {
+    const syncRoleIfNeeded = async () => {
+      if (!firebaseUser) return;
+
+      const idTokenResult = await firebaseUser.getIdTokenResult(true);
+      if (idTokenResult.claims.role) {
+        console.log("O perfil (role) já está sincronizado no token:", idTokenResult.claims.role);
+        return;
+      }
+
+      console.log("Perfil não encontrado no token. Tentando sincronizar...");
+      try {
+        const token = await firebaseUser.getIdToken();
+        const functionUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net/syncUserRole";
+        
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Falha na sincronização");
+        }
+        
+        const result = await response.json();
+        console.log("Resposta da sincronização:", result.message);
+        toast.success("Permissões sincronizadas! Recarregue a página para aplicar.");
+
+      } catch (error) {
+        console.error("Erro ao sincronizar perfil:", error);
+        toast.error(`Erro na sincronização: ${error.message}`);
+      }
+    };
+
+    syncRoleIfNeeded();
+  }, [firebaseUser]);
+
+  const adminRoles = ["coordenador", "diretor", "admin"];
   const viewAllClassesRoles = [
     "diretor",
     "coordenador",
@@ -23,57 +64,57 @@ function DashboardPage() {
     "professor_apoio",
     "financeiro",
     "admin",
-  ]
+  ];
 
-  const isUserAdmin = userProfile && adminRoles.includes(userProfile.role)
-  const canViewAll = userProfile && viewAllClassesRoles.includes(userProfile.role)
-  const turmasDoBoletim = useMemo(() => classes.filter((turma) => !turma.isMapaOnly), [classes])
+  const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
+  const canViewAll = userProfile && viewAllClassesRoles.includes(userProfile.role);
+  const turmasDoBoletim = useMemo(() => classes.filter((turma) => !turma.isMapaOnly), [classes]);
 
   useEffect(() => {
-    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao", "diretor"]
-    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role))
-    setTeacherList(filteredTeachers)
-  }, [users])
+    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao", "diretor"];
+    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
+    setTeacherList(filteredTeachers);
+  }, [users]);
 
   useEffect(() => {
     if (!userProfile || loadingClasses) {
-      setFilteredClasses([])
-      return
+      setFilteredClasses([]);
+      return;
     }
 
-    let userClasses = []
-    const validClasses = turmasDoBoletim.filter((c) => c && c.id && c.name)
+    let userClasses = [];
+    const validClasses = turmasDoBoletim.filter((c) => c && c.id && c.name);
     if (canViewAll) {
-      userClasses = validClasses
+      userClasses = validClasses;
     } else if (userProfile.role === "professor") {
-      userClasses = validClasses.filter((c) => c.professorId === userProfile.id)
+      userClasses = validClasses.filter((c) => c.professorId === userProfile.id);
     }
 
     const results = userClasses.filter((turma) => {
-      const term = searchTerm.toLowerCase()
-      if (turma.name.toLowerCase().includes(term)) return true
-      if (turma.professorName && turma.professorName.toLowerCase().includes(term)) return true
+      const term = searchTerm.toLowerCase();
+      if (turma.name.toLowerCase().includes(term)) return true;
+      if (turma.professorName && turma.professorName.toLowerCase().includes(term)) return true;
       if (turma.students && Array.isArray(turma.students)) {
         return turma.students.some(
           (student) =>
             (student.name && student.name.toLowerCase().includes(term)) ||
-            (student.code && student.code.toString().toLowerCase().includes(term)),
-        )
+            (student.code && student.code.toString().toLowerCase().includes(term))
+        );
       }
-      return false
-    })
+      return false;
+    });
 
     results.sort((a, b) => {
-      const numA = Number.parseInt(a.name, 10)
-      const numB = Number.parseInt(b.name, 10)
+      const numA = Number.parseInt(a.name, 10);
+      const numB = Number.parseInt(b.name, 10);
       if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB
+        return numA - numB;
       }
-      return a.name.localeCompare(b.name)
-    })
+      return a.name.localeCompare(b.name);
+    });
 
-    setFilteredClasses(results)
-  }, [userProfile, turmasDoBoletim, loadingClasses, canViewAll, searchTerm]) // ALTERADO: Usamos 'turmasDoBoletim' como dependência
+    setFilteredClasses(results);
+  }, [userProfile, turmasDoBoletim, loadingClasses, canViewAll, searchTerm]);
 
   const handleCreateClass = async (className, selectedPackageId, teacherId) => {
     const selectedPackage = modulePackages.find((p) => p.id === selectedPackageId);
@@ -89,9 +130,7 @@ function DashboardPage() {
       professorId: selectedTeacher.id,
       professorName: selectedTeacher.name,
       modules: classModules,
-
       curriculumId: selectedPackageId,
-
       createdAt: new Date(),
       students: [],
     };
@@ -146,7 +185,7 @@ function DashboardPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default DashboardPage
+export default DashboardPage;
