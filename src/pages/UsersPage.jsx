@@ -9,7 +9,7 @@ const callUserApi = async (functionName, payload, token) => {
   const response = await fetch(functionUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ data: payload }), // Garante o encapsulamento em 'data'
+    body: JSON.stringify({ data: payload }),
   });
   const result = await response.json();
   if (!response.ok) {
@@ -23,7 +23,6 @@ function UsersPage() {
   const { users, loadingUsers } = useUsers();
   const navigate = useNavigate();
 
-  // Estados do componente
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userRole, setUserRole] = useState('professor');
@@ -31,31 +30,22 @@ function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Efeito para proteger a rota contra acesso indevido
   useEffect(() => {
-    // Se o perfil do usuário já foi carregado e não é nulo...
     if (userProfile) {
       const authorizedRoles = ['diretor', 'coordenador', 'admin', 'auxiliar_coordenacao'];
-      // Se o perfil do usuário NÃO estiver na lista de autorizados...
       if (!authorizedRoles.includes(userProfile.role)) {
-        console.log("Acesso negado. Redirecionando para o dashboard.");
-        // Navega o usuário para uma página segura.
         navigate('/dashboard');
       }
     }
-  }, [userProfile, navigate]); // Roda sempre que o perfil do usuário ou a navegação mudar
+  }, [userProfile, navigate]);
 
   const handleApiAction = async (action, payload, successCallback) => {
     try {
       if (!firebaseUser) throw new Error("Usuário não autenticado.");
       const token = await firebaseUser.getIdToken();
-      
-      // A chamada da API foi ajustada para enviar o payload dentro de um objeto 'data'
       const result = await callUserApi(action, payload, token);
-      
-      alert(result.message || "Operação bem-sucedida!"); // Usa a mensagem da API ou uma padrão
+      alert(result.message || "Operação bem-sucedida!");
       if (successCallback) successCallback();
-
     } catch (error) {
       console.error(`Erro ao executar ${action}:`, error);
       alert(`Erro: ${error.message}`);
@@ -102,6 +92,8 @@ function UsersPage() {
     return <div className="p-8 text-center">A verificar permissões...</div>;
   }
 
+  // O resto do seu JSX (a parte visual) continua exatamente o mesmo.
+  // ... cole aqui toda a parte do `return (...)` do seu arquivo original ...
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Gestão de Usuários</h1>

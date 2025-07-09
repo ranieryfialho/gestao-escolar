@@ -1,17 +1,18 @@
-// src/contexts/UserContext.jsx (VERSÃO CORRIGIDA)
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useAuth } from './AuthContext'; // Precisamos do contexto de autenticação
+import { useAuth } from './AuthContext';
 
 const UserContext = createContext(null);
 
 export const UsersProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { firebaseUser } = useAuth(); // Obter o usuário logado
+  const { userProfile, firebaseUser } = useAuth();
 
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!firebaseUser) {
+      const authorizedRoles = ['diretor', 'coordenador', 'admin', 'auxiliar_coordenacao'];
+      if (!firebaseUser || !userProfile || !authorizedRoles.includes(userProfile.role)) {
+        setUsers([]);
         setLoading(false);
         return;
       }
@@ -22,7 +23,7 @@ export const UsersProvider = ({ children }) => {
         const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/listAllUsers`;
         
         const response = await fetch(functionUrl, {
-          method: 'GET', // Usamos GET como definimos na função
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -38,7 +39,6 @@ export const UsersProvider = ({ children }) => {
 
       } catch (error) {
         console.error("Erro ao carregar usuários via Cloud Function:", error);
-        // Em caso de erro, definimos a lista como vazia.
         setUsers([]); 
       } finally {
         setLoading(false);
@@ -47,7 +47,7 @@ export const UsersProvider = ({ children }) => {
 
     fetchUsers();
     
-  }, [firebaseUser]);
+  }, [firebaseUser, userProfile]);
 
   const value = { users, loadingUsers: loading };
 

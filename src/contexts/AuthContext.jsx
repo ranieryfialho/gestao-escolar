@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase.js';
@@ -19,22 +18,16 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // A função onAuthStateChanged detecta mudanças de login/logout
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => { // Adicionamos 'async' aqui
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setFirebaseUser(user);
 
-        // --- INÍCIO DA ALTERAÇÃO ---
-        // 1. Forçamos a atualização do token para pegar os 'claims' mais recentes.
         const idTokenResult = await user.getIdTokenResult(true);
-        // 2. Extraímos o papel ('role') do token. Se não existir, será 'null'.
         const userRole = idTokenResult.claims.role || null;
-        // --- FIM DA ALTERAÇÃO ---
 
         const profileDocRef = doc(db, "users", user.uid);
         const unsubscribeProfile = onSnapshot(profileDocRef, (doc) => {
           if (doc.exists()) {
-            // Adicionamos o 'role' do token ao perfil do usuário
             setUserProfile({ id: doc.id, role: userRole, ...doc.data() });
           } else {
             setUserProfile(null);
