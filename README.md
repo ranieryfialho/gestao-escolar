@@ -18,6 +18,36 @@ Este projeto é uma aplicação web completa para a gestão de informações aca
     * **Controle de Laboratório:** Página para registrar e controlar os atendimentos e atividades realizadas no laboratório de apoio.
 * **Gestão de Usuários (Admin):** Painel para administradores criarem, editarem e removerem contas de usuários do sistema.
 
+# Quadro de Tarefas (Kanban)
+
+Sistema de gestão visual de tarefas com funcionalidade de arrastar e soltar, desenvolvido com React e Firebase.
+
+## 📋 Visão Geral
+
+O Quadro Kanban é uma ferramenta de gestão visual que permite organizar tarefas em três colunas principais:
+- **A Fazer** - Tarefas pendentes
+- **Em Progresso** - Tarefas em andamento  
+- **Feito** - Tarefas concluídas
+
+## ✨ Funcionalidades
+
+### 🎯 Gestão de Tarefas
+- **Criação Manual**: Coordenadores e diretores podem criar tarefas e atribuí-las a responsáveis
+- **Criação Automática**: O sistema gera automaticamente tarefas quando módulos de turmas são finalizados
+- **Drag & Drop**: Movimentação intuitiva de tarefas entre colunas
+- **Edição e Exclusão**: Responsáveis, coordenadores e diretores podem editar/excluir tarefas
+
+### 🔐 Sistema de Permissões
+- **Coordenadores e Diretores**: Acesso completo (criar, editar, excluir, mover qualquer tarefa)
+- **Responsáveis**: Podem gerenciar apenas suas próprias tarefas
+- **Outros Usuários**: Visualização apenas (sem permissão para editar)
+
+### 📊 Recursos Visuais
+- Contadores de tarefas por coluna
+- Indicadores visuais de prioridade
+- Informações de prazo e responsável
+- Estados de loading e feedback visual
+
 ## 🛠️ Tecnologias Utilizadas
 
 * **Front-end:**
