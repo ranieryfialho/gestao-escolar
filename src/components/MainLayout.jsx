@@ -28,7 +28,7 @@ const MainLayout = () => {
                   <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Boletim Escolar</NavLink>
                   <NavLink to="/mapa-turmas" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Mapa de Turmas</NavLink>
                   <NavLink to="/laboratorio" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Laboratório de Apoio</NavLink>
-                  <NavLink to="/kanban" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Kanban</NavLink>
+                  <NavLink to="/kanban" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Tarefas</NavLink>
                   <NavLink to="/calculadora" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Calculadora de Reposição</NavLink>
                   {isUserAdmin && (
                     <NavLink to="/usuarios" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Usuários</NavLink>
@@ -60,7 +60,7 @@ const MainLayout = () => {
             <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Boletim Escolar</NavLink>
             <NavLink to="/mapa-turmas" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Mapa de Turmas</NavLink>
              <NavLink to="/laboratorio" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Laboratório de Apoio</NavLink>
-             <NavLink to="/kanban" className={({isActive}) => `block rounded-md px-3 py-2 text-base font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Kanban</NavLink>
+             <NavLink to="/kanban" className={({isActive}) => `block rounded-md px-3 py-2 text-base font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Tarefas</NavLink>
              <NavLink to="/calculadora" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Calculadora de Reposição</NavLink>
             {isUserAdmin && (
               <NavLink to="/usuarios" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Usuários</NavLink>
