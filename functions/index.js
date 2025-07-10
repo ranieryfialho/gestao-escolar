@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const cors = require("cors")({ origin: true });
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -351,4 +352,66 @@ exports.listAllClasses = functions.https.onRequest((req, res) => {
       return res.status(500).json({ error: "Erro no servidor ao buscar as turmas." });
     }
   });
+});
+
+exports.createTaskOnModuleEnd = onSchedule("every day 01:00", async (event) => {
+  process.env.TZ = 'America/Sao_Paulo';
+
+  console.log('Iniciando verificação diária de fim de módulo.');
+  const db = admin.firestore();
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  try {
+    const classesSnapshot = await db.collection('classes').get();
+
+    if (classesSnapshot.empty) {
+      console.log("Nenhuma turma encontrada.");
+      return null;
+    }
+
+    for (const classDoc of classesSnapshot.docs) {
+      const classData = classDoc.data();
+      const classId = classDoc.id;
+
+      if (!classData.professorId || !classData.modules || classData.modules.length === 0) {
+        continue;
+      }
+
+      for (const mod of classData.modules) {
+        if (!mod.dataTermino || !mod.dataTermino.toDate) continue;
+
+        const dataTermino = mod.dataTermino.toDate();
+        dataTermino.setHours(0, 0, 0, 0);
+
+        if (dataTermino.getTime() === today.getTime()) {
+          
+          console.log(`Módulo "${mod.id}" da turma "${classData.name}" terminou hoje. Criando tarefa...`);
+
+          const taskData = {
+            title: `Entregar notas do módulo "${mod.id}" (Turma ${classData.name})`,
+            description: `O módulo ${mod.id} foi concluído. Por favor, lance as notas dos alunos.`,
+            status: "todo",
+            assigneeId: classData.professorId,
+            assigneeName: classData.professorName || 'Professor não definido',
+            relatedClassId: classId,
+            relatedModuleId: mod.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            dueDate: admin.firestore.Timestamp.fromDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000))
+          };
+
+          await db.collection("tasks").add(taskData);
+          console.log(`Tarefa criada com sucesso para ${classData.professorName}.`);
+        }
+      }
+    }
+    
+    console.log('Verificação diária concluída.');
+    return null;
+
+  } catch (error) {
+    console.error("Erro ao executar a função de criar tarefas:", error);
+    return null;
+  }
 });

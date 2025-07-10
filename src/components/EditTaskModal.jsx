@@ -1,0 +1,88 @@
+import React, { useState, useEffect } from 'react';
+
+function EditTaskModal({ isOpen, onClose, onSave, task, users }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
+
+  useEffect(() => {
+    if (task) {
+      setTitle(task.title || '');
+      setDescription(task.description || '');
+      setAssigneeId(task.assigneeId || '');
+    }
+  }, [task]);
+
+  const handleSave = () => {
+    if (!title.trim() || !assigneeId) {
+      alert('O título e o responsável são obrigatórios.');
+      return;
+    }
+    
+    const selectedUser = users.find(u => u.id === assigneeId);
+
+    onSave(task.id, {
+      title,
+      description,
+      assigneeId,
+      assigneeName: selectedUser ? selectedUser.name : '',
+    });
+    onClose();
+  };
+
+  if (!isOpen || !task) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+        <h2 className="text-xl font-bold mb-6">Editar Tarefa</h2>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="edit-task-title" className="block text-sm font-medium text-gray-700">Título da Tarefa</label>
+            <input
+              type="text"
+              id="edit-task-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+          </div>
+          <div>
+            <label htmlFor="edit-task-description" className="block text-sm font-medium text-gray-700">Descrição (Opcional)</label>
+            <textarea
+              id="edit-task-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows="3"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+          </div>
+          <div>
+            <label htmlFor="edit-task-assignee" className="block text-sm font-medium text-gray-700">Atribuir para:</label>
+            <select
+              id="edit-task-assignee"
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="" disabled>Selecione um responsável...</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-8 flex justify-end gap-4">
+          <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+            Cancelar
+          </button>
+          <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default EditTaskModal;
