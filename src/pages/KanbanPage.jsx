@@ -54,15 +54,6 @@ function KanbanPage() {
     return userProfile && ["coordenador", "diretor"].includes(userProfile.role)
   }, [userProfile])
 
-  // Função para verificar permissões de gerenciamento de tarefas
-  const canManageTask = useMemo(() => {
-    return (task) => {
-      if (!userProfile) return false
-
-      return userProfile.role === "coordenador" || userProfile.role === "diretor" || task.assigneeId === userProfile.id
-    }
-  }, [userProfile])
-
   useEffect(() => {
     if (!userProfile) {
       setLoading(false)
@@ -118,12 +109,6 @@ function KanbanPage() {
       return
     }
 
-    const task = tasks[draggableId]
-    if (!task || !canManageTask(task)) {
-      toast.error("Não tem permissão para mover esta tarefa.")
-      return
-    }
-
     const taskRef = doc(db, "tasks", draggableId)
 
     try {
@@ -176,22 +161,11 @@ function KanbanPage() {
   }
 
   const handleOpenEditModal = (task) => {
-    if (!canManageTask(task)) {
-      toast.error("Não tem permissão para editar esta tarefa.")
-      return
-    }
-
     setTaskToEdit(task)
     setIsEditModalOpen(true)
   }
 
   const handleUpdateTask = async (taskId, updatedData) => {
-    const task = tasks[taskId]
-    if (!task || !canManageTask(task)) {
-      toast.error("Não tem permissão para editar esta tarefa.")
-      return
-    }
-
     const taskRef = doc(db, "tasks", taskId)
 
     try {
@@ -218,13 +192,7 @@ function KanbanPage() {
   }
 
   const handleDeleteTask = async (taskId) => {
-    const task = tasks[taskId]
-    if (!task || !canManageTask(task)) {
-      toast.error("Não tem permissão para deletar esta tarefa.")
-      return
-    }
-
-    const confirmDelete = window.confirm("Tem a certeza de que deseja deletar esta tarefa? Esta ação é irreversível.")
+    const confirmDelete = window.confirm("Tem a certeza de que deseja apagar esta tarefa? Esta ação é irreversível.")
 
     if (!confirmDelete) return
 
@@ -234,12 +202,12 @@ function KanbanPage() {
       const promise = deleteDoc(taskRef)
 
       await toast.promise(promise, {
-        loading: "A deletar tarefa...",
-        success: "Tarefa deletada com sucesso!",
-        error: "Erro ao deletar a tarefa.",
+        loading: "A apagar tarefa...",
+        success: "Tarefa apagada com sucesso!",
+        error: "Erro ao apagar a tarefa.",
       })
     } catch (error) {
-      console.error("Erro ao deletar tarefa:", error)
+      console.error("Erro ao apagar tarefa:", error)
     }
   }
 
@@ -333,14 +301,24 @@ function KanbanPage() {
                           </div>
                         ) : (
                           columnTasks.map((task, index) => {
-                            const taskCanManage = canManageTask(task)
+                            // LÓGICA DE PERMISSÃO ATUALIZADA
+                            const canEditOrDelete = userProfile && (
+                                userProfile.role === 'coordenador' ||
+                                userProfile.role === 'diretor'
+                            );
+                            
+                            const canDrag = userProfile && (
+                                canEditOrDelete || // Admins podem arrastar
+                                task.assigneeId === userProfile.id // O responsável pode arrastar o seu próprio card
+                            );
+
 
                             return (
                               <Draggable
                                 key={task.id}
                                 draggableId={task.id}
                                 index={index}
-                                isDragDisabled={!taskCanManage}
+                                isDragDisabled={!canDrag}
                               >
                                 {(provided, snapshot) => (
                                   <div
@@ -350,7 +328,7 @@ function KanbanPage() {
                                     className={`bg-white p-4 mb-3 rounded-lg shadow border-l-4 ${column.borderColor} ${
                                       snapshot.isDragging ? "shadow-xl scale-105 rotate-2" : "shadow-sm hover:shadow-md"
                                     } ${
-                                      !taskCanManage
+                                      !canDrag
                                         ? "opacity-60 cursor-not-allowed"
                                         : "cursor-grab hover:cursor-grabbing"
                                     } transition-all duration-200`}
@@ -367,33 +345,11 @@ function KanbanPage() {
                                           <p className="text-xs text-gray-500">
                                             <span className="font-medium">Responsável:</span> {task.assigneeName}
                                           </p>
-
-                                          {task.priority && (
-                                            <p className="text-xs">
-                                              <span
-                                                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                  task.priority === "alta"
-                                                    ? "bg-red-100 text-red-800"
-                                                    : task.priority === "média"
-                                                      ? "bg-yellow-100 text-yellow-800"
-                                                      : "bg-green-100 text-green-800"
-                                                }`}
-                                              >
-                                                {task.priority}
-                                              </span>
-                                            </p>
-                                          )}
-
-                                          {task.dueDate && (
-                                            <p className="text-xs text-gray-500">
-                                              <span className="font-medium">Prazo:</span>{" "}
-                                              {new Date(task.dueDate.seconds * 1000).toLocaleDateString("pt-PT")}
-                                            </p>
-                                          )}
                                         </div>
                                       </div>
 
-                                      {taskCanManage && (
+                                      {/* Ícones só aparecem para Coordenador/Diretor */}
+                                      {canEditOrDelete && (
                                         <div className="flex items-center space-x-1 ml-2">
                                           <button
                                             onClick={(e) => {
