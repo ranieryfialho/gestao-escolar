@@ -135,7 +135,7 @@ function UsersPage() {
       <div className="bg-white p-4 rounded-lg shadow-md mt-8">
         <h3 className="text-xl font-bold mb-4 px-2">Usuários Cadastrados</h3>
         <div className="overflow-x-auto">
-          {loadingUsers ? <p>A carregar usuários...</p> : (
+          {loadingUsers ? <p>Carregando usuários...</p> : (
             <table className="w-full text-left">
               <thead className="border-b-2">
                 <tr>

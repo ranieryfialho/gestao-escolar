@@ -417,7 +417,7 @@ function ClassDetailsPage() {
     }
   }
 
-  if (!turma) return <div className="p-8">A carregar turma...</div>
+  if (!turma) return <div className="p-8">Carregando turma...</div>
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
