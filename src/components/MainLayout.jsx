@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from './Footer';
+import ChatPopup from './ChatPopup';
 import { Menu, X } from 'lucide-react';
 
 const MainLayout = () => {
@@ -75,6 +76,9 @@ const MainLayout = () => {
       <main className="flex-grow">
         <Outlet />
       </main>
+
+      <ChatPopup />
+      
       <Footer />
     </div>
   );
