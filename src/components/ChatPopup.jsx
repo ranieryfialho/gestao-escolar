@@ -13,21 +13,18 @@ function ChatPopup() {
   const messagesEndRef = useRef(null);
   const isInitialLoad = useRef(true);
 
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
   const formatTimestamp = (timestamp) => {
     if (!timestamp) {
       return '';
     }
     const date = timestamp.toDate();
-
-    const time = date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const day = date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-    });
-
+    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const day = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
     return `${time} - ${day}`;
   };
 
@@ -52,14 +49,14 @@ function ChatPopup() {
       }
       
       querySnapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && !isOpen && change.doc.data().uid !== userProfile.id) {
+        if (change.type === "added" && !isOpenRef.current && change.doc.data().uid !== userProfile.id) {
           setUnreadCount(prevCount => prevCount + 1);
         }
       });
     });
 
     return () => unsubscribe();
-  }, [isOpen, userProfile]);
+  }, [userProfile]);
 
   useEffect(() => {
     if (isOpen) {
