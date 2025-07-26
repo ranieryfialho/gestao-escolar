@@ -11,7 +11,7 @@ import AddStudentModal from "../components/AddStudentModal";
 import EditStudentModal from "../components/EditStudentModal";
 import ObservationModal from "../components/ObservationModal";
 import QrCodeModal from "../components/QrCodeModal";
-import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react"; // Adicionados ícones
+import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 const callApi = async (functionName, payload, token) => {
@@ -74,10 +74,9 @@ function ClassDetailsPage() {
   const [studentSearchTerm, setStudentSearchTerm] = useState("");
   const [filteredStudents, setFilteredStudents] = useState([]);
 
-  // Estados para o QR Code e edição do link
   const [whatsappLinkInput, setWhatsappLinkInput] = useState('');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [isEditingWhatsappLink, setIsEditingWhatsappLink] = useState(false); // Novo estado
+  const [isEditingWhatsappLink, setIsEditingWhatsappLink] = useState(false);
 
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [studentToTransfer, setStudentToTransfer] = useState(null);
@@ -189,11 +188,11 @@ function ClassDetailsPage() {
   const handleSaveWhatsappLink = async () => {
     await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
     toast.success("Link do WhatsApp salvo com sucesso!");
-    setIsEditingWhatsappLink(false); // Fecha o campo de edição após salvar
+    setIsEditingWhatsappLink(false);
   };
 
   const handleCancelEditWhatsappLink = () => {
-    setWhatsappLinkInput(turma?.whatsappLink || ''); // Restaura o valor original
+    setWhatsappLinkInput(turma?.whatsappLink || '');
     setIsEditingWhatsappLink(false);
   }
 
@@ -486,67 +485,70 @@ function ClassDetailsPage() {
           <p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || "A definir"}</p>
         )}
 
-        {/* --- SEÇÃO DO WHATSAPP MODIFICADA --- */}
-        {canUserEditClass && (
-            <div className="mt-6 border-t pt-4">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">Grupo do WhatsApp</h3>
-                {isEditingWhatsappLink ? (
-                  // Modo de Edição
-                  <div className="flex flex-col sm:flex-row items-stretch gap-2">
-                    <input
-                        type="url"
-                        placeholder="Cole aqui o link do grupo"
-                        value={whatsappLinkInput}
-                        onChange={(e) => setWhatsappLinkInput(e.target.value)}
-                        className="flex-grow p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button 
-                        onClick={handleSaveWhatsappLink}
-                        className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                    >
-                        <Save size={18} />
-                        Salvar
-                    </button>
-                    <button 
-                        onClick={handleCancelEditWhatsappLink}
-                        className="flex items-center justify-center gap-2 bg-gray-500 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-600 transition"
-                    >
-                        <X size={18} />
-                        Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  // Modo de Visualização
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <div className="flex-grow bg-gray-100 p-2 rounded-md text-gray-700 truncate">
-                      {turma.whatsappLink ? (
-                        <a href={turma.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{turma.whatsappLink}</a>
-                      ) : (
-                        <span className="text-gray-400">Nenhum link cadastrado.</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                          onClick={() => setIsEditingWhatsappLink(true)}
-                          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                      >
-                          <Pencil size={16} />
-                          {turma.whatsappLink ? 'Editar' : 'Adicionar'}
-                      </button>
-                      <button 
-                          onClick={() => setIsQrModalOpen(true)}
-                          disabled={!turma.whatsappLink}
-                          className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-                          title="Exibir QR Code"
-                      >
-                          <QrCode size={18} />
-                          <span>QR Code</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+        {/* --- SEÇÃO DO WHATSAPP COM ACESSO LIBERADO PARA TODOS --- */}
+        <div className="mt-6 border-t pt-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Grupo do WhatsApp</h3>
+          
+          {/* Modo de Edição (Apenas para Admins) */}
+          {isEditingWhatsappLink && canUserEditClass ? (
+            <div className="flex flex-col sm:flex-row items-stretch gap-2">
+              <input
+                  type="url"
+                  placeholder="Cole aqui o link do grupo"
+                  value={whatsappLinkInput}
+                  onChange={(e) => setWhatsappLinkInput(e.target.value)}
+                  className="flex-grow p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+              />
+              <button 
+                  onClick={handleSaveWhatsappLink}
+                  className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+              >
+                  <Save size={18} />
+                  Salvar
+              </button>
+              <button 
+                  onClick={handleCancelEditWhatsappLink}
+                  className="flex items-center justify-center gap-2 bg-gray-500 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-600 transition"
+              >
+                  <X size={18} />
+                  Cancelar
+              </button>
             </div>
-        )}
+          ) : (
+            // Modo de Visualização (Para Todos os Usuários Logados)
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex-grow bg-gray-100 p-2 rounded-md text-gray-700 truncate">
+                {turma.whatsappLink ? (
+                  <a href={turma.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{turma.whatsappLink}</a>
+                ) : (
+                  <span className="text-gray-400">Nenhum link cadastrado.</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Botão de Editar (Apenas para Admins) */}
+                {canUserEditClass && (
+                  <button 
+                      onClick={() => setIsEditingWhatsappLink(true)}
+                      className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                  >
+                      <Pencil size={16} />
+                      {turma.whatsappLink ? 'Editar' : 'Adicionar'}
+                  </button>
+                )}
+                {/* Botão de QR Code (Para Todos os Usuários Logados) */}
+                <button 
+                    onClick={() => setIsQrModalOpen(true)}
+                    disabled={!turma.whatsappLink}
+                    className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    title="Exibir QR Code"
+                >
+                    <QrCode size={18} />
+                    <span>QR Code</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         {/* --- FIM DA SEÇÃO DO WHATSAPP --- */}
       </div>
 

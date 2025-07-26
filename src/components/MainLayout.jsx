@@ -7,9 +7,12 @@ import { Menu, X } from 'lucide-react';
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
-  // Mantive a lógica de admin para o novo link, mas você pode ajustar se necessário
+  
   const adminRoles = ['coordenador', 'diretor', 'admin', 'auxiliar_coordenacao'];
   const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
+  const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role);
+
+  const canAccessAttendance = isUserAdmin || isUserProfessor;
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -29,9 +32,8 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Boletim Escolar</NavLink>
                   <NavLink to="/mapa-turmas" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Mapa de Turmas</NavLink>
-                  
-                  {/* --- LINK ADICIONADO AQUI (DESKTOP) --- */}
-                  {isUserAdmin && (
+
+                  {canAccessAttendance && (
                     <NavLink to="/frequencia" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>TBs e Curso Extra</NavLink>
                   )}
 
@@ -68,7 +70,7 @@ const MainLayout = () => {
             <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Boletim Escolar</NavLink>
             <NavLink to="/mapa-turmas" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Mapa de Turmas</NavLink>
 
-            {isUserAdmin && (
+            {canAccessAttendance && (
               <NavLink to="/frequencia" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>TBs e Curso Extra</NavLink>
             )}
 
