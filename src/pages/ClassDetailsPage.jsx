@@ -1,20 +1,21 @@
-import { useState, useEffect } from "react"
-import { useParams, Link, useNavigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
-import { useClasses } from "../contexts/ClassContext"
-import { useUsers } from "../contexts/UserContext"
-import StudentImporter from "../components/StudentImporter"
-import Gradebook from "../components/Gradebook"
-import TransferStudentModal from "../components/TransferStudentModal"
-import SubGradesModal from "../components/SubGradesModal"
-import AddStudentModal from "../components/AddStudentModal"
-import EditStudentModal from "../components/EditStudentModal"
-import ObservationModal from "../components/ObservationModal"
-import { UserPlus } from "lucide-react"
-import toast from "react-hot-toast"
+import { useState, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { useClasses } from "../contexts/ClassContext";
+import { useUsers } from "../contexts/UserContext";
+import StudentImporter from "../components/StudentImporter";
+import Gradebook from "../components/Gradebook";
+import TransferStudentModal from "../components/TransferStudentModal";
+import SubGradesModal from "../components/SubGradesModal";
+import AddStudentModal from "../components/AddStudentModal";
+import EditStudentModal from "../components/EditStudentModal";
+import ObservationModal from "../components/ObservationModal";
+import QrCodeModal from "../components/QrCodeModal";
+import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react"; // Adicionados ícones
+import toast from "react-hot-toast";
 
 const callApi = async (functionName, payload, token) => {
-  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`
+  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
     method: "POST",
     headers: {
@@ -22,13 +23,13 @@ const callApi = async (functionName, payload, token) => {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ data: payload }),
-  })
-  const result = await response.json()
+  });
+  const result = await response.json();
   if (!response.ok) {
-    throw new Error(result.error?.message || result.error || "Ocorreu um erro no servidor.")
+    throw new Error(result.error?.message || result.error || "Ocorreu um erro no servidor.");
   }
-  return result.result || result
-}
+  return result.result || result;
+};
 
 const showConfirmationToast = (message, onConfirm) => {
   toast(
@@ -39,8 +40,8 @@ const showConfirmationToast = (message, onConfirm) => {
           <button
             className="w-full bg-red-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-700"
             onClick={() => {
-              onConfirm()
-              toast.dismiss(t.id)
+              onConfirm();
+              toast.dismiss(t.id);
             }}
           >
             Confirmar
@@ -55,41 +56,46 @@ const showConfirmationToast = (message, onConfirm) => {
       </div>
     ),
     { duration: 6000 },
-  )
-}
+  );
+};
 
 function ClassDetailsPage() {
-  const { turmaId } = useParams()
-  const navigate = useNavigate()
-  const { userProfile, firebaseUser } = useAuth()
-  const { classes, updateClass, deleteClass } = useClasses()
-  const { users } = useUsers()
+  const { turmaId } = useParams();
+  const navigate = useNavigate();
+  const { userProfile, firebaseUser } = useAuth();
+  const { classes, updateClass, deleteClass } = useClasses();
+  const { users } = useUsers();
 
-  const [turma, setTurma] = useState(null)
-  const [isEditingName, setIsEditingName] = useState(false)
-  const [newClassName, setNewClassName] = useState("")
-  const [selectedTeacherId, setSelectedTeacherId] = useState("")
-  const [teacherList, setTeacherList] = useState([])
-  const [studentSearchTerm, setStudentSearchTerm] = useState("")
-  const [filteredStudents, setFilteredStudents] = useState([])
+  const [turma, setTurma] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [teacherList, setTeacherList] = useState([]);
+  const [studentSearchTerm, setStudentSearchTerm] = useState("");
+  const [filteredStudents, setFilteredStudents] = useState([]);
 
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
-  const [studentToTransfer, setStudentToTransfer] = useState(null)
-  const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false)
-  const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null })
-  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false)
-  const [isEditStudentModalOpen, setIsEditStudentModalOpen] = useState(false)
-  const [studentToEdit, setStudentToEdit] = useState(null)
-  const [isObservationModalOpen, setIsObservationModalOpen] = useState(false)
-  const [studentToObserve, setStudentToObserve] = useState(null)
+  // Estados para o QR Code e edição do link
+  const [whatsappLinkInput, setWhatsappLinkInput] = useState('');
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isEditingWhatsappLink, setIsEditingWhatsappLink] = useState(false); // Novo estado
 
-  const [editingSubGrades, setEditingSubGrades] = useState({})
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [studentToTransfer, setStudentToTransfer] = useState(null);
+  const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false);
+  const [selectedGradeData, setSelectedGradeData] = useState({ student: null, module: null });
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  const [isEditStudentModalOpen, setIsEditStudentModalOpen] = useState(false);
+  const [studentToEdit, setStudentToEdit] = useState(null);
+  const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
+  const [studentToObserve, setStudentToObserve] = useState(null);
 
-  const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role)
+  const [editingSubGrades, setEditingSubGrades] = useState({});
+
+  const isUserProfessor = userProfile && ["professor", "professor_apoio"].includes(userProfile.role);
   const isUserAdmin = userProfile && ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(userProfile.role);
-  const isUserFinancial = userProfile && userProfile.role === "financeiro"
-  const isGradebookReadOnly = isUserFinancial
-  const canUserEditClass = isUserAdmin
+  const isUserFinancial = userProfile && userProfile.role === "financeiro";
+  const isGradebookReadOnly = isUserFinancial;
+  const canUserEditClass = isUserAdmin;
 
   const gradeInformatica12meses = [
     {
@@ -145,8 +151,7 @@ function ClassDetailsPage() {
         } else {
           modulesToApply = finalTurmaData.modules || [];
         }
-      }
-      else {
+      } else {
         const upperCaseName = finalTurmaData.name.toUpperCase();
         if (upperCaseName.includes("ESP")) {
           modulesToApply = gradeEspecializacao19meses;
@@ -158,11 +163,10 @@ function ClassDetailsPage() {
       }
 
       finalTurmaData.modules = modulesToApply;
-
       setTurma(finalTurmaData);
-
       setNewClassName(finalTurmaData.name);
       setSelectedTeacherId(finalTurmaData.professorId || "");
+      setWhatsappLinkInput(finalTurmaData.whatsappLink || '');
 
       const students = finalTurmaData.students || [];
       if (studentSearchTerm === "") {
@@ -180,158 +184,165 @@ function ClassDetailsPage() {
     const rolesPermitidos = ["professor", "professor_apoio", "coordenador", "auxiliar_coordenacao", "diretor"];
     const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
     setTeacherList(filteredTeachers);
-
   }, [turmaId, classes, users, studentSearchTerm]);
+
+  const handleSaveWhatsappLink = async () => {
+    await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
+    toast.success("Link do WhatsApp salvo com sucesso!");
+    setIsEditingWhatsappLink(false); // Fecha o campo de edição após salvar
+  };
+
+  const handleCancelEditWhatsappLink = () => {
+    setWhatsappLinkInput(turma?.whatsappLink || ''); // Restaura o valor original
+    setIsEditingWhatsappLink(false);
+  }
 
   const handleApiAction = async (action, payload, successCallback) => {
     try {
-      if (!firebaseUser) throw new Error("Usuário não autenticado.")
-      const token = await firebaseUser.getIdToken()
-
-      const promise = callApi(action, payload, token)
-
+      if (!firebaseUser) throw new Error("Usuário não autenticado.");
+      const token = await firebaseUser.getIdToken();
+      const promise = callApi(action, payload, token);
       await toast.promise(promise, {
         loading: "Processando...",
         success: (result) => {
-          if (successCallback) successCallback()
-          return result.message || "Operação realizada com sucesso!"
+          if (successCallback) successCallback();
+          return result.message || "Operação realizada com sucesso!";
         },
         error: (err) => err.message || "Ocorreu um erro inesperado.",
-      })
+      });
     } catch (error) {
-      console.error(`Erro ao executar ${action}:`, error)
-      toast.error(`Erro: ${error.message}`)
+      console.error(`Erro ao executar ${action}:`, error);
+      toast.error(`Erro: ${error.message}`);
     }
-  }
+  };
 
   const handleSaveName = async () => {
-    if (newClassName.trim() === "") return toast.error("O nome da turma não pode ficar em branco.")
-    await updateClass(turma.id, { name: newClassName })
-    toast.success("Nome da turma atualizado!")
-    setIsEditingName(false)
-  }
+    if (newClassName.trim() === "") return toast.error("O nome da turma não pode ficar em branco.");
+    await updateClass(turma.id, { name: newClassName });
+    toast.success("Nome da turma atualizado!");
+    setIsEditingName(false);
+  };
 
   const handleTeacherChange = async (e) => {
-    const newTeacherId = e.target.value
-    const selectedTeacher = teacherList.find((t) => t.id === newTeacherId)
+    const newTeacherId = e.target.value;
+    const selectedTeacher = teacherList.find((t) => t.id === newTeacherId);
     if (selectedTeacher) {
       await updateClass(turma.id, {
         professorId: selectedTeacher.id,
         professorName: selectedTeacher.name,
-      })
-      toast.success("Professor responsável atualizado!")
-      setSelectedTeacherId(newTeacherId)
+      });
+      toast.success("Professor responsável atualizado!");
+      setSelectedTeacherId(newTeacherId);
     }
-  }
+  };
 
   const handleDeleteClass = async () => {
     showConfirmationToast("Apagar esta turma? Esta ação é irreversível.", async () => {
-      await deleteClass(turma.id)
-      navigate("/dashboard")
-      toast.success("Turma apagada com sucesso!")
-    })
-  }
+      await deleteClass(turma.id);
+      navigate("/dashboard");
+      toast.success("Turma apagada com sucesso!");
+    });
+  };
 
   const handleRemoveModule = async (moduleIdToRemove) => {
     showConfirmationToast("Remover este módulo da grade da turma?", async () => {
-      const updatedModules = turma.modules.filter((module) => module.id !== moduleIdToRemove)
-      await updateClass(turma.id, { modules: updatedModules })
-      toast.success("Módulo removido com sucesso!")
-    })
-  }
+      const updatedModules = turma.modules.filter((module) => module.id !== moduleIdToRemove);
+      await updateClass(turma.id, { modules: updatedModules });
+      toast.success("Módulo removido com sucesso!");
+    });
+  };
 
   const handleStudentsImported = async (importedStudents) => {
     if (!importedStudents || importedStudents.length === 0) {
-      toast.error("Nenhum aluno válido encontrado no arquivo.")
-      return
+      toast.error("Nenhum aluno válido encontrado no arquivo.");
+      return;
     }
-
     await handleApiAction("importStudentsBatch", {
       classId: turma.id,
       studentsToImport: importedStudents,
-    })
-  }
+    });
+  };
 
   const handleSaveGrades = async (newGrades) => {
-    if (!turma || !turma.students) return
+    if (!turma || !turma.students) return;
     const updatedStudents = turma.students.map((s) => ({
       ...s,
       grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
-    }))
-    await updateClass(turma.id, { students: updatedStudents })
-    toast.success("Notas salvas com sucesso!")
-  }
+    }));
+    await updateClass(turma.id, { students: updatedStudents });
+    toast.success("Notas salvas com sucesso!");
+  };
 
   const handleOpenTransferModal = (student) => {
-    setStudentToTransfer(student)
-    setIsTransferModalOpen(true)
-  }
+    setStudentToTransfer(student);
+    setIsTransferModalOpen(true);
+  };
 
   const handleCloseTransferModal = () => {
-    setIsTransferModalOpen(false)
-    setStudentToTransfer(null)
-  }
+    setIsTransferModalOpen(false);
+    setStudentToTransfer(null);
+  };
 
   const handleConfirmTransfer = async (studentData, sourceClassId, targetClassId) => {
     await handleApiAction("transferStudent", { studentData, sourceClassId, targetClassId }, () =>
       handleCloseTransferModal(),
-    )
-  }
+    );
+  };
 
   const handleOpenSubGradesModal = (student, module) => {
-    setSelectedGradeData({ student, module })
-    const currentGrades = student.grades?.[module.id]
-    setEditingSubGrades(currentGrades?.subGrades || {})
-    setIsSubGradesModalOpen(true)
-  }
+    setSelectedGradeData({ student, module });
+    const currentGrades = student.grades?.[module.id];
+    setEditingSubGrades(currentGrades?.subGrades || {});
+    setIsSubGradesModalOpen(true);
+  };
 
   const handleCloseSubGradesModal = () => {
-    setIsSubGradesModalOpen(false)
-    setSelectedGradeData({ student: null, module: null })
-    setEditingSubGrades({})
-  }
+    setIsSubGradesModalOpen(false);
+    setSelectedGradeData({ student: null, module: null });
+    setEditingSubGrades({});
+  };
 
   const handleEditingSubGradeChange = (subGradeName, value) => {
-    const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".")
-    if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return
-    setEditingSubGrades((prev) => ({ ...prev, [subGradeName]: sanitizedValue }))
-  }
+    const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".");
+    if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4) return;
+    setEditingSubGrades((prev) => ({ ...prev, [subGradeName]: sanitizedValue }));
+  };
 
   const handleSaveSubGrades = async () => {
-    const { student, module } = selectedGradeData
-    if (!student || !module) return
+    const { student, module } = selectedGradeData;
+    if (!student || !module) return;
 
-    const uniqueStudentId = student.studentId || student.id
+    const uniqueStudentId = student.studentId || student.id;
 
     const gradesAsNumbers = Object.values(editingSubGrades)
       .map((g) => Number.parseFloat(String(g).replace(",", ".")))
-      .filter((g) => !isNaN(g))
-    const average = gradesAsNumbers.length > 0 ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length : 0
+      .filter((g) => !isNaN(g));
+    const average = gradesAsNumbers.length > 0 ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length : 0;
 
     const updatedGradeObject = {
       finalGrade: average.toFixed(1),
       subGrades: editingSubGrades,
-    }
+    };
 
-    const currentStudentInClass = turma.students.find((s) => (s.studentId || s.id) === uniqueStudentId)
-    const currentStudentGrades = currentStudentInClass?.grades || {}
+    const currentStudentInClass = turma.students.find((s) => (s.studentId || s.id) === uniqueStudentId);
+    const currentStudentGrades = currentStudentInClass?.grades || {};
 
     const updatedGradesForStudent = {
       ...currentStudentGrades,
       [module.id]: updatedGradeObject,
-    }
+    };
 
     const updatedStudents = turma.students.map((s) =>
       (s.studentId || s.id) === uniqueStudentId ? { ...s, grades: updatedGradesForStudent } : s,
-    )
+    );
 
-    await updateClass(turma.id, { students: updatedStudents })
-    toast.success("Notas do módulo salvas com sucesso!")
-    handleCloseSubGradesModal()
-  }
+    await updateClass(turma.id, { students: updatedStudents });
+    toast.success("Notas do módulo salvas com sucesso!");
+    handleCloseSubGradesModal();
+  };
 
-  const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true)
-  const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false)
+  const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true);
+  const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false);
 
   const handleAddStudent = async (newStudentData) => {
     await handleApiAction(
@@ -342,18 +353,18 @@ function ClassDetailsPage() {
         studentName: newStudentData.name,
       },
       () => handleCloseAddStudentModal(),
-    )
-  }
+    );
+  };
 
   const handleOpenEditStudentModal = (student) => {
-    setStudentToEdit(student)
-    setIsEditStudentModalOpen(true)
-  }
+    setStudentToEdit(student);
+    setIsEditStudentModalOpen(true);
+  };
 
   const handleCloseEditStudentModal = () => {
-    setIsEditStudentModalOpen(false)
-    setStudentToEdit(null)
-  }
+    setIsEditStudentModalOpen(false);
+    setStudentToEdit(null);
+  };
 
   const handleUpdateStudent = async (updatedStudentData) => {
     if (!turma) return;
@@ -377,47 +388,46 @@ function ClassDetailsPage() {
   };
 
   const handleDeleteStudent = async (studentId) => {
-    if (!turma || !turma.students) return
-    const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno"
+    if (!turma || !turma.students) return;
+    const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno";
 
     showConfirmationToast(`Remover "${studentNameToDelete}" da turma?`, async () => {
-      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId)
-      await updateClass(turma.id, { students: updatedStudents })
-      toast.success("Aluno removido com sucesso.")
-    })
-  }
+      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId);
+      await updateClass(turma.id, { students: updatedStudents });
+      toast.success("Aluno removido com sucesso.");
+    });
+  };
 
   const handleOpenObservationModal = (student) => {
-    setStudentToObserve(student)
-    setIsObservationModalOpen(true)
-  }
+    setStudentToObserve(student);
+    setIsObservationModalOpen(true);
+  };
 
   const handleCloseObservationModal = () => {
-    setIsObservationModalOpen(false)
-    setStudentToObserve(null)
-  }
+    setIsObservationModalOpen(false);
+    setStudentToObserve(null);
+  };
 
   const handleSaveObservation = async (studentId, observationText) => {
-    if (!turma) return
-
+    if (!turma) return;
     const updatedStudents = turma.students.map((student) => {
       if ((student.studentId || student.id) === studentId) {
-        return { ...student, observation: observationText }
+        return { ...student, observation: observationText };
       }
-      return student
-    })
+      return student;
+    });
 
     try {
-      await updateClass(turma.id, { students: updatedStudents })
-      toast.success("Observação salva com sucesso!")
-      handleCloseObservationModal()
+      await updateClass(turma.id, { students: updatedStudents });
+      toast.success("Observação salva com sucesso!");
+      handleCloseObservationModal();
     } catch (error) {
-      toast.error("Erro ao salvar observação.")
-      console.error(error)
+      toast.error("Erro ao salvar observação.");
+      console.error(error);
     }
-  }
+  };
 
-  if (!turma) return <div className="p-8">Carregando turma...</div>
+  if (!turma) return <div className="p-8">Carregando turma...</div>;
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
@@ -425,7 +435,7 @@ function ClassDetailsPage() {
         &larr; Voltar para o Dashboard
       </Link>
 
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         {!isEditingName ? (
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
@@ -475,6 +485,69 @@ function ClassDetailsPage() {
         ) : (
           <p className="text-md text-gray-600 mt-2">Professor(a) Responsável: {turma.professorName || "A definir"}</p>
         )}
+
+        {/* --- SEÇÃO DO WHATSAPP MODIFICADA --- */}
+        {canUserEditClass && (
+            <div className="mt-6 border-t pt-4">
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">Grupo do WhatsApp</h3>
+                {isEditingWhatsappLink ? (
+                  // Modo de Edição
+                  <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                    <input
+                        type="url"
+                        placeholder="Cole aqui o link do grupo"
+                        value={whatsappLinkInput}
+                        onChange={(e) => setWhatsappLinkInput(e.target.value)}
+                        className="flex-grow p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button 
+                        onClick={handleSaveWhatsappLink}
+                        className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                    >
+                        <Save size={18} />
+                        Salvar
+                    </button>
+                    <button 
+                        onClick={handleCancelEditWhatsappLink}
+                        className="flex items-center justify-center gap-2 bg-gray-500 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-600 transition"
+                    >
+                        <X size={18} />
+                        Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  // Modo de Visualização
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="flex-grow bg-gray-100 p-2 rounded-md text-gray-700 truncate">
+                      {turma.whatsappLink ? (
+                        <a href={turma.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{turma.whatsappLink}</a>
+                      ) : (
+                        <span className="text-gray-400">Nenhum link cadastrado.</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                          onClick={() => setIsEditingWhatsappLink(true)}
+                          className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                      >
+                          <Pencil size={16} />
+                          {turma.whatsappLink ? 'Editar' : 'Adicionar'}
+                      </button>
+                      <button 
+                          onClick={() => setIsQrModalOpen(true)}
+                          disabled={!turma.whatsappLink}
+                          className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                          title="Exibir QR Code"
+                      >
+                          <QrCode size={18} />
+                          <span>QR Code</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+            </div>
+        )}
+        {/* --- FIM DA SEÇÃO DO WHATSAPP --- */}
       </div>
 
       <div className="mt-10">
@@ -488,7 +561,6 @@ function ClassDetailsPage() {
               onChange={(e) => setStudentSearchTerm(e.target.value)}
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
-
             {canUserEditClass && (
               <button
                 onClick={handleOpenAddStudentModal}
@@ -556,8 +628,7 @@ function ClassDetailsPage() {
               <div>
                 <h3 className="font-bold">Apagar esta Turma</h3>
                 <p className="text-sm text-red-800 mt-1 max-w-2xl">
-                  Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não
-                  pode ser desfeita.
+                  Uma vez que a turma for apagada, todos os seus dados serão permanentemente perdidos. Esta ação não pode ser desfeita.
                 </p>
               </div>
               <button
@@ -571,15 +642,20 @@ function ClassDetailsPage() {
         </div>
       )}
 
-      <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
+      <QrCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        link={turma?.whatsappLink}
+        className={turma?.name}
+      />
 
+      <AddStudentModal isOpen={isAddStudentModalOpen} onClose={handleCloseAddStudentModal} onSave={handleAddStudent} />
       <EditStudentModal
         isOpen={isEditStudentModalOpen}
         onClose={handleCloseEditStudentModal}
         onSave={handleUpdateStudent}
         studentToEdit={studentToEdit}
       />
-
       <TransferStudentModal
         isOpen={isTransferModalOpen}
         onClose={handleCloseTransferModal}
@@ -588,7 +664,6 @@ function ClassDetailsPage() {
         allClasses={classes}
         onConfirmTransfer={handleConfirmTransfer}
       />
-
       <SubGradesModal
         isOpen={isSubGradesModalOpen}
         onClose={handleCloseSubGradesModal}
@@ -598,7 +673,6 @@ function ClassDetailsPage() {
         onGradeChange={handleEditingSubGradeChange}
         onSave={handleSaveSubGrades}
       />
-
       <ObservationModal
         isOpen={isObservationModalOpen}
         onClose={handleCloseObservationModal}
@@ -606,7 +680,7 @@ function ClassDetailsPage() {
         student={studentToObserve}
       />
     </div>
-  )
+  );
 }
 
-export default ClassDetailsPage
+export default ClassDetailsPage;
