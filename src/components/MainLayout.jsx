@@ -7,7 +7,8 @@ import { Menu, X } from 'lucide-react';
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
-  const adminRoles = ['coordenador', 'diretor', 'admin'];
+  // Mantive a lógica de admin para o novo link, mas você pode ajustar se necessário
+  const adminRoles = ['coordenador', 'diretor', 'admin', 'auxiliar_coordenacao'];
   const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,6 +29,12 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   <NavLink to="/dashboard" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Boletim Escolar</NavLink>
                   <NavLink to="/mapa-turmas" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Mapa de Turmas</NavLink>
+                  
+                  {/* --- LINK ADICIONADO AQUI (DESKTOP) --- */}
+                  {isUserAdmin && (
+                    <NavLink to="/frequencia" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>TBs e Curso Extra</NavLink>
+                  )}
+
                   <NavLink to="/laboratorio" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Laboratório de Apoio</NavLink>
                   <NavLink to="/kanban" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Tarefas</NavLink>
                   <NavLink to="/calculadora" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Calculadora de Reposição</NavLink>
@@ -60,9 +67,14 @@ const MainLayout = () => {
           <nav className="mt-16 space-y-2">
             <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Boletim Escolar</NavLink>
             <NavLink to="/mapa-turmas" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Mapa de Turmas</NavLink>
-             <NavLink to="/laboratorio" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Laboratório de Apoio</NavLink>
-             <NavLink to="/kanban" className={({isActive}) => `block rounded-md px-3 py-2 text-base font-medium ${isActive ? activeLinkClass : inactiveLinkClass}`}>Tarefas</NavLink>
-             <NavLink to="/calculadora" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Calculadora de Reposição</NavLink>
+
+            {isUserAdmin && (
+              <NavLink to="/frequencia" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>TBs e Curso Extra</NavLink>
+            )}
+
+            <NavLink to="/laboratorio" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Laboratório de Apoio</NavLink>
+            <NavLink to="/kanban" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Tarefas</NavLink>
+            <NavLink to="/calculadora" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Calculadora de Reposição</NavLink>
             {isUserAdmin && (
               <NavLink to="/usuarios" className={mobileLinkClass} onClick={() => setIsMobileMenuOpen(false)}>Usuários</NavLink>
             )}
