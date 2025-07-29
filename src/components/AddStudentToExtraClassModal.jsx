@@ -1,4 +1,3 @@
-// src/components/AddStudentToExtraClassModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,20 +9,17 @@ function AddStudentToExtraClassModal({ isOpen, onClose, onSave, allStudentsMap }
   const [foundStudentData, setFoundStudentData] = useState(null);
 
   useEffect(() => {
-    // Busca automática quando o código é digitado
-    if (studentCode) {
+    if (studentCode.trim()) {
       const studentData = allStudentsMap.get(studentCode.trim());
       if (studentData) {
         setStudentName(studentData.name);
         setIsStudentFound(true);
-        setFoundStudentData(studentData); // Guarda os dados do aluno encontrado
+        setFoundStudentData(studentData);
       } else {
-        setStudentName("");
         setIsStudentFound(false);
         setFoundStudentData(null);
       }
     } else {
-      setStudentName('');
       setIsStudentFound(false);
       setFoundStudentData(null);
     }
@@ -38,24 +34,23 @@ function AddStudentToExtraClassModal({ isOpen, onClose, onSave, allStudentsMap }
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!studentCode.trim() || !studentName.trim()) {
-      toast.error("Matrícula e Nome do Aluno são obrigatórios.");
+    if (!studentName.trim()) {
+      toast.error("O Nome do Aluno é obrigatório.");
       return;
     }
 
     let entryData = {};
+
     if (isStudentFound && foundStudentData) {
-      // Se o aluno foi encontrado, envia os dados existentes para evitar duplicatas
       entryData = {
         studentId: foundStudentData.id,
         name: foundStudentData.name,
         code: foundStudentData.code,
       };
     } else {
-      // Se for um novo aluno (visitante)
       entryData = {
         name: studentName,
-        code: studentCode,
+        code: studentCode.trim() || `VISITANTE_${Date.now()}`,
       };
     }
     
@@ -79,14 +74,14 @@ function AddStudentToExtraClassModal({ isOpen, onClose, onSave, allStudentsMap }
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="studentCode" className="block text-sm font-medium text-gray-700">Matrícula do Aluno</label>
+              <label htmlFor="studentCode" className="block text-sm font-medium text-gray-700">Matrícula do Aluno (Opcional)</label>
               <input 
                 id="studentCode" 
                 type="text" 
                 value={studentCode} 
                 onChange={(e) => setStudentCode(e.target.value)} 
                 className="w-full px-3 py-2 border rounded-lg mt-1" 
-                placeholder="Digite a matrícula e o nome será preenchido"
+                placeholder="Digite a matrícula para buscar um aluno existente"
               />
             </div>
             
@@ -99,7 +94,7 @@ function AddStudentToExtraClassModal({ isOpen, onClose, onSave, allStudentsMap }
                 onChange={(e) => setStudentName(e.target.value)}
                 disabled={isStudentFound}
                 className={`w-full px-3 py-2 border rounded-lg mt-1 ${isStudentFound ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} 
-                placeholder={isStudentFound ? '' : 'Nome do novo aluno ou visitante'}
+                placeholder="Digite o nome do aluno ou visitante"
               />
             </div>
             
