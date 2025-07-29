@@ -5,7 +5,7 @@ import { PlusCircle } from "lucide-react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import toast from "react-hot-toast";
 
 function LabSupportPage() {
@@ -16,6 +16,7 @@ function LabSupportPage() {
   const [labEntries, setLabEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
 
+  // Voltamos a usar o Map, que é ideal para buscas por código.
   const allStudentsMap = useMemo(() => {
     const map = new Map();
     classes.forEach(turma => {
@@ -44,21 +45,41 @@ function LabSupportPage() {
     return () => unsubscribe();
   }, [selectedDate]);
 
-  const handleAddEntry = async (entryData) => {
+  const handleAddEntry = async (entryData, repeatWeeks) => {
     if (!entryData.studentCode || !entryData.studentName) {
-        return toast.error("Código do aluno inválido ou não encontrado.");
+      return toast.error("Código e nome do aluno são obrigatórios.");
     }
-    const newLabEntry = {
-        ...entryData,
-        isDone: false,
-        entryDate: selectedDate,
-        createdAt: serverTimestamp()
-    };
+    
+    const numberOfEntries = repeatWeeks > 1 ? repeatWeeks : 1;
+    
     try {
-        await addDoc(collection(db, "labEntries"), newLabEntry);
-        toast.success("Atendimento salvo com sucesso!");
+        const batch = writeBatch(db);
+        const initialDate = new Date(selectedDate + 'T12:00:00');
+
+        for (let i = 0; i < numberOfEntries; i++) {
+            const targetDate = new Date(initialDate);
+            targetDate.setDate(targetDate.getDate() + (i * 7));
+            
+            const entryDateString = targetDate.toISOString().split('T')[0];
+
+            const newLabEntry = {
+                ...entryData,
+                isDone: false,
+                entryDate: entryDateString,
+                createdAt: serverTimestamp()
+            };
+            
+            const docRef = doc(collection(db, "labEntries"));
+            batch.set(docRef, newLabEntry);
+        }
+
+        await batch.commit();
+        
+        toast.success(numberOfEntries > 1 ? `${numberOfEntries} atendimentos agendados!` : "Atendimento salvo!");
+        
         setIsModalOpen(false);
     } catch (error) {
+        console.error("Erro ao salvar atendimento(s): ", error);
         toast.error("Ocorreu um erro ao salvar.");
     }
   };
@@ -118,7 +139,7 @@ function LabSupportPage() {
         {loadingEntries ? (<p className="text-center text-gray-500">Carregando atendimentos...</p>) :
         (<LabEntriesTable entries={labEntries} onStatusChange={handleStatusChange} onEntryUpdate={handleEntryUpdate} onEntryDelete={handleEntryDelete} />)}
       </div>
-
+      
       <AddLabEntryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleAddEntry} allStudentsMap={allStudentsMap} />
     </div>
   );
