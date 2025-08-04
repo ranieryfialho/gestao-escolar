@@ -109,6 +109,15 @@ function ClassDetailsPage() {
     { id: 'CMV', title: 'CMV - Comunicação Visual com Illustrator', syllabus: 'Carga Horária: 16h, Duração: 2 meses' },
   ];
 
+  // ==========================================================
+  // NOVA FUNÇÃO PARA ORDENAR ALUNOS
+  // ==========================================================
+  const sortStudentsByName = (studentArray) => {
+    if (!studentArray) return [];
+    // Usamos [...studentArray] para criar uma cópia e não modificar o array original
+    return [...studentArray].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  };
+
   useEffect(() => {
     const loadClassData = async () => {
       if (turmaId === 'concludentes') {
@@ -142,16 +151,17 @@ function ClassDetailsPage() {
           setTurma(virtualClass);
           setNewClassName(virtualClass.name);
 
-          const students = virtualClass.students || [];
+          // ALTERAÇÃO: Aplicando a ordenação
+          const sortedStudents = sortStudentsByName(virtualClass.students);
           if (studentSearchTerm === "") {
-            setFilteredStudents(students);
+            setFilteredStudents(sortedStudents);
           } else {
-            const results = students.filter(
+            const results = sortedStudents.filter(
               (student) =>
                 student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
                 String(student.code).toLowerCase().includes(studentSearchTerm.toLowerCase()),
             );
-            setFilteredStudents(results);
+            setFilteredStudents(results); // O resultado já estará ordenado
           }
         } catch (error) {
           console.error("Erro ao carregar turma de concludentes:", error);
@@ -183,16 +193,17 @@ function ClassDetailsPage() {
         setSelectedTeacherId(finalTurmaData.professorId || "");
         setWhatsappLinkInput(finalTurmaData.whatsappLink || '');
 
-        const students = finalTurmaData.students || [];
+        // ALTERAÇÃO: Aplicando a ordenação
+        const sortedStudents = sortStudentsByName(finalTurmaData.students);
         if (studentSearchTerm === "") {
-          setFilteredStudents(students);
+          setFilteredStudents(sortedStudents);
         } else {
-          const results = students.filter(
+          const results = sortedStudents.filter(
             (student) =>
               student.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
               String(student.code).toLowerCase().includes(studentSearchTerm.toLowerCase()),
           );
-          setFilteredStudents(results);
+          setFilteredStudents(results); // O resultado já estará ordenado
         }
       }
     };
@@ -285,7 +296,6 @@ function ClassDetailsPage() {
   const handleSaveGrades = async (newGrades) => {
     if (!turma || !turma.students) return;
 
-    // Filtra para pegar apenas os alunos cujas notas mudaram
     const changedStudents = turma.students
       .filter(s => newGrades[s.studentId || s.id])
       .map((s) => ({
@@ -298,10 +308,8 @@ function ClassDetailsPage() {
     }
 
     if (turma.isVirtual) {
-      // Lógica para salvar notas dos concludentes usando a nova função de backend
       await handleApiAction("updateGraduatesBatch", { updatedStudents: changedStudents });
     } else {
-      // Lógica original para turmas normais
       const allUpdatedStudents = turma.students.map((s) => ({
         ...s,
         grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
@@ -374,7 +382,6 @@ function ClassDetailsPage() {
       (s.studentId || s.id) === uniqueStudentId ? { ...s, grades: updatedGradesForStudent } : s,
     );
 
-    // Salva as notas usando a mesma lógica do onSaveGrades principal
     if (turma.isVirtual) {
       await handleApiAction("updateGraduatesBatch", { updatedStudents });
     } else {
@@ -436,7 +443,7 @@ function ClassDetailsPage() {
     const studentNameToDelete = turma.students.find((s) => (s.studentId || s.id) === studentId)?.name || "este aluno";
 
     showConfirmationToast(`Remover "${studentNameToDelete}" da turma?`, async () => {
-      const updatedStudents = turma.students.filter((student) => (student.studentId || s.id) !== studentId);
+      const updatedStudents = turma.students.filter((student) => (student.studentId || student.id) !== studentId);
       await updateClass(turma.id, { students: updatedStudents });
       toast.success("Aluno removido com sucesso.");
     });
@@ -593,9 +600,6 @@ function ClassDetailsPage() {
           onObservationClick={handleOpenObservationModal}
           isUserAdmin={canUserEditClass}
           isUserProfessor={isUserProfessor}
-          // ==========================================================
-          // ALTERAÇÃO CRÍTICA AQUI: Lógica de permissão refinada
-          // ==========================================================
           isReadOnly={isGradebookReadOnly || (turma.isVirtual && !canUserEditClass)}
           onOpenSubGradesModal={handleOpenSubGradesModal}
         />
