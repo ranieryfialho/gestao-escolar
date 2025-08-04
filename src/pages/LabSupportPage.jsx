@@ -18,6 +18,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import toast from "react-hot-toast";
+import HorariosAtendimento from "../components/HorariosAtendimento";
 
 function LabSupportPage() {
   const { userProfile } = useAuth();
@@ -169,6 +170,8 @@ function LabSupportPage() {
           </button>
         )}
       </div>
+
+      <HorariosAtendimento />
 
       <div className="mt-8">
         {loadingEntries ? (
