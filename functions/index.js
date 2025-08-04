@@ -578,3 +578,36 @@ exports.listGraduates = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    
+    if (!(await isAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+
+    const { updatedStudents } = req.body.data;
+    if (!Array.isArray(updatedStudents)) {
+        return res.status(400).json({ error: "Dados dos alunos inválidos." });
+    }
+
+    try {
+        const batch = db.batch();
+        updatedStudents.forEach(student => {
+            if (student.code && student.grades) {
+                const docRef = db.collection("concludentes").doc(String(student.code));
+                batch.update(docRef, { grades: student.grades });
+            }
+        });
+        await batch.commit();
+        return res.status(200).json({ message: "Notas dos concludentes atualizadas com sucesso!" });
+    } catch (error) {
+        console.error("Erro ao atualizar notas dos concludentes:", error);
+        return res.status(500).json({ error: "Erro no servidor ao atualizar notas." });
+    }
+  });
+});
