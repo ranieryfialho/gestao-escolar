@@ -1,38 +1,48 @@
 // src/components/TransferStudentModal.jsx
 
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 
 function TransferStudentModal({ isOpen, onClose, student, currentClass, allClasses, onConfirmTransfer }) {
   const [targetClassId, setTargetClassId] = useState('');
   const [availableClasses, setAvailableClasses] = useState([]);
 
+  // useEffect foi atualizado para incluir a opção "Concludentes"
   useEffect(() => {
-    if (allClasses && currentClass) {
-      // Filtra a lista de turmas para não mostrar a turma atual do aluno
-      const filtered = allClasses.filter(c => c.id !== currentClass.id);
-      setAvailableClasses(filtered);
-      // Define a primeira turma da lista como padrão, se houver
-      if (filtered.length > 0) {
-        setTargetClassId(filtered[0].id);
+    if (isOpen && allClasses && currentClass) {
+      // Filtra a lista para não mostrar a turma atual
+      const otherClasses = allClasses.filter(c => c.id !== currentClass.id);
+      
+      // Adiciona a opção especial "Concludentes" no topo da lista
+      const availableOptions = [
+        { id: 'concludentes', name: '✅ MOVER PARA CONCLUDENTES' },
+        ...otherClasses
+      ];
+      
+      setAvailableClasses(availableOptions);
+      
+      // Define "Concludentes" como a opção padrão para facilitar o uso
+      if (availableOptions.length > 0) {
+        setTargetClassId('concludentes');
       }
     }
   }, [isOpen, allClasses, currentClass]);
 
   const handleConfirm = () => {
     if (!targetClassId) {
-      alert('Por favor, selecione uma turma de destino.');
+      toast.error('Por favor, selecione uma turma de destino.');
       return;
     }
-    // Chama a função da página pai com todos os dados necessários
+    // A função onConfirmTransfer já é preparada para receber os dados necessários
     onConfirmTransfer(student, currentClass.id, targetClassId);
   };
 
   if (!isOpen || !student || !currentClass) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-2">Transferir Aluno(a)</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-lg animate-slide-up">
+        <h2 className="text-xl font-bold mb-2">Transferir ou Concluir Aluno(a)</h2>
         <p className="text-sm text-gray-600 mb-6">
           Aluno(a): <span className="font-semibold">{student.name}</span>
         </p>
@@ -57,11 +67,16 @@ function TransferStudentModal({ isOpen, onClose, student, currentClass, allClass
               id="target-class"
               value={targetClassId}
               onChange={(e) => setTargetClassId(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base"
             >
               {availableClasses.length > 0 ? (
                 availableClasses.map(c => (
-                  <option key={c.id} value={c.id}>
+                  <option 
+                    key={c.id} 
+                    value={c.id}
+                    // Estilo especial para a opção de concludentes
+                    className={c.id === 'concludentes' ? 'font-bold text-green-700' : ''}
+                  >
                     {c.name}
                   </option>
                 ))
@@ -73,15 +88,18 @@ function TransferStudentModal({ isOpen, onClose, student, currentClass, allClass
         </div>
 
         <div className="mt-8 flex justify-end gap-4">
-          <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+          >
             Cancelar
           </button>
           <button
             onClick={handleConfirm}
             disabled={!targetClassId}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed font-bold transition-colors"
           >
-            Confirmar Transferência
+            Confirmar
           </button>
         </div>
       </div>

@@ -6,6 +6,8 @@ import { useUsers } from "../contexts/UserContext";
 import CreateClassForm from "../components/CreateClassForm";
 import { modulePackages, masterModuleList } from "../data/mockData";
 import toast from "react-hot-toast";
+// ADICIONEI OS ÍCONES AQUI
+import { GraduationCap, Users } from "lucide-react"; 
 
 function DashboardPage() {
   const { userProfile, firebaseUser } = useAuth();
@@ -168,22 +170,50 @@ function DashboardPage() {
         </div>
       </div>
 
-      {filteredClasses.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClasses.map((turma) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* ================================================================== */}
+        {/* CARD FIXO PARA CONCLUDENTES ADICIONADO AQUI                     */}
+        {/* ================================================================== */}
+        {canViewAll && (
+            <Link 
+              to="/turma/concludentes" 
+              className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-xl font-bold">Turma de Concludentes</h3>
+                  <GraduationCap size={28} />
+                </div>
+                <p className="text-green-100 text-sm">
+                  Visualizar e gerenciar alunos que já concluíram o curso.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 mt-4 text-green-200 font-semibold">
+                <Users size={16} />
+                <span>Acessar Lista</span>
+              </div>
+            </Link>
+        )}
+
+        {/* CÓDIGO ORIGINAL PARA LISTAR TURMAS NORMAIS */}
+        {filteredClasses.length > 0 ? (
+          filteredClasses.map((turma) => (
             <Link key={turma.id} to={`/turma/${turma.id}`}>
               <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer h-full flex flex-col">
                 <h3 className="text-lg font-bold text-blue-700 flex-grow">{turma.name}</h3>
                 <p className="text-sm text-gray-500 mt-2">Professor(a): {turma.professorName || "A definir"}</p>
               </div>
             </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-10 bg-gray-50 rounded-lg">
-          <p className="text-gray-500">Nenhuma turma encontrada para os critérios atuais.</p>
-        </div>
-      )}
+          ))
+        ) : (
+          !loadingClasses && (
+            <div className="sm:col-span-2 lg:col-span-3 text-center py-10 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">Nenhuma turma encontrada para os critérios atuais.</p>
+            </div>
+          )
+        )}
+      </div>
+      {loadingClasses && <p className="text-center mt-4 text-gray-500">Carregando turmas...</p>}
     </div>
   );
 }
