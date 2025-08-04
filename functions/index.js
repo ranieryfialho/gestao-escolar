@@ -10,16 +10,15 @@ const auth = admin.auth();
 const isAdmin = async (idToken) => {
   try {
     if (!idToken) {
-      console.log("isAdmin check: Falhou porque o idToken não foi fornecido.");
-      return false;
+        console.log("isAdmin check: Falhou porque o idToken não foi fornecido.");
+        return false;
     }
     const decodedToken = await auth.verifyIdToken(idToken);
     const userRole = decodedToken.role;
 
-    // LOG ADICIONADO AQUI: Vamos ver qual é o perfil que o backend está lendo.
     console.log("Verificando permissão para o perfil (role):", userRole);
 
-    return ["diretor", "coordenador", "admin", "auxiliar_coordenacao"].includes(
+    return ["diretor", "coordenador", "admin", "auxiliar_coordenacao", "professor_apoio", "financeiro"].includes(
       userRole
     );
   } catch (error) {
