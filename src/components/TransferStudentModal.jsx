@@ -1,5 +1,3 @@
-// src/components/TransferStudentModal.jsx
-
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 
@@ -7,22 +5,20 @@ function TransferStudentModal({ isOpen, onClose, student, currentClass, allClass
   const [targetClassId, setTargetClassId] = useState('');
   const [availableClasses, setAvailableClasses] = useState([]);
 
-  // useEffect foi atualizado para incluir a opção "Concludentes"
   useEffect(() => {
     if (isOpen && allClasses && currentClass) {
-      // Filtra a lista para não mostrar a turma atual
       const otherClasses = allClasses.filter(c => c.id !== currentClass.id);
       
-      // Adiciona a opção especial "Concludentes" no topo da lista
-      const availableOptions = [
+      const sortedClasses = otherClasses.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      
+      const options = [
         { id: 'concludentes', name: '✅ MOVER PARA CONCLUDENTES' },
-        ...otherClasses
+        ...sortedClasses
       ];
       
-      setAvailableClasses(availableOptions);
+      setAvailableClasses(options);
       
-      // Define "Concludentes" como a opção padrão para facilitar o uso
-      if (availableOptions.length > 0) {
+      if (options.length > 0) {
         setTargetClassId('concludentes');
       }
     }
@@ -33,7 +29,6 @@ function TransferStudentModal({ isOpen, onClose, student, currentClass, allClass
       toast.error('Por favor, selecione uma turma de destino.');
       return;
     }
-    // A função onConfirmTransfer já é preparada para receber os dados necessários
     onConfirmTransfer(student, currentClass.id, targetClassId);
   };
 
@@ -74,7 +69,6 @@ function TransferStudentModal({ isOpen, onClose, student, currentClass, allClass
                   <option 
                     key={c.id} 
                     value={c.id}
-                    // Estilo especial para a opção de concludentes
                     className={c.id === 'concludentes' ? 'font-bold text-green-700' : ''}
                   >
                     {c.name}
