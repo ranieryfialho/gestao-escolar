@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react"; // Removido 'useMemo' que não é mais necessário aqui
 import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
 import { PlusCircle } from "lucide-react";
@@ -22,7 +22,8 @@ import HorariosAtendimento from "../components/HorariosAtendimento";
 
 function LabSupportPage() {
   const { userProfile } = useAuth();
-  const { classes } = useClasses();
+  // --- MELHORIA: Pega o 'allStudentsMap' unificado diretamente do contexto ---
+  const { allStudentsMap } = useClasses();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -30,22 +31,8 @@ function LabSupportPage() {
   const [labEntries, setLabEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
 
-  const allStudentsMap = useMemo(() => {
-    const map = new Map();
-    classes.forEach((turma) => {
-      if (turma.students && Array.isArray(turma.students)) {
-        turma.students.forEach((aluno) => {
-          if (aluno.code && aluno.name) {
-            map.set(aluno.code.toString(), {
-              name: aluno.name,
-              className: turma.name,
-            });
-          }
-        });
-      }
-    });
-    return map;
-  }, [classes]);
+  // --- MELHORIA: O bloco 'useMemo' para criar o mapa foi removido daqui ---
+  // A lógica agora está centralizada no ClassContext.jsx
 
   useEffect(() => {
     setLoadingEntries(true);
