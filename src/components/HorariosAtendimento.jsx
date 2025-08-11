@@ -2,11 +2,11 @@ import React from 'react';
 import { Clock } from 'lucide-react';
 
 const horarios = [
-  { dia: "Segunda", horario: "13h30 às 15h20" },
+  { dia: "Segunda", horario: "13h30 às 17h20" },
   { dia: "Terça", horario: "13h às 15h20" },
   { dia: "Quarta", horario: "13h30 às 17h20" },
-  { dia: "Sexta", horario: "13h30 às 15h30" },
-  { dia: "Sábado", horario: "7h30 às 9h30" },
+  { dia: "Sexta", horario: "13h30 às 15h20" },
+  { dia: "Sábado", horario: "7h30 às 9h20" },
 ];
 
 function HorariosAtendimento() {

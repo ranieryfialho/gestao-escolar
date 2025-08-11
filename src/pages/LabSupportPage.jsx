@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; // Removido 'useMemo' que não é mais necessário aqui
+import { useState, useEffect } from "react";
 import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
 import { PlusCircle } from "lucide-react";
@@ -22,7 +22,6 @@ import HorariosAtendimento from "../components/HorariosAtendimento";
 
 function LabSupportPage() {
   const { userProfile } = useAuth();
-  // --- MELHORIA: Pega o 'allStudentsMap' unificado diretamente do contexto ---
   const { allStudentsMap } = useClasses();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
@@ -30,9 +29,6 @@ function LabSupportPage() {
   );
   const [labEntries, setLabEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
-
-  // --- MELHORIA: O bloco 'useMemo' para criar o mapa foi removido daqui ---
-  // A lógica agora está centralizada no ClassContext.jsx
 
   useEffect(() => {
     setLoadingEntries(true);
