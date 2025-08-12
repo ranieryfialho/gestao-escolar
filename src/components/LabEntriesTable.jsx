@@ -26,7 +26,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
     const times = Array.isArray(entry.timeSlot) ? entry.timeSlot : (entry.timeSlot ? [entry.timeSlot] : []);
     
     setEditFormData({
-      studentName: entry.studentName, // Adicionado para edição
+      studentName: entry.studentName,
       activity: entry.activity,
       subject: entry.subject || moduleOptions[0],
       observation: entry.observation,
@@ -105,13 +105,13 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
             <th className="px-4 py-3 font-bold">Turma</th>
             <th className="px-4 py-3 font-bold">Atividade / Matéria</th>
             <th className="px-4 py-3 font-bold">Observações</th>
+            <th className="px-4 py-3 font-bold">Adicionado por</th>
             <th className="px-4 py-3 font-bold text-center">Ações</th>
           </tr>
         </thead>
         <tbody>
           {sortedEntries.map((entry) => (
               editingRowId === entry.id ? (
-                // Linha em modo de edição
                 <tr key={entry.id} className="bg-yellow-50">
                   <td className="px-2 py-2 text-center">-</td>
                   <td className="px-4 py-2">
@@ -130,14 +130,12 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                         ))}
                     </div>
                   </td>
-                  {/* Campo de Nome agora editável */}
                   <td className="px-4 py-2">
                     <input
                       type="text"
                       name="studentName"
                       value={editFormData.studentName}
                       onChange={handleEditFormChange}
-                      // Habilitado apenas se for um visitante
                       disabled={entry.studentCode !== 'VISITANTE'}
                       className={`w-full p-1 border rounded ${entry.studentCode !== 'VISITANTE' ? 'bg-gray-100' : ''}`}
                     />
@@ -158,6 +156,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                   <td className="px-4 py-2">
                     <input type="text" name="observation" value={editFormData.observation} onChange={handleEditFormChange} className="w-full p-1 border rounded" />
                   </td>
+                  <td className="px-4 py-2 text-center text-gray-500">-</td>
                   <td className="px-4 py-2 text-center">
                     <div className="flex justify-center items-center gap-2">
                       <button onClick={() => handleUpdateSubmit(entry.id)} className="text-green-600 hover:text-green-800" title="Salvar">
@@ -170,7 +169,6 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                   </td>
                 </tr>
               ) : (
-                // Linha em modo de visualização
                 <tr key={entry.id} className="bg-white border-b hover:bg-blue-50">
                   <td className="px-2 py-2 text-center">
                     <button onClick={() => onStatusChange(entry.id, !entry.isDone)} title={entry.isDone ? "Marcar como não realizado" : "Marcar como realizado"}>
@@ -184,6 +182,19 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                     {entry.subject ? `${entry.activity} (${entry.subject})` : entry.activity}
                   </td>
                   <td className="px-4 py-2">{entry.observation}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {entry.createdByName ? (
+                        <div>
+                            <span className="font-semibold">{entry.createdByName}</span>
+                            <br />
+                            <span className="text-xs capitalize text-gray-500">
+                                {(entry.createdByRole || '').replace(/_/g, ' ')}
+                            </span>
+                        </div>
+                    ) : (
+                        '-'
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-center">
                     <div className="flex justify-center items-center gap-4">
                       <button onClick={() => handleEditClick(entry)} className="text-gray-500 hover:text-blue-600" title="Editar Atendimento">

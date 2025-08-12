@@ -69,6 +69,9 @@ function LabSupportPage() {
           isDone: false,
           entryDate: entryDateString,
           createdAt: serverTimestamp(),
+          createdByUid: userProfile.id,
+          createdByName: userProfile.name,
+          createdByRole: userProfile.role,
         };
 
         const docRef = doc(collection(db, "labEntries"));
