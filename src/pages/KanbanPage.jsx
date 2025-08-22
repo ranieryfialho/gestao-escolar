@@ -3,10 +3,10 @@
 import { useState, useEffect, useMemo } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { db } from "../firebase"
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, deleteDoc } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, Timestamp } from "firebase/firestore"
 import { useAuth } from "../contexts/AuthContext"
 import { useUsers } from "../contexts/UserContext"
-import { PlusCircle, Pencil, Trash2, AlertCircle } from "lucide-react"
+import { PlusCircle, Pencil, Trash2, AlertCircle, Calendar, Clock, CalendarPlus } from "lucide-react"
 import AddTaskModal from "../components/AddTaskModal"
 import EditTaskModal from "../components/EditTaskModal"
 import toast from "react-hot-toast"
@@ -37,6 +37,19 @@ const initialColumns = {
 
 const columnOrder = ["todo", "inprogress", "done"]
 
+// Calcula a diferença de dias úteis (Seg-Sáb) entre duas datas
+const getBusinessDays = (startDate, endDate) => {
+    let count = 0;
+    const curDate = new Date(startDate.getTime());
+    while (curDate <= endDate) {
+        const dayOfWeek = curDate.getDay();
+        if (dayOfWeek !== 0) count++; // 0 é Domingo
+        curDate.setDate(curDate.getDate() + 1);
+    }
+    return count;
+};
+
+// Componente de tarefa separado para gerir o seu próprio estado de expansão
 const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, onEdit, onDelete }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
@@ -47,6 +60,24 @@ const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, 
 
     const description = task.description || '';
     const isLongDescription = description.length > 100;
+
+    // Lógica de feedback visual
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let isOverdue = false;
+    if (task.dueDate && task.dueDate.toDate) {
+        const dueDate = task.dueDate.toDate();
+        dueDate.setHours(0, 0, 0, 0);
+        isOverdue = today > dueDate && task.status !== 'done';
+    }
+
+    let daysStuck = 0;
+    if (task.movedAt && task.movedAt.toDate && task.status !== 'done') {
+        const movedDate = task.movedAt.toDate();
+        daysStuck = getBusinessDays(movedDate, today);
+    }
+    const isStuck = daysStuck > 3;
 
     return (
         <Draggable
@@ -60,7 +91,9 @@ const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, 
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    className={`bg-white p-4 mb-3 rounded-lg shadow border-l-4 ${column.borderColor} ${
+                    className={`bg-white p-4 mb-3 rounded-lg shadow border-l-4 ${
+                      isOverdue || isStuck ? 'border-red-500' : column.borderColor
+                    } ${
                       snapshot.isDragging ? "shadow-xl scale-105 rotate-2" : "shadow-sm hover:shadow-md"
                     } ${
                       !canDrag
@@ -88,13 +121,38 @@ const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, 
                                 </div>
                             )}
 
-                            <p className="text-xs text-gray-500">
-                                <span className="font-medium">Responsável:</span> {task.assigneeName}
-                            </p>
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-2 text-xs">
+                                <p className="text-gray-500">
+                                    <span className="font-medium">Responsável:</span> {task.assigneeName}
+                                </p>
+                                
+                                {/* DATA DE CRIAÇÃO ADICIONADA AQUI */}
+                                {task.createdAt && task.createdAt.toDate && (
+                                    <div className="flex items-center gap-1 text-gray-500">
+                                        <CalendarPlus size={12} />
+                                        <span>Criado em: {task.createdAt.toDate().toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                )}
+
+                                {/* PRAZO DE ENTREGA */}
+                                {task.dueDate && task.dueDate.toDate && (
+                                    <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                                        <Calendar size={12}/>
+                                        <span>Prazo: {task.dueDate.toDate().toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                             {isStuck && (
+                                <div className="mt-2 flex items-center gap-1 text-xs text-red-600 font-semibold p-1 bg-red-100 rounded">
+                                   <Clock size={12}/>
+                                   <span>Parada há {daysStuck} dias úteis</span>
+                                </div>
+                             )}
                         </div>
 
                         {canEditOrDelete && (
-                            <div className="flex items-center space-x-1 ml-2">
+                           <div className="flex items-center space-x-1 ml-2">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -211,6 +269,7 @@ function KanbanPage() {
       await updateDoc(taskRef, {
         status: destination.droppableId,
         updatedAt: serverTimestamp(),
+        movedAt: serverTimestamp(),
       })
 
       toast.success("Tarefa movida com sucesso!")
@@ -233,12 +292,17 @@ function KanbanPage() {
     }
 
     const newTask = {
-      ...taskData,
+      title: taskData.title,
+      description: taskData.description,
+      assigneeId: taskData.assigneeId,
       assigneeName: selectedUser.name,
       status: "todo",
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      movedAt: serverTimestamp(),
       createdBy: userProfile.id,
       createdByName: userProfile.name,
+      dueDate: taskData.dueDate ? Timestamp.fromDate(new Date(taskData.dueDate + 'T00:00:00')) : null,
     }
 
     try {
@@ -266,10 +330,14 @@ function KanbanPage() {
 
     try {
       const dataToUpdate = {
-        ...updatedData,
+        title: updatedData.title,
+        description: updatedData.description,
+        assigneeId: updatedData.assigneeId,
+        assigneeName: updatedData.assigneeName,
         updatedAt: serverTimestamp(),
         updatedBy: userProfile.id,
         updatedByName: userProfile.name,
+        dueDate: updatedData.dueDate ? Timestamp.fromDate(new Date(updatedData.dueDate + 'T00:00:00')) : null,
       }
 
       const promise = updateDoc(taskRef, dataToUpdate)

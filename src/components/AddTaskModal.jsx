@@ -4,6 +4,7 @@ function AddTaskModal({ isOpen, onClose, onSave, users }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
+  const [dueDate, setDueDate] = useState('');
 
   useEffect(() => {
     if (isOpen && users && users.length === 1) {
@@ -15,6 +16,7 @@ function AddTaskModal({ isOpen, onClose, onSave, users }) {
     setTitle('');
     setDescription('');
     setAssigneeId('');
+    setDueDate('');
     onClose();
   };
 
@@ -23,7 +25,7 @@ function AddTaskModal({ isOpen, onClose, onSave, users }) {
       alert('O título e o responsável são obrigatórios.');
       return;
     }
-    onSave({ title, description, assigneeId });
+    onSave({ title, description, assigneeId, dueDate });
     handleClose();
   };
 
@@ -54,22 +56,34 @@ function AddTaskModal({ isOpen, onClose, onSave, users }) {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
-          <div>
-            <label htmlFor="task-assignee" className="block text-sm font-medium text-gray-700">Atribuir para:</label>
-            <select
-              id="task-assignee"
-              value={assigneeId}
-              onChange={(e) => setAssigneeId(e.target.value)}
-              disabled={users && users.length === 1}
-              className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
-                users && users.length === 1 ? 'bg-gray-100 cursor-not-allowed' : ''
-              }`}
-            >
-              <option value="" disabled>Selecione um responsável...</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label htmlFor="task-assignee" className="block text-sm font-medium text-gray-700">Atribuir para:</label>
+                <select
+                  id="task-assignee"
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  disabled={users && users.length === 1}
+                  className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
+                    users && users.length === 1 ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <option value="" disabled>Selecione um responsável...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+            </div>
+            <div>
+                <label htmlFor="task-dueDate" className="block text-sm font-medium text-gray-700">Prazo de Entrega (Opcional)</label>
+                <input
+                  type="date"
+                  id="task-dueDate"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+            </div>
           </div>
         </div>
         <div className="mt-8 flex justify-end gap-4">
