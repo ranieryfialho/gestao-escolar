@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function AddTaskModal({ isOpen, onClose, onSave, users }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
+
+  useEffect(() => {
+    if (isOpen && users && users.length === 1) {
+      setAssigneeId(users[0].id);
+    }
+  }, [isOpen, users]);
 
   const handleClose = () => {
     setTitle('');
@@ -54,7 +60,10 @@ function AddTaskModal({ isOpen, onClose, onSave, users }) {
               id="task-assignee"
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              disabled={users && users.length === 1}
+              className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md ${
+                users && users.length === 1 ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             >
               <option value="" disabled>Selecione um responsável...</option>
               {users.map(user => (

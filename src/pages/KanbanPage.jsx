@@ -49,10 +49,18 @@ function KanbanPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [taskToEdit, setTaskToEdit] = useState(null)
 
-  // Memoização para otimizar performance
   const canAddTasks = useMemo(() => {
-    return userProfile && ["coordenador", "diretor"].includes(userProfile.role)
+    return userProfile && ["coordenador", "diretor", "professor", "professor_apoio", "auxiliar_coordenacao"].includes(userProfile.role)
   }, [userProfile])
+
+  const assignableUsers = useMemo(() => {
+    if (!userProfile) return [];
+    if (["coordenador", "diretor"].includes(userProfile.role)) {
+      return users;
+    }
+    return [{ id: userProfile.id, name: userProfile.name }];
+  }, [userProfile, users]);
+
 
   useEffect(() => {
     if (!userProfile) {
@@ -130,7 +138,7 @@ function KanbanPage() {
       return
     }
 
-    const selectedUser = users.find((u) => u.id === taskData.assigneeId)
+    const selectedUser = assignableUsers.find((u) => u.id === taskData.assigneeId)
     if (!selectedUser) {
       toast.error("Utilizador responsável não encontrado.")
       return
@@ -301,15 +309,14 @@ function KanbanPage() {
                           </div>
                         ) : (
                           columnTasks.map((task, index) => {
-                            // LÓGICA DE PERMISSÃO ATUALIZADA
                             const canEditOrDelete = userProfile && (
                                 userProfile.role === 'coordenador' ||
                                 userProfile.role === 'diretor'
                             );
                             
                             const canDrag = userProfile && (
-                                canEditOrDelete || // Admins podem arrastar
-                                task.assigneeId === userProfile.id // O responsável pode arrastar o seu próprio card
+                                canEditOrDelete ||
+                                task.assigneeId === userProfile.id
                             );
 
 
@@ -348,7 +355,6 @@ function KanbanPage() {
                                         </div>
                                       </div>
 
-                                      {/* Ícones só aparecem para Coordenador/Diretor */}
                                       {canEditOrDelete && (
                                         <div className="flex items-center space-x-1 ml-2">
                                           <button
@@ -392,7 +398,7 @@ function KanbanPage() {
         </DragDropContext>
       </div>
 
-      <AddTaskModal isOpen={isAddModalOpen} onClose={handleCloseModals} onSave={handleAddTask} users={users} />
+      <AddTaskModal isOpen={isAddModalOpen} onClose={handleCloseModals} onSave={handleAddTask} users={assignableUsers} />
 
       <EditTaskModal
         isOpen={isEditModalOpen}
