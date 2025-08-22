@@ -10,17 +10,22 @@ const auth = admin.auth();
 const isAdmin = async (idToken) => {
   try {
     if (!idToken) {
-        console.log("isAdmin check: Falhou porque o idToken não foi fornecido.");
-        return false;
+      console.log("isAdmin check: Falhou porque o idToken não foi fornecido.");
+      return false;
     }
     const decodedToken = await auth.verifyIdToken(idToken);
     const userRole = decodedToken.role;
 
     console.log("Verificando permissão para o perfil (role):", userRole);
 
-    return ["diretor", "coordenador", "admin", "auxiliar_coordenacao", "professor_apoio", "financeiro"].includes(
-      userRole
-    );
+    return [
+      "diretor",
+      "coordenador",
+      "admin",
+      "auxiliar_coordenacao",
+      "professor_apoio",
+      "financeiro",
+    ].includes(userRole);
   } catch (error) {
     console.error("Erro ao verificar token de admin:", error);
     return false;
@@ -83,7 +88,6 @@ exports.createNewUserAccount = functions.https.onRequest((req, res) => {
     if (!(await isAdmin(idToken)))
       return res.status(403).json({ error: "Ação não autorizada." });
 
-    // CORREÇÃO CRÍTICA: Lendo os dados de 'req.body.data'
     const { name, email, role } = req.body.data;
     if (!name || !email || !role)
       return res.status(400).json({ error: "Dados em falta." });
@@ -115,7 +119,6 @@ exports.updateUserProfile = functions.https.onRequest((req, res) => {
     if (!(await isAdmin(idToken)))
       return res.status(403).json({ error: "Ação não autorizada." });
 
-    // CORREÇÃO CRÍTICA: Lendo os dados de 'req.body.data'
     const { uid, name, role } = req.body.data;
     if (!uid || !name || !role)
       return res.status(400).json({ error: "Dados em falta." });
@@ -142,7 +145,6 @@ exports.deleteUserAccount = functions.https.onRequest((req, res) => {
     if (!(await isAdmin(idToken)))
       return res.status(403).json({ error: "Ação não autorizada." });
 
-    // CORREÇÃO CRÍTICA: Lendo os dados de 'req.body.data'
     const { uid } = req.body.data;
     if (!uid) return res.status(400).json({ error: "UID em falta." });
 
@@ -156,8 +158,6 @@ exports.deleteUserAccount = functions.https.onRequest((req, res) => {
     }
   });
 });
-
-// --- OUTRAS FUNÇÕES DA APLICAÇÃO (SEM ALTERAÇÕES, JÁ ESTAVAM CORRETAS) ---
 
 exports.transferStudent = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -173,20 +173,14 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
     const { studentData, sourceClassId, targetClassId } = req.body.data;
 
     if (!studentData || !studentData.code || !sourceClassId || !targetClassId) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Dados inválidos para a transferência (código do aluno, turma de origem e destino são obrigatórios).",
-        });
+      return res.status(400).json({
+        error:
+          "Dados inválidos para a transferência (código do aluno, turma de origem e destino são obrigatórios).",
+      });
     }
 
-    // --- NOVA LÓGICA INTELIGENTE ---
-
-    // CASO 1: O ALUNO ESTÁ SENDO MOVIDO PARA CONCLUDENTES
     if (targetClassId === "concludentes") {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
-      // O ID do documento na coleção 'concludentes' será o próprio código do aluno
       const concludentesRef = db
         .collection("concludentes")
         .doc(String(studentData.code));
@@ -197,16 +191,15 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           if (!sourceDoc.exists)
             throw new Error("Turma de origem não encontrada.");
 
-          // Garante que os dados do concluinte estão perfeitos e completos
           const graduateData = {
             code: String(studentData.code),
             name: studentData.name,
             grades: studentData.grades || {},
             observation: studentData.observation || "",
             graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            certificateStatus: "nao_impresso",
           };
 
-          // Remove o aluno da lista de estudantes da turma de origem
           const sourceStudents = sourceDoc.data().students || [];
           const updatedSourceStudents = sourceStudents.filter(
             (s) => String(s.code) !== String(studentData.code)
@@ -216,7 +209,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
             students: updatedSourceStudents,
           });
 
-          // Cria ou sobrescreve o registro do aluno na coleção 'concludentes'
           transaction.set(concludentesRef, graduateData);
         });
         return res
@@ -230,7 +222,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
       }
     }
 
-    // CASO 2: TRANSFERÊNCIA NORMAL ENTRE DUAS TURMAS (LÓGICA ANTIGA)
     else {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const targetClassRef = db.collection("classes").doc(targetClassId);
@@ -244,7 +235,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           const sourceStudents = sourceDoc.data().students || [];
           const targetStudents = targetDoc.data().students || [];
 
-          // Encontra e remove o aluno da origem
           const studentIndex = sourceStudents.findIndex(
             (s) => String(s.code) === String(studentData.code)
           );
@@ -254,7 +244,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
             );
           const [studentToMove] = sourceStudents.splice(studentIndex, 1);
 
-          // Adiciona o aluno ao destino se ele já não estiver lá
           if (
             !targetStudents.some(
               (s) => String(s.code) === String(studentToMove.code)
@@ -415,20 +404,16 @@ exports.syncUserRole = functions.https.onRequest((req, res) => {
       const firestoreRole = userDoc.data().role;
 
       if (!firestoreRole) {
-        return res
-          .status(400)
-          .json({
-            error: "O perfil (role) não está definido no banco de dados.",
-          });
+        return res.status(400).json({
+          error: "O perfil (role) não está definido no banco de dados.",
+        });
       }
 
       await auth.setCustomUserClaims(uid, { role: firestoreRole });
 
-      return res
-        .status(200)
-        .json({
-          message: `Sucesso! Permissão '${firestoreRole}' sincronizada para o usuário ${uid}. Por favor, faça logout e login novamente.`,
-        });
+      return res.status(200).json({
+        message: `Sucesso! Permissão '${firestoreRole}' sincronizada para o usuário ${uid}. Por favor, faça logout e login novamente.`,
+      });
     } catch (error) {
       console.error("Erro ao sincronizar permissão:", error);
       return res
@@ -547,34 +532,33 @@ exports.createTaskOnModuleEnd = onSchedule("every day 01:00", async (event) => {
 
 exports.listGraduates = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    // ALTERAÇÃO: Mudamos o método para GET, que é o correto para buscar dados.
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Método não permitido" });
     }
 
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) {
-       return res.status(403).json({ error: "Ação não autorizada." });
+      return res.status(403).json({ error: "Ação não autorizada." });
     }
 
     try {
-      const graduatesSnapshot = await db.collection('concludentes').get();
+      const graduatesSnapshot = await db.collection("concludentes").get();
       const graduatesData = [];
-      graduatesSnapshot.forEach(doc => {
+      graduatesSnapshot.forEach((doc) => {
         const data = doc.data();
         graduatesData.push({
           id: doc.id,
-          studentId: doc.id, 
-          ...data
+          studentId: doc.id,
+          ...data,
         });
       });
 
-      // MANTIDO: O formato da resposta está correto.
       return res.status(200).json({ result: { graduates: graduatesData } });
-
     } catch (error) {
       console.error("Erro ao listar concludentes:", error);
-      return res.status(500).json({ error: "Erro no servidor ao buscar concludentes." });
+      return res
+        .status(500)
+        .json({ error: "Erro no servidor ao buscar concludentes." });
     }
   });
 });
@@ -585,29 +569,44 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
       return res.status(405).send("Método não permitido");
     }
     const idToken = req.headers.authorization?.split("Bearer ")[1];
-    
+
     if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
     }
 
     const { updatedStudents } = req.body.data;
     if (!Array.isArray(updatedStudents)) {
-        return res.status(400).json({ error: "Dados dos alunos inválidos." });
+      return res.status(400).json({ error: "Dados dos alunos inválidos." });
     }
 
     try {
-        const batch = db.batch();
-        updatedStudents.forEach(student => {
-            if (student.code && student.grades) {
-                const docRef = db.collection("concludentes").doc(String(student.code));
-                batch.update(docRef, { grades: student.grades });
-            }
-        });
-        await batch.commit();
-        return res.status(200).json({ message: "Notas dos concludentes atualizadas com sucesso!" });
+      const batch = db.batch();
+      updatedStudents.forEach((student) => {
+        if (student.code) {
+          const docRef = db
+            .collection("concludentes")
+            .doc(String(student.code));
+          const dataToUpdate = {};
+          if (student.grades) {
+            dataToUpdate.grades = student.grades;
+          }
+          if (student.certificateStatus) {
+            dataToUpdate.certificateStatus = student.certificateStatus;
+          }
+          if (Object.keys(dataToUpdate).length > 0) {
+            batch.update(docRef, dataToUpdate);
+          }
+        }
+      });
+      await batch.commit();
+      return res
+        .status(200)
+        .json({ message: "Dados dos concludentes atualizados com sucesso!" });
     } catch (error) {
-        console.error("Erro ao atualizar notas dos concludentes:", error);
-        return res.status(500).json({ error: "Erro no servidor ao atualizar notas." });
+      console.error("Erro ao atualizar dados dos concludentes:", error);
+      return res
+        .status(500)
+        .json({ error: "Erro no servidor ao atualizar dados." });
     }
   });
 });

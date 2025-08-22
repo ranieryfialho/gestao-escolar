@@ -1,5 +1,3 @@
-// src/pages/ClassDetailsPage.jsx
-
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -106,7 +104,6 @@ function ClassDetailsPage() {
     );
   const isUserFinancial = userProfile && userProfile.role === "financeiro";
 
-  // --- ALTERAÇÃO AQUI: Criada uma variável específica para quem pode editar concludentes ---
   const canEditGraduates =
     userProfile &&
     [
@@ -376,25 +373,51 @@ function ClassDetailsPage() {
     });
   };
 
-  const handleSaveGrades = async (newGrades) => {
+  const handleSaveGrades = async (newGrades, newCertificateStatuses) => {
     if (!turma || !turma.students) return;
 
-    const changedStudents = turma.students
-      .filter((s) => newGrades[s.studentId || s.id])
-      .map((s) => ({
-        ...s,
-        grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
-      }));
-
-    if (changedStudents.length === 0) {
-      return toast.success("Nenhuma nota foi alterada.");
-    }
-
     if (turma.isVirtual) {
+      const changedStudents = turma.students
+        .map((student) => {
+          const studentId = student.studentId || student.id;
+          const hasGradeChanged =
+            newGrades[studentId] &&
+            JSON.stringify(newGrades[studentId]) !==
+              JSON.stringify(student.grades);
+          const hasCertChanged =
+            newCertificateStatuses[studentId] &&
+            newCertificateStatuses[studentId] !==
+              (student.certificateStatus || "nao_impresso");
+
+          if (hasGradeChanged || hasCertChanged) {
+            return {
+              ...student,
+              grades: { ...student.grades, ...newGrades[studentId] },
+              certificateStatus: newCertificateStatuses[studentId],
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (changedStudents.length === 0) {
+        return toast.success("Nenhuma alteração foi feita.");
+      }
       await handleApiAction("updateGraduatesBatch", {
         updatedStudents: changedStudents,
       });
     } else {
+      const changedStudents = turma.students
+        .filter((s) => newGrades[s.studentId || s.id])
+        .map((s) => ({
+          ...s,
+          grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
+        }));
+
+      if (changedStudents.length === 0) {
+        return toast.success("Nenhuma nota foi alterada.");
+      }
+
       const allUpdatedStudents = turma.students.map((s) => ({
         ...s,
         grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
@@ -777,7 +800,7 @@ function ClassDetailsPage() {
           onObservationClick={handleOpenObservationModal}
           isUserAdmin={canUserEditClass}
           isUserProfessor={isUserProfessor}
-          // --- ALTERAÇÃO AQUI: A nova variável é usada para definir se a grade é somente leitura ---
+          isVirtual={turma.isVirtual}
           isReadOnly={
             isGradebookReadOnly || (turma.isVirtual && !canEditGraduates)
           }
