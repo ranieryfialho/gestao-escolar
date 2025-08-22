@@ -6,8 +6,7 @@ import { useUsers } from "../contexts/UserContext";
 import CreateClassForm from "../components/CreateClassForm";
 import { modulePackages, masterModuleList } from "../data/mockData";
 import toast from "react-hot-toast";
-// ADICIONEI OS ÍCONES AQUI
-import { GraduationCap, Users } from "lucide-react"; 
+import { GraduationCap, Users } from "lucide-react";
 
 function DashboardPage() {
   const { userProfile, firebaseUser } = useAuth();
@@ -24,31 +23,36 @@ function DashboardPage() {
 
       const idTokenResult = await firebaseUser.getIdTokenResult(true);
       if (idTokenResult.claims.role) {
-        console.log("O perfil (role) já está sincronizado no token:", idTokenResult.claims.role);
+        console.log(
+          "O perfil (role) já está sincronizado no token:",
+          idTokenResult.claims.role
+        );
         return;
       }
 
       console.log("Perfil não encontrado no token. Tentando sincronizar...");
       try {
         const token = await firebaseUser.getIdToken();
-        const functionUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net/syncUserRole";
-        
+        const functionUrl =
+          "https://us-central1-boletim-escolar-app.cloudfunctions.net/syncUserRole";
+
         const response = await fetch(functionUrl, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || "Falha na sincronização");
         }
-        
+
         const result = await response.json();
         console.log("Resposta da sincronização:", result.message);
-        toast.success("Permissões sincronizadas! Recarregue a página para aplicar.");
-
+        toast.success(
+          "Permissões sincronizadas! Recarregue a página para aplicar."
+        );
       } catch (error) {
         console.error("Erro ao sincronizar perfil:", error);
         toast.error(`Erro na sincronização: ${error.message}`);
@@ -69,12 +73,23 @@ function DashboardPage() {
   ];
 
   const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
-  const canViewAll = userProfile && viewAllClassesRoles.includes(userProfile.role);
-  const turmasDoBoletim = useMemo(() => classes.filter((turma) => !turma.isMapaOnly), [classes]);
+  const canViewAll =
+    userProfile && viewAllClassesRoles.includes(userProfile.role);
+  const turmasDoBoletim = useMemo(
+    () => classes.filter((turma) => !turma.isMapaOnly),
+    [classes]
+  );
 
   useEffect(() => {
-    const rolesPermitidos = ["professor", "coordenador", "auxiliar_coordenacao", "diretor"];
-    const filteredTeachers = users.filter((user) => rolesPermitidos.includes(user.role));
+    const rolesPermitidos = [
+      "professor",
+      "coordenador",
+      "auxiliar_coordenacao",
+      "diretor",
+    ];
+    const filteredTeachers = users.filter((user) =>
+      rolesPermitidos.includes(user.role)
+    );
     setTeacherList(filteredTeachers);
   }, [users]);
 
@@ -89,18 +104,25 @@ function DashboardPage() {
     if (canViewAll) {
       userClasses = validClasses;
     } else if (userProfile.role === "professor") {
-      userClasses = validClasses.filter((c) => c.professorId === userProfile.id);
+      userClasses = validClasses.filter(
+        (c) => c.professorId === userProfile.id
+      );
     }
 
     const results = userClasses.filter((turma) => {
       const term = searchTerm.toLowerCase();
       if (turma.name.toLowerCase().includes(term)) return true;
-      if (turma.professorName && turma.professorName.toLowerCase().includes(term)) return true;
+      if (
+        turma.professorName &&
+        turma.professorName.toLowerCase().includes(term)
+      )
+        return true;
       if (turma.students && Array.isArray(turma.students)) {
         return turma.students.some(
           (student) =>
             (student.name && student.name.toLowerCase().includes(term)) ||
-            (student.code && student.code.toString().toLowerCase().includes(term))
+            (student.code &&
+              student.code.toString().toLowerCase().includes(term))
         );
       }
       return false;
@@ -118,14 +140,23 @@ function DashboardPage() {
     setFilteredClasses(results);
   }, [userProfile, turmasDoBoletim, loadingClasses, canViewAll, searchTerm]);
 
-  const handleCreateClass = async (className, selectedPackageId, teacherId) => {
-    const selectedPackage = modulePackages.find((p) => p.id === selectedPackageId);
+  const handleCreateClass = async (
+    className,
+    selectedPackageId,
+    teacherId,
+    scheduleData
+  ) => {
+    const selectedPackage = modulePackages.find(
+      (p) => p.id === selectedPackageId
+    );
     const selectedTeacher = teacherList.find((t) => t.id === teacherId);
     if (!selectedPackage || !selectedTeacher) {
       return alert("Por favor, selecione um pacote e um professor.");
     }
 
-    const classModules = selectedPackage.moduleKeys.map((key) => masterModuleList[key]);
+    const classModules = selectedPackage.moduleKeys.map(
+      (key) => masterModuleList[key]
+    );
 
     const newClassData = {
       name: className,
@@ -135,6 +166,8 @@ function DashboardPage() {
       curriculumId: selectedPackageId,
       createdAt: new Date(),
       students: [],
+      ...scheduleData, // Adiciona os dados de agendamento (dia, horário, sala)
+      isMapaOnly: false, // Garante que a turma apareça no boletim
     };
 
     await addClass(newClassData);
@@ -144,20 +177,30 @@ function DashboardPage() {
   return (
     <div className="p-4 md:p-8">
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">Bem-vindo(a), {userProfile?.name || "Usuário"}!</h1>
+        <h1 className="text-2xl font-bold text-gray-800">
+          Bem-vindo(a), {userProfile?.name || "Usuário"}!
+        </h1>
         <p className="text-md text-gray-600">
           O seu perfil de acesso é:{" "}
-          <span className="font-semibold text-blue-600 capitalize">{userProfile?.role.replace(/_/g, " ")}</span>
+          <span className="font-semibold text-blue-600 capitalize">
+            {userProfile?.role.replace(/_/g, " ")}
+          </span>
         </p>
       </div>
 
       {isUserAdmin && (
-        <CreateClassForm onClassCreated={handleCreateClass} packages={modulePackages} teachers={teacherList} />
+        <CreateClassForm
+          onClassCreated={handleCreateClass}
+          packages={modulePackages}
+          teachers={teacherList}
+        />
       )}
 
       <div className="my-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-2xl font-semibold text-gray-800 flex-shrink-0">
-          {canViewAll ? "Todas as Turmas do Boletim" : "Minhas Turmas do Boletim"}
+          {canViewAll
+            ? "Todas as Turmas do Boletim"
+            : "Minhas Turmas do Boletim"}
         </h2>
         <div className="w-full md:flex-grow">
           <input
@@ -171,49 +214,51 @@ function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* ================================================================== */}
-        {/* CARD FIXO PARA CONCLUDENTES ADICIONADO AQUI                     */}
-        {/* ================================================================== */}
         {canViewAll && (
-            <Link 
-              to="/turma/concludentes" 
-              className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-xl font-bold">Turma de Concludentes</h3>
-                  <GraduationCap size={28} />
-                </div>
-                <p className="text-green-100 text-sm">
-                  Visualizar e gerenciar alunos que já concluíram o curso.
-                </p>
+          <Link
+            to="/turma/concludentes"
+            className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-xl font-bold">Turma de Concludentes</h3>
+                <GraduationCap size={28} />
               </div>
-              <div className="flex items-center gap-2 mt-4 text-green-200 font-semibold">
-                <Users size={16} />
-                <span>Acessar Lista</span>
-              </div>
-            </Link>
+              <p className="text-green-100 text-sm">
+                Visualizar e gerenciar alunos que já concluíram o curso.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 mt-4 text-green-200 font-semibold">
+              <Users size={16} />
+              <span>Acessar Lista</span>
+            </div>
+          </Link>
         )}
 
-        {/* CÓDIGO ORIGINAL PARA LISTAR TURMAS NORMAIS */}
-        {filteredClasses.length > 0 ? (
-          filteredClasses.map((turma) => (
-            <Link key={turma.id} to={`/turma/${turma.id}`}>
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer h-full flex flex-col">
-                <h3 className="text-lg font-bold text-blue-700 flex-grow">{turma.name}</h3>
-                <p className="text-sm text-gray-500 mt-2">Professor(a): {turma.professorName || "A definir"}</p>
+        {filteredClasses.length > 0
+          ? filteredClasses.map((turma) => (
+              <Link key={turma.id} to={`/turma/${turma.id}`}>
+                <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer h-full flex flex-col">
+                  <h3 className="text-lg font-bold text-blue-700 flex-grow">
+                    {turma.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Professor(a): {turma.professorName || "A definir"}
+                  </p>
+                </div>
+              </Link>
+            ))
+          : !loadingClasses && (
+              <div className="sm:col-span-2 lg:col-span-3 text-center py-10 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">
+                  Nenhuma turma encontrada para os critérios atuais.
+                </p>
               </div>
-            </Link>
-          ))
-        ) : (
-          !loadingClasses && (
-            <div className="sm:col-span-2 lg:col-span-3 text-center py-10 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">Nenhuma turma encontrada para os critérios atuais.</p>
-            </div>
-          )
-        )}
+            )}
       </div>
-      {loadingClasses && <p className="text-center mt-4 text-gray-500">Carregando turmas...</p>}
+      {loadingClasses && (
+        <p className="text-center mt-4 text-gray-500">Carregando turmas...</p>
+      )}
     </div>
   );
 }
