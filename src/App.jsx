@@ -1,8 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Layouts e Componentes de Rota
 import MainLayout from './components/MainLayout';
-import ProtectedRoute from './routes/ProtectedRoute'; // O nome correto do componente
+import ProtectedRoute from './routes/ProtectedRoute';
 import MapaTurmasPage from './pages/MapaTurmasPage';
 import LabSupportPage from "./pages/LabSupportPage";
 import CalculatorPage from "./pages/CalculatorPage";
@@ -14,11 +13,9 @@ import DashboardPage from './pages/DashboardPage';
 import ClassDetailsPage from './pages/ClassDetailsPage';
 import UsersPage from './pages/UsersPage';
 import NotFoundPage from './pages/NotFoundPage';
-
-// --- NOVAS PÁGINAS IMPORTADAS ---
 import AttendancePage from './pages/AttendancePage';
 import AttendanceDetailPage from './pages/AttendanceDetailPage';
-
+import AcademicFollowUpPage from './pages/AcademicFollowUpPage';
 
 function App() {
   return (
@@ -26,7 +23,6 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Rota protegida com o nome correto: ProtectedRoute */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="dashboard" element={<DashboardPage />} /> 
@@ -36,10 +32,10 @@ function App() {
           <Route path="turma/:turmaId" element={<ClassDetailsPage />} />
           <Route path="usuarios" element={<UsersPage />} />
           <Route path="kanban" element={<KanbanPage />} />
-
-          {/* --- NOVAS ROTAS DE FREQUÊNCIA ADICIONADAS --- */}
           <Route path="frequencia" element={<AttendancePage />} />
           <Route path="frequencia/:classId" element={<AttendanceDetailPage />} />
+          
+          <Route path="acompanhamento" element={<AcademicFollowUpPage />} />
           
         </Route>
       </Route>

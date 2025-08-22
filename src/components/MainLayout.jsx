@@ -1,3 +1,5 @@
+// src/components/MainLayout.jsx
+
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +22,9 @@ const MainLayout = () => {
   const isUserComercial = userProfile && userProfile.role === "comercial";
 
   const canAccessAttendance = isUserAdmin || isUserProfessor;
+
+  // NOVA REGRA DE PERMISSÃO
+  const canAccessFollowUp = isUserAdmin || isUserProfessor;
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -73,7 +78,6 @@ const MainLayout = () => {
                       >
                         Mapa de Turmas
                       </NavLink>
-
                       {canAccessAttendance && (
                         <NavLink
                           to="/frequencia"
@@ -86,7 +90,19 @@ const MainLayout = () => {
                           TBs e Curso Extra
                         </NavLink>
                       )}
-
+                      {/* ADICIONAR O NOVO LINK AQUI */}
+                      {canAccessFollowUp && (
+                        <NavLink
+                          to="/acompanhamento"
+                          className={({ isActive }) =>
+                            `px-3 py-2 rounded-md text-sm font-medium ${
+                              isActive ? activeLinkClass : inactiveLinkClass
+                            }`
+                          }
+                        >
+                          Acompanhamento
+                        </NavLink>
+                      )}
                       <NavLink
                         to="/laboratorio"
                         className={({ isActive }) =>
@@ -197,7 +213,6 @@ const MainLayout = () => {
                 >
                   Mapa de Turmas
                 </NavLink>
-
                 {canAccessAttendance && (
                   <NavLink
                     to="/frequencia"
@@ -207,7 +222,16 @@ const MainLayout = () => {
                     TBs e Curso Extra
                   </NavLink>
                 )}
-
+                {/* ADICIONAR O NOVO LINK NO MENU MOBILE */}
+                {canAccessFollowUp && (
+                  <NavLink
+                    to="/acompanhamento"
+                    className={mobileLinkClass}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Acompanhamento
+                  </NavLink>
+                )}
                 <NavLink
                   to="/laboratorio"
                   className={mobileLinkClass}
