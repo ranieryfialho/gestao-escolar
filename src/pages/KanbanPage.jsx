@@ -37,6 +37,94 @@ const initialColumns = {
 
 const columnOrder = ["todo", "inprogress", "done"]
 
+const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, onEdit, onDelete }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    const toggleDescription = (e) => {
+        e.stopPropagation();
+        setIsExpanded(!isExpanded);
+    };
+
+    const description = task.description || '';
+    const isLongDescription = description.length > 100;
+
+    return (
+        <Draggable
+            key={task.id}
+            draggableId={task.id}
+            index={index}
+            isDragDisabled={!canDrag}
+        >
+            {(provided, snapshot) => (
+                <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    className={`bg-white p-4 mb-3 rounded-lg shadow border-l-4 ${column.borderColor} ${
+                      snapshot.isDragging ? "shadow-xl scale-105 rotate-2" : "shadow-sm hover:shadow-md"
+                    } ${
+                      !canDrag
+                        ? "opacity-60 cursor-not-allowed"
+                        : "cursor-grab hover:cursor-grabbing"
+                    } transition-all duration-200`}
+                >
+                    <div className="flex justify-between items-start">
+                        <div className="flex-grow pr-2">
+                            <h4 className="font-semibold text-gray-900 mb-2 leading-tight">{task.title}</h4>
+
+                            {description && (
+                                <div className="text-sm text-gray-600 mb-2">
+                                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                                        {isExpanded ? description : `${description.substring(0, 100)}${isLongDescription ? '...' : ''}`}
+                                    </p>
+                                    {isLongDescription && (
+                                        <button
+                                            onClick={toggleDescription}
+                                            className="text-blue-600 hover:underline text-xs mt-1"
+                                        >
+                                            {isExpanded ? 'Ler menos' : 'Ler mais'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            <p className="text-xs text-gray-500">
+                                <span className="font-medium">Responsável:</span> {task.assigneeName}
+                            </p>
+                        </div>
+
+                        {canEditOrDelete && (
+                            <div className="flex items-center space-x-1 ml-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onEdit(task);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors duration-200"
+                                    aria-label="Editar tarefa"
+                                >
+                                    <Pencil size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(task.id);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                                    aria-label="Deletar tarefa"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </Draggable>
+    );
+};
+
+
 function KanbanPage() {
   const [columns, setColumns] = useState(initialColumns)
   const [tasks, setTasks] = useState({})
@@ -319,71 +407,18 @@ function KanbanPage() {
                                 task.assigneeId === userProfile.id
                             );
 
-
                             return (
-                              <Draggable
-                                key={task.id}
-                                draggableId={task.id}
-                                index={index}
-                                isDragDisabled={!canDrag}
-                              >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`bg-white p-4 mb-3 rounded-lg shadow border-l-4 ${column.borderColor} ${
-                                      snapshot.isDragging ? "shadow-xl scale-105 rotate-2" : "shadow-sm hover:shadow-md"
-                                    } ${
-                                      !canDrag
-                                        ? "opacity-60 cursor-not-allowed"
-                                        : "cursor-grab hover:cursor-grabbing"
-                                    } transition-all duration-200`}
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <div className="flex-grow pr-2">
-                                        <h4 className="font-semibold text-gray-900 mb-2 leading-tight">{task.title}</h4>
-
-                                        {task.description && (
-                                          <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
-                                        )}
-
-                                        <div className="flex flex-col gap-1">
-                                          <p className="text-xs text-gray-500">
-                                            <span className="font-medium">Responsável:</span> {task.assigneeName}
-                                          </p>
-                                        </div>
-                                      </div>
-
-                                      {canEditOrDelete && (
-                                        <div className="flex items-center space-x-1 ml-2">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleOpenEditModal(task)
-                                            }}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors duration-200"
-                                            aria-label="Editar tarefa"
-                                          >
-                                            <Pencil size={14} />
-                                          </button>
-
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleDeleteTask(task.id)
-                                            }}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
-                                            aria-label="Deletar tarefa"
-                                          >
-                                            <Trash2 size={14} />
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                              </Draggable>
+                               <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  column={column}
+                                  index={index}
+                                  userProfile={userProfile}
+                                  canEditOrDelete={canEditOrDelete}
+                                  canDrag={canDrag}
+                                  onEdit={handleOpenEditModal}
+                                  onDelete={handleDeleteTask}
+                                />
                             )
                           })
                         )}
