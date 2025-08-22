@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { db } from "../firebase"
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, Timestamp } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, Timestamp, writeBatch } from "firebase/firestore"
 import { useAuth } from "../contexts/AuthContext"
 import { useUsers } from "../contexts/UserContext"
 import { PlusCircle, Pencil, Trash2, AlertCircle, Calendar, Clock, CalendarPlus } from "lucide-react"
@@ -49,8 +49,8 @@ const getBusinessDays = (startDate, endDate) => {
     return count;
 };
 
-// Componente de tarefa separado para gerir o seu próprio estado de expansão
-const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, onEdit, onDelete }) => {
+// Componente de tarefa separado para gerir o seu próprio estado
+const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, onEdit, onDelete, isSelected, onSelect }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const toggleDescription = (e) => {
@@ -102,72 +102,69 @@ const TaskCard = ({ task, column, index, userProfile, canEditOrDelete, canDrag, 
                     } transition-all duration-200`}
                 >
                     <div className="flex justify-between items-start">
-                        <div className="flex-grow pr-2">
-                            <h4 className="font-semibold text-gray-900 mb-2 leading-tight">{task.title}</h4>
-
-                            {description && (
-                                <div className="text-sm text-gray-600 mb-2">
-                                    <p style={{ whiteSpace: 'pre-wrap' }}>
-                                        {isExpanded ? description : `${description.substring(0, 100)}${isLongDescription ? '...' : ''}`}
-                                    </p>
-                                    {isLongDescription && (
-                                        <button
-                                            onClick={toggleDescription}
-                                            className="text-blue-600 hover:underline text-xs mt-1"
-                                        >
-                                            {isExpanded ? 'Ler menos' : 'Ler mais'}
-                                        </button>
-                                    )}
-                                </div>
+                        <div className="flex items-start gap-3 w-full">
+                            {column.id === 'done' && canEditOrDelete && (
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => onSelect(task.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
                             )}
-
-                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-2 text-xs">
-                                <p className="text-gray-500">
-                                    <span className="font-medium">Responsável:</span> {task.assigneeName}
-                                </p>
-                                
-                                {/* DATA DE CRIAÇÃO ADICIONADA AQUI */}
-                                {task.createdAt && task.createdAt.toDate && (
-                                    <div className="flex items-center gap-1 text-gray-500">
-                                        <CalendarPlus size={12} />
-                                        <span>Criado em: {task.createdAt.toDate().toLocaleDateString('pt-BR')}</span>
+                            <div className="flex-grow">
+                                <h4 className="font-semibold text-gray-900 mb-2 leading-tight">{task.title}</h4>
+                                {description && (
+                                    <div className="text-sm text-gray-600 mb-2">
+                                        <p style={{ whiteSpace: 'pre-wrap' }}>
+                                            {isExpanded ? description : `${description.substring(0, 100)}${isLongDescription ? '...' : ''}`}
+                                        </p>
+                                        {isLongDescription && (
+                                            <button
+                                                onClick={toggleDescription}
+                                                className="text-blue-600 hover:underline text-xs mt-1"
+                                            >
+                                                {isExpanded ? 'Ler menos' : 'Ler mais'}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
-
-                                {/* PRAZO DE ENTREGA */}
-                                {task.dueDate && task.dueDate.toDate && (
-                                    <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
-                                        <Calendar size={12}/>
-                                        <span>Prazo: {task.dueDate.toDate().toLocaleDateString('pt-BR')}</span>
+                                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-x-4 gap-y-1 mt-2 text-xs">
+                                    <p className="text-gray-500">
+                                        <span className="font-medium">Responsável:</span> {task.assigneeName}
+                                    </p>
+                                    {task.createdAt && task.createdAt.toDate && (
+                                        <div className="flex items-center gap-1 text-gray-500">
+                                            <CalendarPlus size={12} />
+                                            <span>Criado em: {task.createdAt.toDate().toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                    )}
+                                    {task.dueDate && task.dueDate.toDate && (
+                                        <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                                            <Calendar size={12}/>
+                                            <span>Prazo: {task.dueDate.toDate().toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {isStuck && (
+                                    <div className="mt-2 flex items-center gap-1 text-xs text-red-600 font-semibold p-1 bg-red-100 rounded">
+                                        <Clock size={12}/>
+                                        <span>Parada há {daysStuck} dias úteis</span>
                                     </div>
                                 )}
                             </div>
-
-                             {isStuck && (
-                                <div className="mt-2 flex items-center gap-1 text-xs text-red-600 font-semibold p-1 bg-red-100 rounded">
-                                   <Clock size={12}/>
-                                   <span>Parada há {daysStuck} dias úteis</span>
-                                </div>
-                             )}
                         </div>
-
                         {canEditOrDelete && (
-                           <div className="flex items-center space-x-1 ml-2">
+                            <div className="flex items-center space-x-1 ml-2">
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEdit(task);
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); onEdit(task); }}
                                     className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors duration-200"
                                     aria-label="Editar tarefa"
                                 >
                                     <Pencil size={14} />
                                 </button>
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(task.id);
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
                                     aria-label="Deletar tarefa"
                                 >
@@ -194,6 +191,7 @@ function KanbanPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [taskToEdit, setTaskToEdit] = useState(null)
+  const [selectedTasks, setSelectedTasks] = useState(new Set());
 
   const canAddTasks = useMemo(() => {
     return userProfile && ["coordenador", "diretor", "professor", "professor_apoio", "auxiliar_coordenacao"].includes(userProfile.role)
@@ -354,6 +352,56 @@ function KanbanPage() {
       console.error("Erro ao atualizar tarefa:", error)
     }
   }
+  
+  const handleToggleSelectTask = (taskId) => {
+    setSelectedTasks(prevSelected => {
+        const newSelected = new Set(prevSelected);
+        if (newSelected.has(taskId)) {
+            newSelected.delete(taskId);
+        } else {
+            newSelected.add(taskId);
+        }
+        return newSelected;
+    });
+  };
+
+  const handleSelectAllDone = (doneTaskIds) => {
+    const allSelected = doneTaskIds.length > 0 && doneTaskIds.every(id => selectedTasks.has(id));
+    if (allSelected) {
+        setSelectedTasks(new Set());
+    } else {
+        setSelectedTasks(new Set(doneTaskIds));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedTasks.size === 0) {
+        toast.error("Nenhuma tarefa selecionada.");
+        return;
+    }
+
+    const confirmDelete = window.confirm(`Tem certeza que deseja apagar as ${selectedTasks.size} tarefas selecionadas? Esta ação é irreversível.`);
+    if (!confirmDelete) return;
+
+    const batch = writeBatch(db);
+    selectedTasks.forEach(taskId => {
+        const taskRef = doc(db, "tasks", taskId);
+        batch.delete(taskRef);
+    });
+
+    try {
+        const promise = batch.commit();
+        await toast.promise(promise, {
+            loading: 'Apagando tarefas...',
+            success: 'Tarefas selecionadas apagadas com sucesso!',
+            error: 'Erro ao apagar as tarefas.'
+        });
+        setSelectedTasks(new Set());
+    } catch (error) {
+        console.error("Erro ao apagar tarefas em lote:", error);
+        toast.error("Ocorreu um erro ao apagar as tarefas.");
+    }
+  };
 
   const handleDeleteTask = async (taskId) => {
     const confirmDelete = window.confirm("Tem a certeza de que deseja apagar esta tarefa? Esta ação é irreversível.")
@@ -440,14 +488,39 @@ function KanbanPage() {
             {columnOrder.map((columnId) => {
               const column = columns[columnId]
               const columnTasks = column.taskIds.map((taskId) => tasks[taskId]).filter(Boolean)
+              const canManageTasks = userProfile && (userProfile.role === 'coordenador' || userProfile.role === 'diretor');
+              const doneTaskIds = column.id === 'done' ? column.taskIds : [];
+              const allDoneSelected = canManageTasks && doneTaskIds.length > 0 && doneTaskIds.every(id => selectedTasks.has(id));
 
               return (
                 <div key={column.id} className="bg-gray-50 rounded-lg flex flex-col">
                   <div className={`p-4 rounded-t-lg ${column.headerColor}`}>
-                    <h3 className="font-bold text-white text-lg text-center">
-                      {column.title}
-                      <span className="ml-2 text-sm opacity-80">({columnTasks.length})</span>
-                    </h3>
+                    <div className="flex justify-center items-center gap-2">
+                      {column.id === 'done' && doneTaskIds.length > 0 && canManageTasks && (
+                          <input
+                              type="checkbox"
+                              checked={allDoneSelected}
+                              onChange={() => handleSelectAllDone(doneTaskIds)}
+                              title={allDoneSelected ? "Desmarcar Todos" : "Marcar Todos"}
+                              className="h-5 w-5 rounded border-gray-300 text-blue-600 bg-transparent focus:ring-white ring-offset-0 cursor-pointer"
+                          />
+                      )}
+                      <h3 className="font-bold text-white text-lg">
+                        {column.title}
+                        <span className="ml-2 text-sm opacity-80">({columnTasks.length})</span>
+                      </h3>
+                    </div>
+                    {column.id === 'done' && selectedTasks.size > 0 && canManageTasks && (
+                        <div className="text-center mt-2">
+                            <button
+                                onClick={handleDeleteSelected}
+                                className="w-full bg-red-500 text-white font-bold px-3 py-1 rounded-lg hover:bg-red-600 text-sm flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={14} />
+                                <span>Apagar {selectedTasks.size} Selecionadas</span>
+                            </button>
+                        </div>
+                    )}
                   </div>
 
                   <Droppable droppableId={column.id}>
@@ -465,16 +538,8 @@ function KanbanPage() {
                           </div>
                         ) : (
                           columnTasks.map((task, index) => {
-                            const canEditOrDelete = userProfile && (
-                                userProfile.role === 'coordenador' ||
-                                userProfile.role === 'diretor'
-                            );
-                            
-                            const canDrag = userProfile && (
-                                canEditOrDelete ||
-                                task.assigneeId === userProfile.id
-                            );
-
+                            const canEditOrDelete = userProfile && (userProfile.role === 'coordenador' || userProfile.role === 'diretor');
+                            const canDrag = userProfile && (canEditOrDelete || task.assigneeId === userProfile.id);
                             return (
                                <TaskCard
                                   key={task.id}
@@ -486,6 +551,8 @@ function KanbanPage() {
                                   canDrag={canDrag}
                                   onEdit={handleOpenEditModal}
                                   onDelete={handleDeleteTask}
+                                  isSelected={selectedTasks.has(task.id)}
+                                  onSelect={handleToggleSelectTask}
                                 />
                             )
                           })
@@ -502,14 +569,7 @@ function KanbanPage() {
       </div>
 
       <AddTaskModal isOpen={isAddModalOpen} onClose={handleCloseModals} onSave={handleAddTask} users={assignableUsers} />
-
-      <EditTaskModal
-        isOpen={isEditModalOpen}
-        onClose={handleCloseModals}
-        onSave={handleUpdateTask}
-        task={taskToEdit}
-        users={users}
-      />
+      <EditTaskModal isOpen={isEditModalOpen} onClose={handleCloseModals} onSave={handleUpdateTask} task={taskToEdit} users={users} />
     </>
   )
 }
