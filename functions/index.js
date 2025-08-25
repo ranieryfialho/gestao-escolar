@@ -220,9 +220,7 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           .status(500)
           .json({ error: `Erro ao graduar aluno: ${error.message}` });
       }
-    }
-
-    else {
+    } else {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const targetClassRef = db.collection("classes").doc(targetClassId);
       try {
@@ -270,6 +268,24 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
 
 exports.addStudentToClass = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    try {
+      if (!idToken) {
+        throw new Error("Token não fornecido.");
+      }
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const userRole = decodedToken.role;
+
+      if (userRole === "financeiro" || userRole === "comercial") {
+        return res
+          .status(403)
+          .json({ error: "Você não tem permissão para adicionar alunos." });
+      }
+    } catch (error) {
+      console.error("Erro de autorização:", error);
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+
     const { classId, studentCode, studentName } = req.body.data;
     if (!classId || !studentCode || !studentName) {
       return res

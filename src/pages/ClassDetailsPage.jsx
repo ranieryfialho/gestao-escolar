@@ -104,6 +104,9 @@ function ClassDetailsPage() {
     );
   const isUserFinancial = userProfile && userProfile.role === "financeiro";
 
+  const canAddStudents =
+    userProfile && !["financeiro", "comercial"].includes(userProfile.role);
+
   const canEditGraduates =
     userProfile &&
     [
@@ -772,7 +775,7 @@ function ClassDetailsPage() {
               onChange={(e) => setStudentSearchTerm(e.target.value)}
               className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
             />
-            {canUserEditClass && !turma.isVirtual && (
+            {canAddStudents && !turma.isVirtual && (
               <button
                 onClick={handleOpenAddStudentModal}
                 className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"
@@ -784,7 +787,7 @@ function ClassDetailsPage() {
           </div>
         </div>
 
-        {canUserEditClass && !turma.isVirtual && (
+        {canAddStudents && !turma.isVirtual && (
           <div className="my-4">
             <StudentImporter onStudentsImported={handleStudentsImported} />
           </div>
