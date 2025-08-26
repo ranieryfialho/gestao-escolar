@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useClasses } from '../contexts/ClassContext';
 import { useAuth } from '../contexts/AuthContext';
-import { MessageSquare, PhoneMissed, FileText } from 'lucide-react';
+import { MessageSquare, PhoneMissed, FileText, ClipboardCopy } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Função para chamar a Cloud Function
 const callFollowUpApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -90,6 +91,39 @@ function AcademicFollowUpPage() {
       return newData;
     });
   };
+  
+  // 1. LÓGICA PARA O CHECKBOX "MARCAR TODOS"
+  const areAllRemindersSelected = useMemo(() => {
+    if (students.length === 0) return false;
+    return students.every(student => {
+        const studentId = student.studentId || student.id;
+        return !!followUpData[studentId]?.lembreteEnviado;
+    });
+  }, [students, followUpData]);
+
+  const handleSelectAllReminders = () => {
+    const newCheckedState = !areAllRemindersSelected;
+    const newFollowUpData = { ...followUpData };
+    students.forEach(student => {
+        const studentId = student.studentId || student.id;
+        newFollowUpData[studentId] = {
+            ...newFollowUpData[studentId],
+            lembreteEnviado: newCheckedState,
+        };
+    });
+    setFollowUpData(newFollowUpData);
+  };
+
+  const handleCopyObservationMessage = (student) => {
+    const message = `Aluno(a) ${student.name} não respondeu à mensagem de acompanhamento sobre sua falta, enviada pelo setor acadêmico.`;
+    
+    navigator.clipboard.writeText(message).then(() => {
+      toast.success('Mensagem de observação copiada!');
+    }).catch(err => {
+      console.error('Erro ao copiar mensagem:', err);
+      toast.error('Não foi possível copiar a mensagem.');
+    });
+  };
 
   const handleSave = async () => {
     if (Object.keys(followUpData).length === 0) {
@@ -118,6 +152,7 @@ function AcademicFollowUpPage() {
         Acompanhamento Acadêmico
       </h1>
 
+      {/* Seção de Filtros */}
       <div className="bg-white p-4 rounded-lg shadow-md mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
           <div>
@@ -162,18 +197,31 @@ function AcademicFollowUpPage() {
                         <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno</th>
+                            {/* 2. CABEÇALHO DA COLUNA ATUALIZADO */}
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <MessageSquare size={16} className="mx-auto" />
-                            Lembrete de Aula
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <MessageSquare size={16} />
+                                  <span>Lembrete de Aula</span>
+                                </div>
+                                {students.length > 0 && (
+                                  <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      checked={areAllRemindersSelected}
+                                      onChange={handleSelectAllReminders}
+                                      title={areAllRemindersSelected ? "Desmarcar Todos" : "Marcar Todos"}
+                                  />
+                                )}
+                              </div>
                             </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <PhoneMissed size={16} className="mx-auto" />
-                            Resposta (Falta)
+                              <PhoneMissed size={16} className="mx-auto" /> Resposta (Falta)
                             </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <FileText size={16} className="mx-auto" />
-                            Obs. (Não Respondeu)
+                              <FileText size={16} className="mx-auto" /> Obs. (Não Respondeu)
                             </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                         </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -185,37 +233,48 @@ function AcademicFollowUpPage() {
                             return (
                             <tr key={studentId} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                                <div className="text-sm text-gray-500">Cód: {student.code}</div>
+                                  <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                  <div className="text-sm text-gray-500">Cód: {student.code}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <input
-                                    type="checkbox"
-                                    className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    checked={!!data.lembreteEnviado}
-                                    onChange={(e) => handleFollowUpChange(studentId, 'lembreteEnviado', e.target.checked)}
-                                />
+                                  <input
+                                      type="checkbox"
+                                      className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      checked={!!data.lembreteEnviado}
+                                      onChange={(e) => handleFollowUpChange(studentId, 'lembreteEnviado', e.target.checked)}
+                                  />
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                <select
-                                    className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                    value={data.respostaFalta || 'pendente'}
-                                    onChange={(e) => handleFollowUpChange(studentId, 'respostaFalta', e.target.value)}
-                                >
-                                    <option value="pendente">Pendente</option>
-                                    <option value="sim">Sim</option>
-                                    <option value="nao">Não</option>
-                                </select>
+                                  <select
+                                      className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                      value={data.respostaFalta || 'pendente'}
+                                      onChange={(e) => handleFollowUpChange(studentId, 'respostaFalta', e.target.value)}
+                                  >
+                                      <option value="pendente">Pendente</option>
+                                      <option value="sim">Sim</option>
+                                      <option value="nao">Não</option>
+                                  </select>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                                {naoRespondeu && (
-                                    <input
-                                        type="checkbox"
-                                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        checked={!!data.obsNaResposta}
-                                        onChange={(e) => handleFollowUpChange(studentId, 'obsNaResposta', e.target.checked)}
-                                    />
-                                )}
+                                  {naoRespondeu && (
+                                      <input
+                                          type="checkbox"
+                                          className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                          checked={!!data.obsNaResposta}
+                                          onChange={(e) => handleFollowUpChange(studentId, 'obsNaResposta', e.target.checked)}
+                                      />
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                  {naoRespondeu && (
+                                    <button 
+                                      onClick={() => handleCopyObservationMessage(student)}
+                                      className="text-blue-600 hover:text-blue-800"
+                                      title="Copiar mensagem de observação"
+                                    >
+                                      <ClipboardCopy size={20} />
+                                    </button>
+                                  )}
                                 </td>
                             </tr>
                             );

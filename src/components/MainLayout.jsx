@@ -1,11 +1,9 @@
-// src/components/MainLayout.jsx
-
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react"; // 1. Importar useEffect e useRef
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
 import ChatPopup from "./ChatPopup";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
@@ -22,17 +20,46 @@ const MainLayout = () => {
   const isUserComercial = userProfile && userProfile.role === "comercial";
 
   const canAccessAttendance = isUserAdmin || isUserProfessor;
-
-  // NOVA REGRA DE PERMISSÃO
   const canAccessFollowUp = isUserAdmin || isUserProfessor;
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // 2. Estados para controlar cada dropdown
+  const [academicMenuOpen, setAcademicMenuOpen] = useState(false);
+  const [operationalMenuOpen, setOperationalMenuOpen] = useState(false);
 
-  const activeLinkClass = "bg-blue-700 text-white";
-  const inactiveLinkClass = "text-blue-100 hover:bg-blue-500 hover:text-white";
+  // 3. Lógica para fechar os menus ao clicar fora
+  const academicMenuRef = useRef(null);
+  const operationalMenuRef = useRef(null);
 
-  const mobileLinkClass =
-    "block py-3 px-4 text-lg text-white hover:bg-blue-700 rounded-md";
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        academicMenuRef.current &&
+        !academicMenuRef.current.contains(event.target)
+      ) {
+        setAcademicMenuOpen(false);
+      }
+      if (
+        operationalMenuRef.current &&
+        !operationalMenuRef.current.contains(event.target)
+      ) {
+        setOperationalMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const dropdownLinkClass =
+    "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100";
+  const activeDropdownLinkClass = "bg-blue-50 font-semibold text-blue-600";
+
+  const getDropdownNavLinkClass = ({ isActive }) =>
+    isActive
+      ? `${dropdownLinkClass} ${activeDropdownLinkClass}`
+      : dropdownLinkClass;
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 text-gray-800">
@@ -48,101 +75,121 @@ const MainLayout = () => {
                   {isUserComercial ? (
                     <NavLink
                       to="/laboratorio"
-                      className={({ isActive }) =>
-                        `px-3 py-2 rounded-md text-sm font-medium ${
-                          isActive ? activeLinkClass : inactiveLinkClass
-                        }`
-                      }
+                      className="text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                     >
                       Laboratório de Apoio
                     </NavLink>
                   ) : (
                     <>
-                      <NavLink
-                        to="/dashboard"
-                        className={({ isActive }) =>
-                          `px-3 py-2 rounded-md text-sm font-medium ${
-                            isActive ? activeLinkClass : inactiveLinkClass
-                          }`
-                        }
-                      >
-                        Boletim Escolar
-                      </NavLink>
-                      <NavLink
-                        to="/mapa-turmas"
-                        className={({ isActive }) =>
-                          `px-3 py-2 rounded-md text-sm font-medium ${
-                            isActive ? activeLinkClass : inactiveLinkClass
-                          }`
-                        }
-                      >
-                        Mapa de Turmas
-                      </NavLink>
-                      {canAccessAttendance && (
-                        <NavLink
-                          to="/frequencia"
-                          className={({ isActive }) =>
-                            `px-3 py-2 rounded-md text-sm font-medium ${
-                              isActive ? activeLinkClass : inactiveLinkClass
-                            }`
-                          }
+                      {/* --- GRUPO ACADÊMICO --- */}
+                      <div className="relative" ref={academicMenuRef}>
+                        <button
+                          onClick={() => {
+                            setAcademicMenuOpen(!academicMenuOpen);
+                            setOperationalMenuOpen(false);
+                          }}
+                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
                         >
-                          TBs e Curso Extra
-                        </NavLink>
-                      )}
-                      {/* ADICIONAR O NOVO LINK AQUI */}
-                      {canAccessFollowUp && (
-                        <NavLink
-                          to="/acompanhamento"
-                          className={({ isActive }) =>
-                            `px-3 py-2 rounded-md text-sm font-medium ${
-                              isActive ? activeLinkClass : inactiveLinkClass
-                            }`
-                          }
+                          <span>Acadêmico</span>
+                          <ChevronDown
+                            size={16}
+                            className={`ml-1 transition-transform ${
+                              academicMenuOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                        {academicMenuOpen && (
+                          <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                            <div className="py-1">
+                              <NavLink
+                                to="/dashboard"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setAcademicMenuOpen(false)}
+                              >
+                                Boletim Escolar
+                              </NavLink>
+                              {canAccessAttendance && (
+                                <NavLink
+                                  to="/frequencia"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setAcademicMenuOpen(false)}
+                                >
+                                  TBs e Curso Extra
+                                </NavLink>
+                              )}
+                              {canAccessFollowUp && (
+                                <NavLink
+                                  to="/acompanhamento"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setAcademicMenuOpen(false)}
+                                >
+                                  Acompanhamento
+                                </NavLink>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* --- GRUPO OPERACIONAL --- */}
+                      <div className="relative" ref={operationalMenuRef}>
+                        <button
+                          onClick={() => {
+                            setOperationalMenuOpen(!operationalMenuOpen);
+                            setAcademicMenuOpen(false);
+                          }}
+                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
                         >
-                          Acompanhamento
-                        </NavLink>
-                      )}
-                      <NavLink
-                        to="/laboratorio"
-                        className={({ isActive }) =>
-                          `px-3 py-2 rounded-md text-sm font-medium ${
-                            isActive ? activeLinkClass : inactiveLinkClass
-                          }`
-                        }
-                      >
-                        Laboratório de Apoio
-                      </NavLink>
-                      <NavLink
-                        to="/kanban"
-                        className={({ isActive }) =>
-                          `px-3 py-2 rounded-md text-sm font-medium ${
-                            isActive ? activeLinkClass : inactiveLinkClass
-                          }`
-                        }
-                      >
-                        Tarefas
-                      </NavLink>
-                      <NavLink
-                        to="/calculadora"
-                        className={({ isActive }) =>
-                          `px-3 py-2 rounded-md text-sm font-medium ${
-                            isActive ? activeLinkClass : inactiveLinkClass
-                          }`
-                        }
-                      >
-                        Calculadora de Reposição
-                      </NavLink>
+                          <span>Operacional</span>
+                          <ChevronDown
+                            size={16}
+                            className={`ml-1 transition-transform ${
+                              operationalMenuOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                        {operationalMenuOpen && (
+                          <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                            <div className="py-1">
+                              <NavLink
+                                to="/mapa-turmas"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Mapa de Turmas
+                              </NavLink>
+                              <NavLink
+                                to="/laboratorio"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Laboratório de Apoio
+                              </NavLink>
+                              <NavLink
+                                to="/kanban"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Tarefas
+                              </NavLink>
+                              <NavLink
+                                to="/calculadora"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Calculadora de Reposição
+                              </NavLink>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {isUserAdmin && (
                         <NavLink
                           to="/usuarios"
-                          className={({ isActive }) =>
-                            `px-3 py-2 rounded-md text-sm font-medium ${
-                              isActive ? activeLinkClass : inactiveLinkClass
-                            }`
-                          }
+                          className="text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                         >
-                          Usuários
+                          Administração
                         </NavLink>
                       )}
                     </>
@@ -172,6 +219,7 @@ const MainLayout = () => {
         </div>
       </header>
 
+      {/* --- MENU MOBILE (sem alterações) --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -188,79 +236,91 @@ const MainLayout = () => {
           >
             <X size={24} />
           </button>
-          <nav className="mt-16 space-y-2">
+          <nav className="mt-16 space-y-4">
             {isUserComercial ? (
               <NavLink
                 to="/laboratorio"
-                className={mobileLinkClass}
+                className="block py-3 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Laboratório de Apoio
               </NavLink>
             ) : (
               <>
+                <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
+                  Acadêmico
+                </h4>
                 <NavLink
                   to="/dashboard"
-                  className={mobileLinkClass}
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Boletim Escolar
                 </NavLink>
-                <NavLink
-                  to="/mapa-turmas"
-                  className={mobileLinkClass}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Mapa de Turmas
-                </NavLink>
                 {canAccessAttendance && (
                   <NavLink
                     to="/frequencia"
-                    className={mobileLinkClass}
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     TBs e Curso Extra
                   </NavLink>
                 )}
-                {/* ADICIONAR O NOVO LINK NO MENU MOBILE */}
                 {canAccessFollowUp && (
                   <NavLink
                     to="/acompanhamento"
-                    className={mobileLinkClass}
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Acompanhamento
                   </NavLink>
                 )}
+
+                <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
+                  Operacional
+                </h4>
+                <NavLink
+                  to="/mapa-turmas"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Mapa de Turmas
+                </NavLink>
                 <NavLink
                   to="/laboratorio"
-                  className={mobileLinkClass}
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Laboratório de Apoio
                 </NavLink>
                 <NavLink
                   to="/kanban"
-                  className={mobileLinkClass}
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Tarefas
                 </NavLink>
                 <NavLink
                   to="/calculadora"
-                  className={mobileLinkClass}
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Calculadora de Reposição
                 </NavLink>
+
                 {isUserAdmin && (
-                  <NavLink
-                    to="/usuarios"
-                    className={mobileLinkClass}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Usuários
-                  </NavLink>
+                  <>
+                    <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
+                      Administração
+                    </h4>
+                    <NavLink
+                      to="/usuarios"
+                      className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Usuários
+                    </NavLink>
+                  </>
                 )}
               </>
             )}
@@ -281,7 +341,6 @@ const MainLayout = () => {
       </main>
 
       <ChatPopup />
-
       <Footer />
     </div>
   );
