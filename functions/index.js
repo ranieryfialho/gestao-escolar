@@ -626,3 +626,65 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+// FUNÇÃO PARA BUSCAR DADOS DE ACOMPANHAMENTO
+exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+
+    const { classId, date } = req.body.data;
+    if (!classId || !date) {
+      return res.status(400).json({ error: "ID da turma e data são obrigatórios." });
+    }
+
+    try {
+      const followUpDocRef = db.collection('classes').doc(classId).collection('academicFollowUp').doc(date);
+      const docSnap = await followUpDocRef.get();
+
+      if (docSnap.exists) {
+        return res.status(200).json({ data: docSnap.data() });
+      } else {
+        return res.status(200).json({ data: {} });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados de acompanhamento:", error);
+      return res.status(500).json({ error: "Erro no servidor ao buscar dados." });
+    }
+  });
+});
+
+// FUNÇÃO PARA SALVAR DADOS DE ACOMPANHAMENTO
+exports.saveFollowUpForDate = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+    
+    const { classId, date, followUpData } = req.body.data;
+    if (!classId || !date || !followUpData) {
+       return res.status(400).json({ error: "Dados incompletos para salvar." });
+    }
+
+    try {
+      const followUpDocRef = db.collection('classes').doc(classId).collection('academicFollowUp').doc(date);
+
+      await followUpDocRef.set(followUpData, { merge: true });
+
+      return res.status(200).json({ message: "Acompanhamento salvo com sucesso!" });
+
+    } catch (error) {
+        console.error("Erro ao salvar acompanhamento:", error);
+        return res.status(500).json({ error: "Erro no servidor ao salvar os dados." });
+    }
+  });
+});
