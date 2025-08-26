@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useClasses } from '../contexts/ClassContext';
-import { useAuth } from '../contexts/AuthContext';
-import { MessageSquare, PhoneMissed, FileText, ClipboardCopy } from 'lucide-react';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useClasses } from "../contexts/ClassContext";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  MessageSquare,
+  PhoneMissed,
+  FileText,
+  ClipboardCopy,
+  HelpCircle,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 // Função para chamar a Cloud Function
 const callFollowUpApi = async (functionName, payload, token) => {
@@ -11,7 +17,7 @@ const callFollowUpApi = async (functionName, payload, token) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ data: payload }),
   });
@@ -22,28 +28,34 @@ const callFollowUpApi = async (functionName, payload, token) => {
   return result;
 };
 
-
 function AcademicFollowUpPage() {
   const { classes, loadingClasses } = useClasses();
   const { firebaseUser } = useAuth();
-  const [selectedClassId, setSelectedClassId] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [students, setStudents] = useState([]);
   const [followUpData, setFollowUpData] = useState({});
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   const availableClasses = useMemo(() => {
-    return classes.filter(c => c.name !== 'CONCLUDENTES' && !c.isMapaOnly)
-                  .sort((a, b) => a.name.localeCompare(b.name));
+    return classes
+      .filter((c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly)
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [classes]);
 
   const fetchFollowUpData = useCallback(async () => {
     if (!selectedClassId || !selectedDate || !firebaseUser) return;
-    
+
     setIsLoadingData(true);
     try {
       const token = await firebaseUser.getIdToken();
-      const result = await callFollowUpApi('getFollowUpForDate', { classId: selectedClassId, date: selectedDate }, token);
+      const result = await callFollowUpApi(
+        "getFollowUpForDate",
+        { classId: selectedClassId, date: selectedDate },
+        token
+      );
       setFollowUpData(result.data || {});
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -54,12 +66,13 @@ function AcademicFollowUpPage() {
     }
   }, [selectedClassId, selectedDate, firebaseUser]);
 
-
   useEffect(() => {
     if (selectedClassId) {
-      const selectedClass = classes.find(c => c.id === selectedClassId);
+      const selectedClass = classes.find((c) => c.id === selectedClassId);
       if (selectedClass && selectedClass.students) {
-        const sortedStudents = [...selectedClass.students].sort((a, b) => a.name.localeCompare(b.name));
+        const sortedStudents = [...selectedClass.students].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
         setStudents(sortedStudents);
       } else {
         setStudents([]);
@@ -74,9 +87,9 @@ function AcademicFollowUpPage() {
   useEffect(() => {
     fetchFollowUpData();
   }, [selectedDate, fetchFollowUpData]);
-  
+
   const handleFollowUpChange = (studentId, field, value) => {
-    setFollowUpData(prevData => {
+    setFollowUpData((prevData) => {
       const studentData = prevData[studentId] || {};
       const newData = {
         ...prevData,
@@ -85,66 +98,108 @@ function AcademicFollowUpPage() {
           [field]: value,
         },
       };
-      if (field === 'respostaFalta' && (value === 'sim' || value === 'pendente')) {
+      if (
+        field === "respostaFalta" &&
+        (value === "sim" || value === "pendente")
+      ) {
         newData[studentId].obsNaResposta = false;
       }
       return newData;
     });
   };
-  
-  // 1. LÓGICA PARA O CHECKBOX "MARCAR TODOS"
+
   const areAllRemindersSelected = useMemo(() => {
     if (students.length === 0) return false;
-    return students.every(student => {
-        const studentId = student.studentId || student.id;
-        return !!followUpData[studentId]?.lembreteEnviado;
+    return students.every((student) => {
+      const studentId = student.studentId || student.id;
+      return !!followUpData[studentId]?.lembreteEnviado;
     });
   }, [students, followUpData]);
 
   const handleSelectAllReminders = () => {
     const newCheckedState = !areAllRemindersSelected;
     const newFollowUpData = { ...followUpData };
-    students.forEach(student => {
-        const studentId = student.studentId || student.id;
-        newFollowUpData[studentId] = {
-            ...newFollowUpData[studentId],
-            lembreteEnviado: newCheckedState,
-        };
+    students.forEach((student) => {
+      const studentId = student.studentId || student.id;
+      newFollowUpData[studentId] = {
+        ...newFollowUpData[studentId],
+        lembreteEnviado: newCheckedState,
+      };
     });
     setFollowUpData(newFollowUpData);
   };
 
+  // AJUSTE FINAL: Mensagem baseada no novo seletor "Tipo de Contato"
   const handleCopyObservationMessage = (student) => {
-    const message = `Aluno(a) ${student.name} não respondeu à mensagem de acompanhamento sobre sua falta, enviada pelo setor acadêmico.`;
-    
-    navigator.clipboard.writeText(message).then(() => {
-      toast.success('Mensagem de observação copiada!');
-    }).catch(err => {
-      console.error('Erro ao copiar mensagem:', err);
-      toast.error('Não foi possível copiar a mensagem.');
+    const studentId = student.studentId || student.id;
+    const data = followUpData[studentId] || {};
+    const contactType = data.contactType || "falta"; // 'falta' como padrão
+
+    const followUpDate = new Date(selectedDate + "T12:00:00");
+    let relevantDate = new Date(followUpDate);
+    let eventType = "";
+
+    if (contactType === "lembrete") {
+      eventType = "o lembrete de aula";
+      if (followUpDate.getDay() === 6) {
+        // 6 = Sábado
+        relevantDate.setDate(relevantDate.getDate() + 2); // A aula é na Segunda
+      } else {
+        relevantDate.setDate(relevantDate.getDate() + 1); // A aula é no dia seguinte
+      }
+    } else {
+      // 'falta'
+      eventType = "sua falta";
+      if (followUpDate.getDay() === 1) {
+        // 1 = Segunda-feira
+        relevantDate.setDate(relevantDate.getDate() - 2); // A falta foi no Sábado
+      } else {
+        relevantDate.setDate(relevantDate.getDate() - 1); // A falta foi no dia anterior
+      }
+    }
+
+    const formattedDate = relevantDate.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
+
+    const message = `Aluno(a) ${student.name} não respondeu à mensagem de acompanhamento sobre ${eventType}, enviada pelo setor acadêmico referente à aula do dia ${formattedDate}.`;
+
+    navigator.clipboard
+      .writeText(message)
+      .then(() => {
+        toast.success("Mensagem de observação copiada!");
+      })
+      .catch((err) => {
+        console.error("Erro ao copiar mensagem:", err);
+        toast.error("Não foi possível copiar a mensagem.");
+      });
   };
 
   const handleSave = async () => {
     if (Object.keys(followUpData).length === 0) {
-        return toast.error("Nenhuma alteração para salvar.");
+      return toast.error("Nenhuma alteração para salvar.");
     }
     const promise = async () => {
-        const token = await firebaseUser.getIdToken();
-        await callFollowUpApi('saveFollowUpForDate', {
-            classId: selectedClassId,
-            date: selectedDate,
-            followUpData: followUpData
-        }, token);
+      const token = await firebaseUser.getIdToken();
+      await callFollowUpApi(
+        "saveFollowUpForDate",
+        {
+          classId: selectedClassId,
+          date: selectedDate,
+          followUpData: followUpData,
+        },
+        token
+      );
     };
 
     toast.promise(promise(), {
-        loading: 'Salvando...',
-        success: 'Acompanhamento salvo com sucesso!',
-        error: 'Erro ao salvar acompanhamento.'
+      loading: "Salvando...",
+      success: "Acompanhamento salvo com sucesso!",
+      error: "Erro ao salvar acompanhamento.",
     });
   };
-
 
   return (
     <div className="p-4 sm:p-8">
@@ -156,7 +211,10 @@ function AcademicFollowUpPage() {
       <div className="bg-white p-4 rounded-lg shadow-md mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
           <div>
-            <label htmlFor="class-select" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="class-select"
+              className="block text-sm font-medium text-gray-700"
+            >
               Selecione a Turma
             </label>
             <select
@@ -166,14 +224,23 @@ function AcademicFollowUpPage() {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
               disabled={loadingClasses}
             >
-              <option value="" disabled>{loadingClasses ? 'Carregando turmas...' : 'Selecione uma turma'}</option>
-              {availableClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              <option value="" disabled>
+                {loadingClasses
+                  ? "Carregando turmas..."
+                  : "Selecione uma turma"}
+              </option>
+              {availableClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label htmlFor="date-select" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="date-select"
+              className="block text-sm font-medium text-gray-700"
+            >
               Data do Acompanhamento
             </label>
             <input
@@ -189,112 +256,172 @@ function AcademicFollowUpPage() {
 
       {selectedClassId ? (
         <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-            {isLoadingData ? (
-                <div className="p-8 text-center text-gray-500">Carregando dados...</div>
-            ) : (
-                <>
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno</th>
-                            {/* 2. CABEÇALHO DA COLUNA ATUALIZADO */}
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <div className="flex flex-col items-center justify-center gap-2">
-                                <div className="flex items-center gap-1">
-                                  <MessageSquare size={16} />
-                                  <span>Lembrete de Aula</span>
-                                </div>
-                                {students.length > 0 && (
-                                  <input
-                                      type="checkbox"
-                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                      checked={areAllRemindersSelected}
-                                      onChange={handleSelectAllReminders}
-                                      title={areAllRemindersSelected ? "Desmarcar Todos" : "Marcar Todos"}
-                                  />
-                                )}
-                              </div>
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <PhoneMissed size={16} className="mx-auto" /> Resposta (Falta)
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <FileText size={16} className="mx-auto" /> Obs. (Não Respondeu)
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                        </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                        {students.map(student => {
-                            const studentId = student.studentId || student.id;
-                            const data = followUpData[studentId] || {};
-                            const naoRespondeu = data.respostaFalta === 'nao';
+          {isLoadingData ? (
+            <div className="p-8 text-center text-gray-500">
+              Carregando dados...
+            </div>
+          ) : (
+            <>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Aluno
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare size={16} />
+                          <span>Lembrete de Aula</span>
+                        </div>
+                        {students.length > 0 && (
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={areAllRemindersSelected}
+                            onChange={handleSelectAllReminders}
+                            title={
+                              areAllRemindersSelected
+                                ? "Desmarcar Todos"
+                                : "Marcar Todos"
+                            }
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <PhoneMissed size={16} className="mx-auto" /> Houve
+                      resposta?
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <HelpCircle size={16} className="mx-auto" /> Tipo de
+                      Contato
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <FileText size={16} className="mx-auto" /> Obs. adicionada no Sistema?
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {students.map((student) => {
+                    const studentId = student.studentId || student.id;
+                    const data = followUpData[studentId] || {};
+                    const naoRespondeu = data.respostaFalta === "nao";
 
-                            return (
-                            <tr key={studentId} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                                  <div className="text-sm text-gray-500">Cód: {student.code}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
-                                  <input
-                                      type="checkbox"
-                                      className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                      checked={!!data.lembreteEnviado}
-                                      onChange={(e) => handleFollowUpChange(studentId, 'lembreteEnviado', e.target.checked)}
-                                  />
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <select
-                                      className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                      value={data.respostaFalta || 'pendente'}
-                                      onChange={(e) => handleFollowUpChange(studentId, 'respostaFalta', e.target.value)}
-                                  >
-                                      <option value="pendente">Pendente</option>
-                                      <option value="sim">Sim</option>
-                                      <option value="nao">Não</option>
-                                  </select>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
-                                  {naoRespondeu && (
-                                      <input
-                                          type="checkbox"
-                                          className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                          checked={!!data.obsNaResposta}
-                                          onChange={(e) => handleFollowUpChange(studentId, 'obsNaResposta', e.target.checked)}
-                                      />
-                                  )}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
-                                  {naoRespondeu && (
-                                    <button 
-                                      onClick={() => handleCopyObservationMessage(student)}
-                                      className="text-blue-600 hover:text-blue-800"
-                                      title="Copiar mensagem de observação"
-                                    >
-                                      <ClipboardCopy size={20} />
-                                    </button>
-                                  )}
-                                </td>
-                            </tr>
-                            );
-                        })}
-                        </tbody>
-                    </table>
-                    <div className="p-4 flex justify-end">
-                        <button
-                            onClick={handleSave}
-                            className="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition shadow-md"
-                        >
-                            Salvar Acompanhamento
-                        </button>
-                    </div>
-                </>
-            )}
+                    return (
+                      <tr key={studentId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Cód: {student.code}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={!!data.lembreteEnviado}
+                            onChange={(e) =>
+                              handleFollowUpChange(
+                                studentId,
+                                "lembreteEnviado",
+                                e.target.checked
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                            value={data.respostaFalta || "pendente"}
+                            onChange={(e) =>
+                              handleFollowUpChange(
+                                studentId,
+                                "respostaFalta",
+                                e.target.value
+                              )
+                            }
+                          >
+                            <option value="pendente">Pendente</option>
+                            <option value="sim">Sim</option>
+                            <option value="nao">Não</option>
+                          </select>
+                        </td>
+                        {/* NOVO SELETOR */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {naoRespondeu && (
+                            <select
+                              className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                              value={data.contactType || "falta"}
+                              onChange={(e) =>
+                                handleFollowUpChange(
+                                  studentId,
+                                  "contactType",
+                                  e.target.value
+                                )
+                              }
+                            >
+                              <option value="falta">Falta</option>
+                              <option value="lembrete">Lembrete de Aula</option>
+                            </select>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {naoRespondeu && (
+                            <input
+                              type="checkbox"
+                              className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={!!data.obsNaResposta}
+                              onChange={(e) =>
+                                handleFollowUpChange(
+                                  studentId,
+                                  "obsNaResposta",
+                                  e.target.checked
+                                )
+                              }
+                            />
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {naoRespondeu && (
+                            <button
+                              onClick={() =>
+                                handleCopyObservationMessage(student)
+                              }
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Copiar mensagem de observação"
+                            >
+                              <ClipboardCopy size={20} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="p-4 flex justify-end">
+                <button
+                  onClick={handleSave}
+                  className="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition shadow-md"
+                >
+                  Salvar Acompanhamento
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="text-center bg-white p-8 rounded-lg shadow-md">
-          <p className="text-gray-500">Por favor, selecione uma turma e uma data para iniciar o acompanhamento.</p>
+          <p className="text-gray-500">
+            Por favor, selecione uma turma e uma data para iniciar o
+            acompanhamento.
+          </p>
         </div>
       )}
     </div>
