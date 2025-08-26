@@ -13,7 +13,6 @@ import {
 import { useAuth } from "./AuthContext";
 import toast from "react-hot-toast";
 
-// Helper para chamar as Cloud Functions (mantido)
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -35,7 +34,6 @@ const ClassContext = createContext(null);
 
 export const ClassesProvider = ({ children }) => {
   const [classes, setClasses] = useState([]);
-  // --- MELHORIA: Adicionado estado para os alunos concludentes ---
   const [graduates, setGraduates] = useState([]);
   const [loading, setLoading] = useState(true);
   const { firebaseUser } = useAuth();
@@ -43,14 +41,13 @@ export const ClassesProvider = ({ children }) => {
   useEffect(() => {
     if (!firebaseUser) {
       setClasses([]);
-      setGraduates([]); // Limpa os concludentes também
+      setGraduates([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    // Listener para as turmas (código existente)
     const classesCollectionRef = collection(db, "classes");
     const unsubscribeClasses = onSnapshot(
       classesCollectionRef,
@@ -67,7 +64,6 @@ export const ClassesProvider = ({ children }) => {
       }
     );
 
-    // --- MELHORIA: Adicionado novo listener para a coleção 'concludentes' ---
     const graduatesCollectionRef = collection(db, "concludentes");
     const unsubscribeGraduates = onSnapshot(
       graduatesCollectionRef,
@@ -77,7 +73,7 @@ export const ClassesProvider = ({ children }) => {
           graduatesData.push({ id: doc.id, ...doc.data() });
         });
         setGraduates(graduatesData);
-        setLoading(false); // Agora o loading só termina após carregar AMBOS os dados
+        setLoading(false);
       },
       (error) => {
         console.error("Erro ao escutar os concludentes:", error);
@@ -85,18 +81,15 @@ export const ClassesProvider = ({ children }) => {
       }
     );
 
-    // Retorna a função de limpeza para ambos os listeners
     return () => {
       unsubscribeClasses();
       unsubscribeGraduates();
     };
   }, [firebaseUser]);
 
-  // --- MELHORIA: O allStudentsMap agora une alunos das turmas e concludentes ---
   const allStudentsMap = useMemo(() => {
     const map = new Map();
 
-    // 1. Itera sobre as turmas ativas
     classes.forEach((turma) => {
       if (turma.students && Array.isArray(turma.students)) {
         turma.students.forEach((aluno) => {
@@ -113,20 +106,19 @@ export const ClassesProvider = ({ children }) => {
       }
     });
 
-    // 2. Itera sobre os alunos concludentes e adiciona ao mapa
     graduates.forEach((aluno) => {
       if (aluno.code && !map.has(aluno.code.toString())) {
         map.set(aluno.code.toString(), {
           id: aluno.id,
           name: aluno.name,
           code: aluno.code.toString(),
-          className: "Concluído", // Define a "turma" como "Concluído"
+          className: "Concluído",
         });
       }
     });
 
     return map;
-  }, [classes, graduates]); // Adicionada a dependência 'graduates'
+  }, [classes, graduates]);
 
   const addClass = async (newClassData) => {
     try {
@@ -143,6 +135,17 @@ export const ClassesProvider = ({ children }) => {
       await updateDoc(classDocRef, updatedData);
     } catch (error) {
       console.error("Erro ao atualizar turma: ", error);
+    }
+  };
+
+  const updateClassStatus = async (classId, newStatus) => {
+    try {
+      const classDocRef = doc(db, "classes", classId);
+      await updateDoc(classDocRef, { status: newStatus });
+      toast.success(`Turma marcada como ${newStatus === 'finalizada' ? 'Finalizada' : 'Ativa'}!`);
+    } catch (error) {
+      console.error("Erro ao atualizar status da turma:", error);
+      toast.error("Não foi possível atualizar o status da turma.");
     }
   };
 
@@ -271,6 +274,7 @@ export const ClassesProvider = ({ children }) => {
     addStudentToClass,
     removeStudentFromClass,
     updateStudentAttendance,
+    updateClassStatus,
   };
 
   return (

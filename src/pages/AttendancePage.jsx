@@ -1,46 +1,85 @@
-// src/pages/AttendancePage.jsx
-import React, { useState, useMemo } from 'react';
-import { useClasses } from '../contexts/ClassContext';
-import { Link } from 'react-router-dom';
-import { List, Search } from 'lucide-react';
+import React, { useState, useMemo } from "react";
+import { useClasses } from "../contexts/ClassContext";
+import { Link } from "react-router-dom";
+import { List, Search, CheckCircle, Calendar } from "lucide-react";
+
+const formatDateForDisplay = (dateValue) => {
+  if (!dateValue) return "-";
+
+  let date;
+  if (typeof dateValue === "string") {
+    date = new Date(dateValue + "T00:00:00");
+  } else if (dateValue.toDate) {
+    date = dateValue.toDate();
+  } else {
+    date = new Date(dateValue);
+  }
+
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+};
 
 function AttendancePage() {
   const { classes } = useClasses();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const getClassType = (turma) => {
+    const nameUpper = (turma.name || "").toUpperCase();
+    const typeSource = (
+      (turma.modules && turma.modules[0] && turma.modules[0].id) ||
+      ""
+    ).toUpperCase();
+
+    if (
+      nameUpper.includes("CURSO EXTRA") ||
+      typeSource.includes("CURSO EXTRA")
+    ) {
+      return "Curso Extra";
+    }
+
+    return "Treinamento Básico";
+  };
 
   const extraClasses = useMemo(() => {
     if (!classes) return [];
-    
-    // --- LÓGICA DE FILTRAGEM ATUALIZADA E MAIS ROBUSTA ---
-    const filtered = classes.filter(c => {
-      const nameUpper = c.name.toUpperCase();
-      // Verifica o campo 'tipo' ou 'modulo_atual'
-      const typeUpper = (c.tipo || c.modulo_atual || '').toUpperCase();
-      // VERIFICA TAMBÉM O ID DO PRIMEIRO MÓDULO NA LISTA
-      const firstModuleIdUpper = (c.modules && c.modules[0] && c.modules[0].id || '').toUpperCase();
 
-      return nameUpper.includes('TB') || 
-             nameUpper.includes('CURSO EXTRA') ||
-             typeUpper.includes('TB') ||
-             typeUpper.includes('CURSO EXTRA') ||
-             firstModuleIdUpper.includes('TB') ||
-             firstModuleIdUpper.includes('CURSO EXTRA');
+    const filtered = classes.filter((c) => {
+      const typeSource = (
+        (c.modules && c.modules[0] && c.modules[0].id) ||
+        ""
+      ).toUpperCase();
+      return typeSource === "TB" || typeSource === "CURSO EXTRA";
     });
 
-    // Filtra adicionalmente pelo termo de busca
-    if (!searchTerm) return filtered;
-    return filtered.filter(c => 
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let searchResult = filtered;
+    if (searchTerm) {
+      searchResult = filtered.filter((c) =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
+    return searchResult.sort((a, b) => {
+      const statusA = a.status === "finalizada" ? 1 : 0;
+      const statusB = b.status === "finalizada" ? 1 : 0;
+      if (statusA !== statusB) {
+        return statusA - statusB;
+      }
+      return a.name.localeCompare(b.name);
+    });
   }, [classes, searchTerm]);
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-gray-800">Frequência - Cursos Extras e TBs</h1>
+        <h1 className="text-3xl font-bold text-gray-800">
+          Frequência - Cursos Extras e TBs
+        </h1>
         <div className="relative w-full sm:w-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            size={20}
+          />
           <input
             type="text"
             placeholder="Buscar turma..."
@@ -54,31 +93,74 @@ function AttendancePage() {
       <div className="bg-white p-6 rounded-lg shadow-md">
         {extraClasses.length > 0 ? (
           <ul className="space-y-4">
-            {extraClasses.map(turma => (
-              <li key={turma.id}>
-                <Link 
-                  to={`/frequencia/${turma.id}`} 
-                  className="block p-4 border rounded-lg hover:bg-gray-50 hover:shadow-md transition-all duration-200"
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-xl font-semibold text-blue-700">{turma.name}</h2>
-                      <p className="text-sm text-gray-600">
-                        Professor(a): {turma.professorName || 'A definir'}
-                      </p>
+            {extraClasses.map((turma) => {
+              const type = getClassType(turma);
+              const isFinished = turma.status === "finalizada";
+
+              return (
+                <li key={turma.id}>
+                  <Link
+                    to={`/frequencia/${turma.id}`}
+                    className={`block p-4 border rounded-lg hover:shadow-md transition-all duration-200 ${
+                      isFinished
+                        ? "bg-gray-100 opacity-70 hover:opacity-100"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl font-semibold text-blue-700">
+                            {turma.name}
+                          </h2>
+                          <span
+                            className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                              type === "Treinamento Básico"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-purple-100 text-purple-800"
+                            }`}
+                          >
+                            {type}
+                          </span>
+                          {isFinished && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              <CheckCircle size={12} /> Finalizada
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Professor(a): {turma.professorName || "A definir"}
+                        </p>
+                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={14} />
+                            <span>
+                              Início: {formatDateForDisplay(turma.dataInicio)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={14} />
+                            <span>
+                              Término: {formatDateForDisplay(turma.dataTermino)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        {turma.students?.length || 0} aluno(s)
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-gray-700">
-                      {turma.students?.length || 0} aluno(s)
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <div className="text-center py-10">
             <List size={48} className="mx-auto text-gray-300" />
-            <p className="mt-4 text-gray-500">Nenhuma turma de Curso Extra ou TB foi encontrada.</p>
+            <p className="mt-4 text-gray-500">
+              Nenhuma turma de Curso Extra ou TB foi encontrada.
+            </p>
           </div>
         )}
       </div>

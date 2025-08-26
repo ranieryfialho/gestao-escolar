@@ -3,8 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useClasses } from '../contexts/ClassContext';
 import { UserPlus, ArrowLeft, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import AddStudentToExtraClassModal from '../components/AddStudentToExtraClassModal';
+import toast from 'react-hot-toast';
 
-// Função para gerar as datas das aulas
 const generateClassDates = (startDate, endDate, dayOfWeek) => {
     const dates = [];
     if (!startDate || !endDate || !dayOfWeek) return dates;
@@ -31,7 +31,7 @@ const generateClassDates = (startDate, endDate, dayOfWeek) => {
 
 function AttendanceDetailPage() {
     const { classId } = useParams();
-    const { classes, findClassById, addStudentToClass, removeStudentFromClass, allStudentsMap, updateStudentAttendance } = useClasses();
+    const { classes, findClassById, addStudentToClass, removeStudentFromClass, allStudentsMap, updateStudentAttendance, updateClassStatus } = useClasses();
     const [turma, setTurma] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -42,7 +42,6 @@ function AttendanceDetailPage() {
         return generateClassDates(startDate, endDate, turma.dia_semana);
     }, [turma]);
 
-    // --- MELHORIA 1: ORDENAÇÃO ALFABÉTICA DOS ALUNOS ---
     const sortedStudents = useMemo(() => {
         if (!turma || !turma.students) return [];
         return [...turma.students].sort((a, b) => a.name.localeCompare(b.name));
@@ -70,6 +69,12 @@ function AttendanceDetailPage() {
         updateStudentAttendance(turma.id, studentId, dateString, status);
     };
 
+    const handleFinishClass = () => {
+        if (window.confirm(`Tem certeza que deseja marcar a turma "${turma.name}" como finalizada?`)) {
+            updateClassStatus(turma.id, 'finalizada');
+        }
+    };
+
     if (!turma) {
         return <div className="p-8">Carregando turma...</div>;
     }
@@ -81,15 +86,33 @@ function AttendanceDetailPage() {
                 Voltar para a lista de turmas
             </Link>
 
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                    <UserPlus size={18} />
-                    Adicionar Aluno
-                </button>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
+                    {turma.status === 'finalizada' && (
+                        <span className="mt-1 flex items-center gap-1 px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800 w-fit">
+                            <CheckCircle size={16}/> Turma Finalizada
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    >
+                        <UserPlus size={18} />
+                        Adicionar Aluno
+                    </button>
+                    {turma.status !== 'finalizada' && (
+                        <button
+                            onClick={handleFinishClass}
+                            className="flex items-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                        >
+                            <CheckCircle size={18} />
+                            Finalizar Turma
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white p-2 sm:p-4 rounded-lg shadow-md">
@@ -104,17 +127,14 @@ function AttendanceDetailPage() {
                                         {date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                     </th>
                                 ))}
-                                {/* --- MELHORIA 2: CABEÇALHO DA NOVA COLUNA --- */}
                                 <th className="sticky right-0 bg-gray-50 z-10 p-3 font-semibold text-center w-32">Frequência (%)</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {/* --- USA A LISTA ORDENADA `sortedStudents` --- */}
                             {sortedStudents.length > 0 ? (
                                 sortedStudents.map(student => {
                                     const studentId = student.studentId || student.id;
 
-                                    // --- MELHORIA 2: LÓGICA DE CÁLCULO DA PORCENTAGEM ---
                                     const totalClasses = classDates.length;
                                     const presentCount = student.attendance ? Object.values(student.attendance).filter(s => s === 'present').length : 0;
                                     const attendancePercentage = totalClasses > 0 ? (presentCount / totalClasses) * 100 : 0;
@@ -149,7 +169,6 @@ function AttendanceDetailPage() {
                                                     </td>
                                                 )
                                             })}
-                                            {/* --- MELHORIA 2: CÉLULA DA NOVA COLUNA --- */}
                                             <td className={`sticky right-0 bg-white hover:bg-gray-50 z-10 p-3 text-center font-bold ${percentageColor}`}>
                                                 {attendancePercentage.toFixed(0)}%
                                             </td>
