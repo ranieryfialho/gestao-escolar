@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -7,10 +13,14 @@ import {
   FileText,
   ClipboardCopy,
   HelpCircle,
+  User,
+  Calendar,
+  Clock,
+  CheckCircle,
+  Loader,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-// Função para chamar a Cloud Function
 const callFollowUpApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -38,6 +48,10 @@ function AcademicFollowUpPage() {
   const [students, setStudents] = useState([]);
   const [followUpData, setFollowUpData] = useState({});
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [selectedClassDetails, setSelectedClassDetails] = useState(null);
+
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const debounceTimeout = useRef(null);
 
   const availableClasses = useMemo(() => {
     return classes
@@ -57,6 +71,7 @@ function AcademicFollowUpPage() {
         token
       );
       setFollowUpData(result.data || {});
+      setSaveStatus("idle");
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
       toast.error("Não foi possível carregar os dados de acompanhamento.");
@@ -69,24 +84,58 @@ function AcademicFollowUpPage() {
   useEffect(() => {
     if (selectedClassId) {
       const selectedClass = classes.find((c) => c.id === selectedClassId);
-      if (selectedClass && selectedClass.students) {
-        const sortedStudents = [...selectedClass.students].sort((a, b) =>
-          a.name.localeCompare(b.name)
+      if (selectedClass) {
+        const sortedStudents = [...(selectedClass.students || [])].sort(
+          (a, b) => a.name.localeCompare(b.name)
         );
         setStudents(sortedStudents);
+        setSelectedClassDetails({
+          professorName: selectedClass.professorName || "A definir",
+          dia_semana: selectedClass.dia_semana || "Não definido",
+          horario: selectedClass.horario || "Não definido",
+        });
       } else {
         setStudents([]);
+        setSelectedClassDetails(null);
       }
       fetchFollowUpData();
     } else {
       setStudents([]);
       setFollowUpData({});
+      setSelectedClassDetails(null);
     }
   }, [selectedClassId, classes, fetchFollowUpData]);
 
   useEffect(() => {
     fetchFollowUpData();
   }, [selectedDate, fetchFollowUpData]);
+
+  const handleSave = useCallback(
+    async (currentData) => {
+      if (Object.keys(currentData).length === 0 || !selectedClassId) {
+        return;
+      }
+      setSaveStatus("saving");
+      try {
+        const token = await firebaseUser.getIdToken();
+        await callFollowUpApi(
+          "saveFollowUpForDate",
+          {
+            classId: selectedClassId,
+            date: selectedDate,
+            followUpData: currentData,
+          },
+          token
+        );
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      } catch (error) {
+        setSaveStatus("idle");
+        toast.error("Erro ao salvar acompanhamento.");
+      }
+    },
+    [selectedClassId, selectedDate, firebaseUser]
+  );
 
   const handleFollowUpChange = (studentId, field, value) => {
     setFollowUpData((prevData) => {
@@ -98,12 +147,21 @@ function AcademicFollowUpPage() {
           [field]: value,
         },
       };
+
       if (
         field === "respostaFalta" &&
         (value === "sim" || value === "pendente")
       ) {
         newData[studentId].obsNaResposta = false;
       }
+
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+      debounceTimeout.current = setTimeout(() => {
+        handleSave(newData);
+      }, 1500);
+
       return newData;
     });
   };
@@ -118,23 +176,32 @@ function AcademicFollowUpPage() {
 
   const handleSelectAllReminders = () => {
     const newCheckedState = !areAllRemindersSelected;
-    const newFollowUpData = { ...followUpData };
-    students.forEach((student) => {
-      const studentId = student.studentId || student.id;
-      newFollowUpData[studentId] = {
-        ...newFollowUpData[studentId],
-        lembreteEnviado: newCheckedState,
-      };
+    setFollowUpData((prevData) => {
+      const newFollowUpData = { ...prevData };
+      students.forEach((student) => {
+        const studentId = student.studentId || student.id;
+        newFollowUpData[studentId] = {
+          ...newFollowUpData[studentId],
+          lembreteEnviado: newCheckedState,
+        };
+      });
+
+      // Lógica de debounce para salvar
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+      debounceTimeout.current = setTimeout(() => {
+        handleSave(newFollowUpData);
+      }, 1500);
+
+      return newFollowUpData;
     });
-    setFollowUpData(newFollowUpData);
   };
 
-  // AJUSTE FINAL: Mensagem baseada no novo seletor "Tipo de Contato"
   const handleCopyObservationMessage = (student) => {
     const studentId = student.studentId || student.id;
     const data = followUpData[studentId] || {};
-    const contactType = data.contactType || "falta"; // 'falta' como padrão
-
+    const contactType = data.contactType || "falta";
     const followUpDate = new Date(selectedDate + "T12:00:00");
     let relevantDate = new Date(followUpDate);
     let eventType = "";
@@ -142,19 +209,16 @@ function AcademicFollowUpPage() {
     if (contactType === "lembrete") {
       eventType = "o lembrete de aula";
       if (followUpDate.getDay() === 6) {
-        // 6 = Sábado
-        relevantDate.setDate(relevantDate.getDate() + 2); // A aula é na Segunda
+        relevantDate.setDate(relevantDate.getDate() + 2);
       } else {
-        relevantDate.setDate(relevantDate.getDate() + 1); // A aula é no dia seguinte
+        relevantDate.setDate(relevantDate.getDate() + 1);
       }
     } else {
-      // 'falta'
       eventType = "sua falta";
       if (followUpDate.getDay() === 1) {
-        // 1 = Segunda-feira
-        relevantDate.setDate(relevantDate.getDate() - 2); // A falta foi no Sábado
+        relevantDate.setDate(relevantDate.getDate() - 2);
       } else {
-        relevantDate.setDate(relevantDate.getDate() - 1); // A falta foi no dia anterior
+        relevantDate.setDate(relevantDate.getDate() - 1);
       }
     }
 
@@ -168,37 +232,29 @@ function AcademicFollowUpPage() {
 
     navigator.clipboard
       .writeText(message)
-      .then(() => {
-        toast.success("Mensagem de observação copiada!");
-      })
+      .then(() => toast.success("Mensagem de observação copiada!"))
       .catch((err) => {
         console.error("Erro ao copiar mensagem:", err);
         toast.error("Não foi possível copiar a mensagem.");
       });
   };
 
-  const handleSave = async () => {
-    if (Object.keys(followUpData).length === 0) {
-      return toast.error("Nenhuma alteração para salvar.");
-    }
-    const promise = async () => {
-      const token = await firebaseUser.getIdToken();
-      await callFollowUpApi(
-        "saveFollowUpForDate",
-        {
-          classId: selectedClassId,
-          date: selectedDate,
-          followUpData: followUpData,
-        },
-        token
+  const SaveStatusIndicator = () => {
+    if (saveStatus === "saving") {
+      return (
+        <div className="flex items-center gap-2 text-sm text-yellow-600">
+          <Loader size={16} className="animate-spin" /> Salvando...
+        </div>
       );
-    };
-
-    toast.promise(promise(), {
-      loading: "Salvando...",
-      success: "Acompanhamento salvo com sucesso!",
-      error: "Erro ao salvar acompanhamento.",
-    });
+    }
+    if (saveStatus === "saved") {
+      return (
+        <div className="flex items-center gap-2 text-sm text-green-600">
+          <CheckCircle size={16} /> Salvo!
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -207,7 +263,6 @@ function AcademicFollowUpPage() {
         Acompanhamento Acadêmico
       </h1>
 
-      {/* Seção de Filtros */}
       <div className="bg-white p-4 rounded-lg shadow-md mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
           <div>
@@ -254,6 +309,34 @@ function AcademicFollowUpPage() {
         </div>
       </div>
 
+      {selectedClassDetails && (
+        <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
+            <div className="flex items-center gap-2">
+              <User size={16} className="text-blue-600" />
+              <p>
+                <strong className="font-semibold">Professor(a):</strong>{" "}
+                {selectedClassDetails.professorName}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-blue-600" />
+              <p>
+                <strong className="font-semibold">Dia da Semana:</strong>{" "}
+                {selectedClassDetails.dia_semana}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-blue-600" />
+              <p>
+                <strong className="font-semibold">Horário:</strong>{" "}
+                {selectedClassDetails.horario}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedClassId ? (
         <div className="bg-white rounded-lg shadow-md overflow-x-auto">
           {isLoadingData ? (
@@ -262,6 +345,9 @@ function AcademicFollowUpPage() {
             </div>
           ) : (
             <>
+              <div className="p-4 flex justify-end">
+                <SaveStatusIndicator />
+              </div>
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -298,7 +384,8 @@ function AcademicFollowUpPage() {
                       Contato
                     </th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <FileText size={16} className="mx-auto" /> Obs. adicionada no Sistema?
+                      <FileText size={16} className="mx-auto" /> Obs. adicionada
+                      no Sistema?
                     </th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
@@ -352,7 +439,6 @@ function AcademicFollowUpPage() {
                             <option value="nao">Não</option>
                           </select>
                         </td>
-                        {/* NOVO SELETOR */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           {naoRespondeu && (
                             <select
@@ -405,14 +491,6 @@ function AcademicFollowUpPage() {
                   })}
                 </tbody>
               </table>
-              <div className="p-4 flex justify-end">
-                <button
-                  onClick={handleSave}
-                  className="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700 transition shadow-md"
-                >
-                  Salvar Acompanhamento
-                </button>
-              </div>
             </>
           )}
         </div>
