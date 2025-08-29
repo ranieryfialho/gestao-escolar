@@ -358,7 +358,7 @@ function AcademicFollowUpPage() {
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="flex items-center gap-1">
                           <MessageSquare size={16} />
-                          <span>Lembrete de Aula</span>
+                          <span>Lembrete de Aula/Falta</span>
                         </div>
                         {students.length > 0 && (
                           <input
