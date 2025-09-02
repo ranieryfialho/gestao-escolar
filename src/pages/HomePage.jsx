@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { db } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -17,6 +17,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
+import { getElementAtEvent } from "react-chartjs-2";
 import "../styles/slider.css";
 
 const StatCard = ({
@@ -58,6 +59,8 @@ function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
   const navigate = useNavigate();
+  const barChartRef = useRef();
+  const doughnutChartRef = useRef();
 
   useEffect(() => {
     const tasksQuery = query(
@@ -154,22 +157,21 @@ function HomePage() {
     ],
   };
 
-  const handleChartClick = (event, elements) => {
+  const handleBarChartClick = (event, elements) => {
     if (!elements || elements.length === 0) {
       return;
     }
     const { index } = elements[0];
     const moduleName = moduleChartData.labels[index];
-
     navigate("/mapa-turmas", {
       state: { filter: "module", moduleName: moduleName },
     });
   };
-  
+
   const moduleChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    onClick: handleChartClick,
+    onClick: handleBarChartClick,
     onHover: (event, chartElement) => {
       const target = event.native ? event.native.target : event.target;
       target.style.cursor = chartElement[0] ? "pointer" : "default";
@@ -181,15 +183,30 @@ function HomePage() {
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
 
+  const studentsWithLowGrades = [];
   const gradeStatusCounts = activeClasses.reduce(
     (acc, turma) => {
       turma.students?.forEach((student) => {
         if (student.grades) {
-          Object.values(student.grades).forEach((gradeInfo) => {
+          Object.entries(student.grades).forEach(([moduleId, gradeInfo]) => {
             const grade = parseFloat(
               typeof gradeInfo === "object" ? gradeInfo.finalGrade : gradeInfo
             );
-            if (!isNaN(grade)) grade >= 7 ? acc.green++ : acc.red++;
+            if (!isNaN(grade)) {
+              if (grade < 7) {
+                acc.red++;
+                studentsWithLowGrades.push({
+                  studentName: student.name,
+                  studentCode: student.code,
+                  className: turma.name,
+                  professorName: turma.professorName || 'A definir', // <-- ADICIONADO AQUI
+                  module: moduleId,
+                  grade: grade.toFixed(1),
+                });
+              } else {
+                acc.green++;
+              }
+            }
           });
         }
       });
@@ -210,9 +227,23 @@ function HomePage() {
       },
     ],
   };
+  
+  const handleDoughnutChartClick = (event, elements) => {
+    if (!elements || elements.length === 0) return;
+    const { index } = elements[0];
+    if (index === 1) {
+      navigate('/alunos-nota-baixa', { state: { students: studentsWithLowGrades } });
+    }
+  };
+
   const doughnutChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: handleDoughnutChartClick,
+    onHover: (event, chartElement) => {
+        const target = event.native ? event.native.target : event.target;
+        target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+    },
     plugins: {
       legend: { position: "bottom" },
       title: { display: true, text: "Desempenho Geral de Notas" },
@@ -222,88 +253,88 @@ function HomePage() {
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Geral</h1>
-
       <div className="mb-8">
         <Slider {...sliderSettings}>
-          <StatCard
-            title="Alunos Ativos"
-            value={totalStudents}
-            icon={Users}
-            to="/boletim"
-          />
-          <StatCard
-            title="Turmas Ativas"
-            value={activeClasses.length}
-            icon={School}
-            to="/boletim"
-          />
-          <StatCard
-            title="Professores Ativos"
-            value={activeTeachers}
-            icon={ClipboardCheck}
-            to="/mapa-turmas"
-          />
-          <StatCard
-            title="Módulos Finalizando Este Mês"
-            value={modulesEndingCount}
-            icon={CalendarClock}
-            to="/mapa-turmas"
-            state={{ filter: "endingThisMonth" }}
-            bgColor="bg-teal-100"
-            textColor="text-teal-600"
-          />
-          <StatCard
-            title="Certificados Prontos"
-            value={certificatesReady}
-            icon={GraduationCap}
-            to="/turma/concludentes"
-            bgColor="bg-green-100"
-            textColor="text-green-600"
-          />
-          <StatCard
-            title="Treinamentos Básicos"
-            value={tbClassesCount}
-            icon={BookOpenCheck}
-            to="/frequencia"
-            bgColor="bg-indigo-100"
-            textColor="text-indigo-600"
-          />
-          <StatCard
-            title="Cursos Extras"
-            value={extraCoursesCount}
-            icon={BookCopy}
-            to="/frequencia"
-            bgColor="bg-purple-100"
-            textColor="text-purple-600"
-          />
-          <StatCard
-            title="Tarefas a Fazer"
-            value={taskCounts.todo}
-            icon={ClipboardList}
-            to="/kanban"
-            bgColor="bg-red-100"
-            textColor="text-red-600"
-          />
-          <StatCard
-            title="Tarefas em Progresso"
-            value={taskCounts.inprogress}
-            icon={Loader}
-            to="/kanban"
-            bgColor="bg-yellow-100"
-            textColor="text-yellow-600"
-          />
+            <StatCard
+                title="Alunos Ativos"
+                value={totalStudents}
+                icon={Users}
+                to="/boletim"
+            />
+            <StatCard
+                title="Turmas Ativas"
+                value={activeClasses.length}
+                icon={School}
+                to="/boletim"
+            />
+            <StatCard
+                title="Professores Ativos"
+                value={activeTeachers}
+                icon={ClipboardCheck}
+                to="/mapa-turmas"
+            />
+            <StatCard
+                title="Módulos Finalizando Este Mês"
+                value={modulesEndingCount}
+                icon={CalendarClock}
+                to="/mapa-turmas"
+                state={{ filter: "endingThisMonth" }}
+                bgColor="bg-teal-100"
+                textColor="text-teal-600"
+            />
+            <StatCard
+                title="Certificados Prontos"
+                value={certificatesReady}
+                icon={GraduationCap}
+                to="/turma/concludentes"
+                bgColor="bg-green-100"
+                textColor="text-green-600"
+            />
+            <StatCard
+                title="Treinamentos Básicos"
+                value={tbClassesCount}
+                icon={BookOpenCheck}
+                to="/frequencia"
+                bgColor="bg-indigo-100"
+                textColor="text-indigo-600"
+            />
+            <StatCard
+                title="Cursos Extras"
+                value={extraCoursesCount}
+                icon={BookCopy}
+                to="/frequencia"
+                bgColor="bg-purple-100"
+                textColor="text-purple-600"
+            />
+            <StatCard
+                title="Tarefas a Fazer"
+                value={taskCounts.todo}
+                icon={ClipboardList}
+                to="/kanban"
+                bgColor="bg-red-100"
+                textColor="text-red-600"
+            />
+            <StatCard
+                title="Tarefas em Progresso"
+                value={taskCounts.inprogress}
+                icon={Loader}
+                to="/kanban"
+                bgColor="bg-yellow-100"
+                textColor="text-yellow-600"
+            />
         </Slider>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 h-80 sm:h-96">
           <BarChart
+            chartRef={barChartRef}
             chartData={moduleChartData}
             chartOptions={moduleChartOptions}
           />
         </div>
         <div className="lg:col-span-1 h-80 sm:h-96">
           <DoughnutChart
+            chartRef={doughnutChartRef}
             chartData={doughnutChartData}
             chartOptions={doughnutChartOptions}
           />
