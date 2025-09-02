@@ -8,7 +8,7 @@ import { modulePackages, masterModuleList } from "../data/mockData";
 import toast from "react-hot-toast";
 import { GraduationCap, Users } from "lucide-react";
 
-function DashboardPage() {
+function BoletimPage() {
   const { userProfile, firebaseUser } = useAuth();
   const { classes, addClass, loadingClasses } = useClasses();
   const { users } = useUsers();
@@ -263,4 +263,4 @@ function DashboardPage() {
   );
 }
 
-export default DashboardPage;
+export default BoletimPage;

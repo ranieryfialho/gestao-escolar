@@ -1,0 +1,82 @@
+/* Custom CSS para o React Slick Slider no Dashboard */
+
+/* Setas de navegação */
+.slick-prev,
+.slick-next {
+  width: 40px; /* Aumenta a área clicável */
+  height: 40px; /* Aumenta a área clicável */
+  z-index: 10; /* Garante que fiquem acima dos cards */
+}
+
+/* Cor da seta (ícone dentro do botão) - MELHORADA */
+.slick-prev:before,
+.slick-next:before {
+  font-size: 20px !important; /* Aumenta o tamanho do ícone da seta */
+  color: #1f2937 !important; /* Cinza escuro para melhor contraste */
+  opacity: 1 !important; /* Garante que a seta não seja transparente */
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.8) !important; /* Sombra branca para destacar */
+}
+
+/* Posição das setas */
+.slick-prev {
+  left: -10px; /* Ajusta a posição para fora do carrossel, se necessário */
+}
+.slick-next {
+  right: -10px; /* Ajusta a posição para fora do carrossel, se necessário */
+}
+
+/* No hover - COR MAIS ESCURA */
+.slick-prev:hover:before,
+.slick-next:hover:before {
+  color: #000000 !important; /* Preto no hover para maior contraste */
+  text-shadow: 0 0 5px rgba(255, 255, 255, 1) !important; /* Sombra mais forte no hover */
+}
+
+/* Dots (indicadores de página) */
+.slick-dots li button:before {
+  font-size: 10px; /* Tamanho dos pontinhos */
+  color: #9ca3af; /* Cor dos pontinhos inativos (cinza) */
+  opacity: 0.75;
+}
+
+.slick-dots li.slick-active button:before {
+  color: #2563eb; /* Cor dos pontinhos ativos (azul) */
+  opacity: 1;
+}
+
+/* Ajustes para telas pequenas (mobile) */
+@media (max-width: 640px) {
+  .slick-prev,
+  .slick-next {
+    width: 30px; /* Setas um pouco menores no mobile */
+    height: 30px;
+  }
+  .slick-prev:before,
+  .slick-next:before {
+    font-size: 24px; /* Ícone da seta menor no mobile */
+  }
+  .slick-prev {
+    left: -5px; /* Ajuste fino para mobile */
+  }
+  .slick-next {
+    right: -5px; /* Ajuste fino para mobile */
+  }
+
+  /* Para garantir que os cards sejam exibidos corretamente no mobile */
+  .slick-slide > div {
+    height: 100%; /* Garante que o container do slide ocupe a altura total */
+  }
+}
+
+/* Aumentar a área dos StatCards no mobile para melhor toque */
+.StatCard > div { /* Isso pode precisar ser ajustado se StatCard não é o elemento direto */
+  padding: 1rem; /* Mais padding interno para o conteúdo do card */
+}
+
+/* Garantir que o conteúdo do slide se estique para preencher o espaço */
+.slick-list {
+  padding: 0px 0px 0px 0px !important; /* Remove padding que pode causar problemas de alinhamento */
+}
+.slick-track {
+  display: flex; /* Garante que os slides se alinhem horizontalmente */
+}

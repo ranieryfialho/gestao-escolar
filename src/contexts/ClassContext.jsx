@@ -264,6 +264,7 @@ export const ClassesProvider = ({ children }) => {
 
   const value = {
     classes,
+    graduates,
     addClass,
     updateClass,
     deleteClass,

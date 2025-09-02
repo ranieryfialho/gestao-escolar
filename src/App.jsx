@@ -9,7 +9,8 @@ import KanbanPage from './pages/KanbanPage';
 
 // Páginas
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
+import HomePage from './pages/HomePage';
+import BoletimPage from './pages/BoletimPage';
 import ClassDetailsPage from './pages/ClassDetailsPage';
 import UsersPage from './pages/UsersPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -25,7 +26,8 @@ function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="dashboard" element={<DashboardPage />} /> 
+         <Route path="dashboard" element={<HomePage />} /> 
+          <Route path="boletim" element={<BoletimPage />} />
           <Route path="mapa-turmas" element={<MapaTurmasPage />} />
           <Route path="laboratorio" element={<LabSupportPage />} />
           <Route path="calculadora" element={<CalculatorPage />} />

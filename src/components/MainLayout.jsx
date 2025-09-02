@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react"; // 1. Importar useEffect e useRef
-import { NavLink, Outlet } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
 import ChatPopup from "./ChatPopup";
@@ -23,11 +23,9 @@ const MainLayout = () => {
   const canAccessFollowUp = isUserAdmin || isUserProfessor;
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // 2. Estados para controlar cada dropdown
   const [academicMenuOpen, setAcademicMenuOpen] = useState(false);
   const [operationalMenuOpen, setOperationalMenuOpen] = useState(false);
 
-  // 3. Lógica para fechar os menus ao clicar fora
   const academicMenuRef = useRef(null);
   const operationalMenuRef = useRef(null);
 
@@ -67,9 +65,13 @@ const MainLayout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <span className="font-bold text-white text-xl">
+              {/* 2. O <span> foi trocado por <Link> */}
+              <Link
+                to="/dashboard"
+                className="font-bold text-white text-xl hover:opacity-80 transition-opacity"
+              >
                 Gestão Escolar
-              </span>
+              </Link>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
                   {isUserComercial ? (
@@ -102,7 +104,7 @@ const MainLayout = () => {
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
                               <NavLink
-                                to="/dashboard"
+                                to="/boletim"
                                 className={getDropdownNavLinkClass}
                                 onClick={() => setAcademicMenuOpen(false)}
                               >
@@ -219,7 +221,6 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* --- MENU MOBILE (sem alterações) --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -251,7 +252,7 @@ const MainLayout = () => {
                   Acadêmico
                 </h4>
                 <NavLink
-                  to="/dashboard"
+                  to="/boletim"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
