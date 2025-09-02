@@ -618,10 +618,10 @@ function ClassDetailsPage() {
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <Link
-        to="/dashboard"
+        to="/boletim"
         className="text-blue-600 hover:underline mb-6 block"
       >
-        &larr; Voltar para o Dashboard
+        &larr; Voltar para o Boletim
       </Link>
 
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
