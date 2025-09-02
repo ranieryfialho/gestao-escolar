@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, XCircle } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 function InstructorStats({ stats, onSelect, selected }) {
   if (!stats || stats.length === 0) {
@@ -13,12 +13,6 @@ function InstructorStats({ stats, onSelect, selected }) {
           <Users size={20} />
           Resumo por Instrutor
         </h2>
-        {selected && (
-          <button onClick={() => onSelect(null)} className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-            <XCircle size={14} />
-            Limpar Filtro
-          </button>
-        )}
       </div>
       
       <div className="flex flex-wrap gap-3">

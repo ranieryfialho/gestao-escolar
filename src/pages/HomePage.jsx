@@ -18,14 +18,14 @@ import { Link } from "react-router-dom";
 import Slider from "react-slick";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
-import "../styles/slider.css"; // Importa seu CSS personalizado
+import "../styles/slider.css";
 
-// Componente de Card ajustado para responsividade
 const StatCard = ({
   title,
   value,
   icon,
   to,
+  state, // <-- ADICIONADO
   bgColor = "bg-blue-100",
   textColor = "text-blue-600",
 }) => {
@@ -41,11 +41,11 @@ const StatCard = ({
       </div>
     </div>
   );
-  // O padding no wrapper garante o espaçamento correto no carrossel
+
   return (
     <div className="p-2 h-full">
       {to ? (
-        <Link to={to} className="h-full block">
+        <Link to={to} state={state} className="h-full block">
           {content}
         </Link>
       ) : (
@@ -76,7 +76,6 @@ function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // Configurações do Carrossel com ajustes para mobile
   const sliderSettings = {
     dots: true,
     infinite: false,
@@ -96,7 +95,6 @@ function HomePage() {
     );
   }
 
-  // --- Lógica de Agregação de Dados ---
   const activeClasses = classes.filter(
     (c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly
   );
@@ -230,11 +228,13 @@ function HomePage() {
             icon={ClipboardCheck}
             to="/mapa-turmas"
           />
+
           <StatCard
             title="Módulos Finalizando Este Mês"
             value={modulesEndingCount}
             icon={CalendarClock}
             to="/mapa-turmas"
+            state={{ filter: "endingThisMonth" }}
             bgColor="bg-teal-100"
             textColor="text-teal-600"
           />

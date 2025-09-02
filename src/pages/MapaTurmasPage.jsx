@@ -1,190 +1,236 @@
-import { useState, useMemo } from "react"
-import { useClasses } from "../contexts/ClassContext"
-import { useUsers } from "../contexts/UserContext"
-import { useAuth } from "../contexts/AuthContext"
-import { masterModuleList } from "../data/mockData.js"
-import { Link } from "react-router-dom"
-import { db } from "../firebase.js"
-import { doc, updateDoc, deleteDoc, addDoc, collection } from "firebase/firestore"
-import toast from "react-hot-toast"
-import { PlusCircle, Trash2, Pencil, Save, X, Search, FileDown } from "lucide-react"
-import MapaClassModal from "../components/MapaClassModal"
-import InstructorStats from "../components/InstructorStats"
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
+import { useState, useMemo } from "react";
+import { useClasses } from "../contexts/ClassContext";
+import { useUsers } from "../contexts/UserContext";
+import { useAuth } from "../contexts/AuthContext";
+import { masterModuleList } from "../data/mockData.js";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { db } from "../firebase.js";
+import {
+  doc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  collection,
+} from "firebase/firestore";
+import toast from "react-hot-toast";
+import {
+  PlusCircle,
+  Trash2,
+  Pencil,
+  Save,
+  X,
+  Search,
+  FileDown,
+  XCircle,
+} from "lucide-react";
+import MapaClassModal from "../components/MapaClassModal";
+import InstructorStats from "../components/InstructorStats";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const formatDateForDisplay = (dateValue) => {
-  if (!dateValue) return "-"
+  if (!dateValue) return "-";
 
-  let date
+  let date;
   if (typeof dateValue === "string") {
-    const [year, month, day] = dateValue.split("-")
+    const [year, month, day] = dateValue.split("-");
     if (year && month && day) {
-      date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+      date = new Date(
+        Number.parseInt(year),
+        Number.parseInt(month) - 1,
+        Number.parseInt(day)
+      );
     } else {
-      date = new Date(dateValue)
+      date = new Date(dateValue);
     }
   } else if (dateValue.toDate) {
-    date = dateValue.toDate()
+    date = dateValue.toDate();
   } else {
-    date = new Date(dateValue)
+    date = new Date(dateValue);
   }
 
-  if (isNaN(date.getTime())) return "-"
+  if (isNaN(date.getTime())) return "-";
 
-  return date.toLocaleDateString("pt-BR")
-}
+  return date.toLocaleDateString("pt-BR");
+};
 
 const formatDateForInput = (dateValue) => {
-  if (!dateValue) return ""
+  if (!dateValue) return "";
 
-  let date
+  let date;
   if (typeof dateValue === "string") {
     if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return dateValue
+      return dateValue;
     }
-    const [year, month, day] = dateValue.split("-")
+    const [year, month, day] = dateValue.split("-");
     if (year && month && day) {
-      date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+      date = new Date(
+        Number.parseInt(year),
+        Number.parseInt(month) - 1,
+        Number.parseInt(day)
+      );
     } else {
-      date = new Date(dateValue)
+      date = new Date(dateValue);
     }
   } else if (dateValue.toDate) {
-    date = dateValue.toDate()
+    date = dateValue.toDate();
   } else {
-    date = new Date(dateValue)
+    date = new Date(dateValue);
   }
 
-  if (isNaN(date.getTime())) return ""
+  if (isNaN(date.getTime())) return "";
 
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  return `${year}-${month}-${day}`
-}
+  return `${year}-${month}-${day}`;
+};
 
 const formatTimestampForInput = (timestamp) => {
-  if (!timestamp || typeof timestamp.toDate !== "function") return ""
-  const date = timestamp.toDate()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
+  if (!timestamp || typeof timestamp.toDate !== "function") return "";
+  const date = timestamp.toDate();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const parseDate = (dateValue) => {
-  if (!dateValue) return null
+  if (!dateValue) return null;
 
   if (typeof dateValue === "string") {
     if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      const [year, month, day] = dateValue.split("-")
-      return new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+      const [year, month, day] = dateValue.split("-");
+      return new Date(
+        Number.parseInt(year),
+        Number.parseInt(month) - 1,
+        Number.parseInt(day)
+      );
     }
-    return new Date(dateValue)
+    return new Date(dateValue);
   } else if (dateValue.toDate) {
-    return dateValue.toDate()
+    return dateValue.toDate();
   } else if (dateValue instanceof Date) {
-    return dateValue
+    return dateValue;
   }
 
-  return null
-}
+  return null;
+};
 
 const calculateDynamicModules = (turma) => {
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
 
-  let moduloAtual = "N/D"
-  let proximoModulo = "-"
+  let moduloAtual = "N/D";
+  let proximoModulo = "-";
 
   if (!turma.modules || turma.modules.length === 0) {
-    return { moduloAtual, proximoModulo }
+    return { moduloAtual, proximoModulo };
   }
 
-  const modulosValidos = turma.modules.filter((mod) => mod.dataInicio && mod.dataTermino)
+  const modulosValidos = turma.modules.filter(
+    (mod) => mod.dataInicio && mod.dataTermino
+  );
 
   if (modulosValidos.length === 0) {
     if (turma.modules[0]?.id) {
-      moduloAtual = turma.modules[0].id
+      moduloAtual = turma.modules[0].id;
     }
     if (turma.modules[1]?.id) {
-      proximoModulo = turma.modules[1].id
+      proximoModulo = turma.modules[1].id;
     }
-    return { moduloAtual, proximoModulo }
+    return { moduloAtual, proximoModulo };
   }
 
   const modAtualEncontrado = modulosValidos.find((mod) => {
-    const inicio = parseDate(mod.dataInicio)
-    const termino = parseDate(mod.dataTermino)
+    const inicio = parseDate(mod.dataInicio);
+    const termino = parseDate(mod.dataTermino);
 
-    if (!inicio || !termino) return false
+    if (!inicio || !termino) return false;
 
-    inicio.setHours(0, 0, 0, 0)
-    termino.setHours(23, 59, 59, 999)
+    inicio.setHours(0, 0, 0, 0);
+    termino.setHours(23, 59, 59, 999);
 
-    return hoje >= inicio && hoje <= termino
-  })
+    return hoje >= inicio && hoje <= termino;
+  });
 
   if (modAtualEncontrado) {
-    moduloAtual = modAtualEncontrado.id
+    moduloAtual = modAtualEncontrado.id;
   } else {
     const modulosFuturos = modulosValidos
       .filter((mod) => {
-        const inicio = parseDate(mod.dataInicio)
-        return inicio && inicio > hoje
+        const inicio = parseDate(mod.dataInicio);
+        return inicio && inicio > hoje;
       })
-      .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio))
+      .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio));
 
     if (modulosFuturos.length > 0) {
-      moduloAtual = "Aguardando"
+      moduloAtual = "Aguardando";
     } else {
       const modulosPassados = modulosValidos
         .filter((mod) => {
-          const termino = parseDate(mod.dataTermino)
-          return termino && termino < hoje
+          const termino = parseDate(mod.dataTermino);
+          return termino && termino < hoje;
         })
-        .sort((a, b) => parseDate(b.dataTermino) - parseDate(a.dataTermino))
+        .sort((a, b) => parseDate(b.dataTermino) - parseDate(a.dataTermino));
 
       if (modulosPassados.length > 0) {
-        moduloAtual = modulosPassados[0].id + " (Finalizado)"
+        moduloAtual = modulosPassados[0].id + " (Finalizado)";
       } else if (turma.modules[0]?.id) {
-        moduloAtual = turma.modules[0].id
+        moduloAtual = turma.modules[0].id;
       }
     }
   }
 
   const modulosFuturos = modulosValidos
     .filter((mod) => {
-      const inicio = parseDate(mod.dataInicio)
-      return inicio && inicio > hoje
+      const inicio = parseDate(mod.dataInicio);
+      return inicio && inicio > hoje;
     })
-    .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio))
+    .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio));
 
   if (modulosFuturos.length > 0) {
-    proximoModulo = modulosFuturos[0].id
+    proximoModulo = modulosFuturos[0].id;
   } else {
-    const indexAtual = turma.modules.findIndex((mod) => mod.id === moduloAtual.replace(" (Finalizado)", ""))
+    const indexAtual = turma.modules.findIndex(
+      (mod) => mod.id === moduloAtual.replace(" (Finalizado)", "")
+    );
     if (indexAtual >= 0 && indexAtual < turma.modules.length - 1) {
-      proximoModulo = turma.modules[indexAtual + 1].id
+      proximoModulo = turma.modules[indexAtual + 1].id;
     }
   }
 
-  return { moduloAtual, proximoModulo }
-}
+  return { moduloAtual, proximoModulo };
+};
 
 function MapaTurmasPage() {
-  const { classes, loadingClasses } = useClasses()
-  const { users } = useUsers()
-  const { userProfile } = useAuth()
+  const { classes, loadingClasses } = useClasses();
+  const { users } = useUsers();
+  const { userProfile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const canEditMap = userProfile && ["coordenador", "auxiliar_coordenacao"].includes(userProfile.role);
-  const [editingRowId, setEditingRowId] = useState(null)
-  const [editedData, setEditedData] = useState({})
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const canEditMap =
+    userProfile &&
+    ["coordenador", "auxiliar_coordenacao"].includes(userProfile.role);
+  const [editingRowId, setEditingRowId] = useState(null);
+  const [editedData, setEditedData] = useState({});
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const [selectedInstructor, setSelectedInstructor] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedInstructor, setSelectedInstructor] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState(
+    location.state?.filter || null
+  );
+
+  const handleInstructorSelect = (instructorName) => {
+    if (selectedInstructor === instructorName) {
+      setSelectedInstructor(null);
+    } else {
+      setSelectedInstructor(instructorName);
+    }
+  };
 
   const sortedClasses = useMemo(() => {
     const dayOrder = {
@@ -194,64 +240,99 @@ function MapaTurmasPage() {
       "Quinta-feira": 4,
       "Sexta-feira": 5,
       Sábado: 6,
-    }
+    };
 
     return classes
       .filter((turma) => turma.name !== "CONCLUDENTES")
       .sort((a, b) => {
-        const dayA = dayOrder[a.dia_semana] || 99
-        const dayB = dayOrder[b.dia_semana] || 99
-        if (dayA !== dayB) return dayA - dayB
+        const dayA = dayOrder[a.dia_semana] || 99;
+        const dayB = dayOrder[b.dia_semana] || 99;
+        if (dayA !== dayB) return dayA - dayB;
 
-        const timeA = a.horario ? Number.parseInt(a.horario.replace(":", ""), 10) : 9999
-        const timeB = b.horario ? Number.parseInt(b.horario.replace(":", ""), 10) : 9999
-        if (timeA !== timeB) return timeA - timeB
+        const timeA = a.horario
+          ? Number.parseInt(a.horario.replace(":", ""), 10)
+          : 9999;
+        const timeB = b.horario
+          ? Number.parseInt(b.horario.replace(":", ""), 10)
+          : 9999;
+        if (timeA !== timeB) return timeA - timeB;
 
-        const numA = Number.parseInt(a.name, 10)
-        const numB = Number.parseInt(b.name, 10)
-        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB
-        return a.name.localeCompare(b.name)
-      })
-  }, [classes])
+        const numA = Number.parseInt(a.name, 10);
+        const numB = Number.parseInt(b.name, 10);
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+        return a.name.localeCompare(b.name);
+      });
+  }, [classes]);
 
   const instructorStats = useMemo(
     () =>
       Object.values(
         sortedClasses.reduce((acc, turma) => {
-          const professor = turma.professorName || "Não Definido"
-          if (!acc[professor]) acc[professor] = { name: professor, count: 0 }
-          acc[professor].count++
-          return acc
-        }, {}),
+          const professor = turma.professorName || "Não Definido";
+          if (!acc[professor]) acc[professor] = { name: professor, count: 0 };
+          acc[professor].count++;
+          return acc;
+        }, {})
       ).sort((a, b) => b.count - a.count),
-    [sortedClasses],
-  )
+    [sortedClasses]
+  );
 
   const filteredClasses = useMemo(() => {
-    let result = sortedClasses
+    let result = sortedClasses;
+
+    if (activeFilter === "endingThisMonth") {
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+
+      result = result.filter((turma) => {
+        if (!turma.dataTermino) return false;
+        const termDate = parseDate(turma.dataTermino);
+        return (
+          termDate &&
+          termDate.getMonth() === currentMonth &&
+          termDate.getFullYear() === currentYear
+        );
+      });
+    }
 
     if (selectedInstructor) {
-      result = result.filter((turma) => (turma.professorName || "Não Definido") === selectedInstructor)
+      result = result.filter(
+        (turma) => (turma.professorName || "Não Definido") === selectedInstructor
+      );
     }
 
     if (searchTerm.trim() !== "") {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase()
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
       result = result.filter((turma) =>
-        [turma.name, turma.professorName, turma.sala, turma.horario, turma.dia_semana, turma.modules?.[0]?.id]
+        [
+          turma.name,
+          turma.professorName,
+          turma.sala,
+          turma.horario,
+          turma.dia_semana,
+          turma.modules?.[0]?.id,
+        ]
           .join(" ")
           .toLowerCase()
-          .includes(lowerCaseSearchTerm),
-      )
+          .includes(lowerCaseSearchTerm)
+      );
     }
 
-    return result
-  }, [sortedClasses, selectedInstructor, searchTerm])
+    return result;
+  }, [sortedClasses, selectedInstructor, searchTerm, activeFilter]);
 
-  const moduleOptions = Object.keys(masterModuleList)
+  const moduleOptions = Object.keys(masterModuleList);
   const instructorOptions = users.filter((u) =>
-    ["professor", "coordenador", "diretor", "auxiliar_coordenacao", "professor_apoio"].includes(u.role),
-  )
-  const roomOptions = ["Lab 01", "Lab 02", "Lab 03", "EAD"]
+    [
+      "professor",
+      "coordenador",
+      "diretor",
+      "auxiliar_coordenacao",
+      "professor_apoio",
+    ].includes(u.role)
+  );
+  const roomOptions = ["Lab 01", "Lab 02", "Lab 03", "EAD"];
   const scheduleOptions = [
     "07:30 as 09:20",
     "09:30 as 11:20",
@@ -259,16 +340,25 @@ function MapaTurmasPage() {
     "13:30 as 15:20",
     "15:30 as 17:20",
     "19:00 as 21:20",
-  ]
-  const dayOptions = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
+  ];
+  const dayOptions = [
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+  ];
 
   const handleStartEdit = (turma) => {
-    setEditingRowId(turma.id)
+    setEditingRowId(turma.id);
 
-    const { moduloAtual, proximoModulo } = calculateDynamicModules(turma)
+    const { moduloAtual, proximoModulo } = calculateDynamicModules(turma);
 
     setEditedData({
-      modulo_atual: moduloAtual.replace(" (Finalizado)", "").replace("Aguardando", ""),
+      modulo_atual: moduloAtual
+        .replace(" (Finalizado)", "")
+        .replace("Aguardando", ""),
       proximo_modulo: proximoModulo === "-" ? "" : proximoModulo,
       data_inicio: formatDateForInput(turma.dataInicio),
       data_termino: formatDateForInput(turma.dataTermino),
@@ -276,18 +366,18 @@ function MapaTurmasPage() {
       sala: turma.sala || "",
       horario: turma.horario || "",
       dia_semana: turma.dia_semana || "",
-    })
-  }
+    });
+  };
 
   const handleCancelEdit = () => {
-    setEditingRowId(null)
-    setEditedData({})
-  }
+    setEditingRowId(null);
+    setEditedData({});
+  };
 
   const handleEditChange = (e) => {
-    const { name, value } = e.target
-    setEditedData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setEditedData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSaveEdit = async (turmaId) => {
     const dataToSave = {
@@ -297,20 +387,23 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
-      modules: [{ id: editedData.modulo_atual || "" }, { id: editedData.proximo_modulo || "" }],
-    }
+      modules: [
+        { id: editedData.modulo_atual || "" },
+        { id: editedData.proximo_modulo || "" },
+      ],
+    };
 
-    const classDocRef = doc(db, "classes", turmaId)
-    const promise = updateDoc(classDocRef, dataToSave)
+    const classDocRef = doc(db, "classes", turmaId);
+    const promise = updateDoc(classDocRef, dataToSave);
 
     await toast.promise(promise, {
       loading: "Salvando...",
       success: "Turma atualizada com sucesso!",
       error: "Erro ao atualizar a turma.",
-    })
+    });
 
-    handleCancelEdit()
-  }
+    handleCancelEdit();
+  };
 
   const handleDeleteMapClass = async (turmaId, turmaName) => {
     toast(
@@ -321,13 +414,13 @@ function MapaTurmasPage() {
             <button
               className="w-full bg-red-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-700"
               onClick={async () => {
-                const promise = deleteDoc(doc(db, "classes", turmaId))
+                const promise = deleteDoc(doc(db, "classes", turmaId));
                 await toast.promise(promise, {
                   loading: "Apagando...",
                   success: "Turma apagada do mapa.",
                   error: "Erro ao apagar turma.",
-                })
-                toast.dismiss(t.id)
+                });
+                toast.dismiss(t.id);
               }}
             >
               Confirmar
@@ -341,9 +434,9 @@ function MapaTurmasPage() {
           </div>
         </div>
       ),
-      { duration: 6000 },
-    )
-  }
+      { duration: 6000 }
+    );
+  };
 
   const handleAddMapClass = async (formData) => {
     const dataToSave = {
@@ -357,23 +450,23 @@ function MapaTurmasPage() {
       modules: [{ id: formData.modulo_atual || "" }],
       isMapaOnly: true,
       students: [],
-    }
+    };
 
-    const promise = addDoc(collection(db, "classes"), dataToSave)
+    const promise = addDoc(collection(db, "classes"), dataToSave);
 
     await toast.promise(promise, {
       loading: "Adicionando...",
       success: "Turma de planejamento adicionada!",
       error: "Erro ao adicionar turma.",
-    })
+    });
 
-    setIsAddModalOpen(false)
-  }
+    setIsAddModalOpen(false);
+  };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF({ orientation: "landscape" })
-    doc.setFontSize(18)
-    doc.text("Mapa de Turmas", 14, 22)
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(18);
+    doc.text("Mapa de Turmas", 14, 22);
 
     const tableColumn = [
       "Dia",
@@ -385,11 +478,11 @@ function MapaTurmasPage() {
       "Término",
       "Instrutor",
       "Sala",
-    ]
-    const tableRows = []
+    ];
+    const tableRows = [];
 
     filteredClasses.forEach((turma) => {
-      const { moduloAtual, proximoModulo } = calculateDynamicModules(turma)
+      const { moduloAtual, proximoModulo } = calculateDynamicModules(turma);
 
       const turmaData = [
         turma.dia_semana || "-",
@@ -401,21 +494,21 @@ function MapaTurmasPage() {
         formatDateForDisplay(turma.dataTermino),
         turma.professorName || "A definir",
         turma.sala || "-",
-      ]
-      tableRows.push(turmaData)
-    })
+      ];
+      tableRows.push(turmaData);
+    });
 
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 30,
-    })
+    });
 
-    doc.save("mapa-de-turmas.pdf")
-  }
+    doc.save("mapa-de-turmas.pdf");
+  };
 
   if (loadingClasses) {
-    return <div className="p-8">Carregando mapa de turmas...</div>
+    return <div className="p-8">Carregando mapa de turmas...</div>;
   }
 
   return (
@@ -455,31 +548,61 @@ function MapaTurmasPage() {
         />
       </div>
 
-      <InstructorStats stats={instructorStats} onSelect={setSelectedInstructor} selected={selectedInstructor} />
+      <InstructorStats
+        stats={instructorStats}
+        onSelect={handleInstructorSelect}
+        selected={selectedInstructor}
+      />
+
+      {activeFilter === "endingThisMonth" && (
+        <div className="flex justify-between items-center mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
+          <span className="text-sm font-semibold text-teal-800">
+            Mostrando turmas que finalizam este mês.
+          </span>
+          <button
+            onClick={() => {
+              setActiveFilter(null);
+              navigate(location.pathname, { replace: true, state: {} });
+            }}
+            className="flex items-center gap-1 text-sm text-red-600 hover:underline font-bold"
+          >
+            <XCircle size={16} />
+            Limpar Filtro
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-md overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dia</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Dia
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Horário
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Turma</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Turma
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Módulo Atual
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Próx. Módulo
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Início</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Início
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Término
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Instrutor
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sala</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Sala
+              </th>
               {canEditMap && (
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ações
@@ -489,11 +612,15 @@ function MapaTurmasPage() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredClasses.map((turma) => {
-              const isEditing = editingRowId === turma.id
-              const { moduloAtual, proximoModulo } = calculateDynamicModules(turma)
+              const isEditing = editingRowId === turma.id;
+              const { moduloAtual, proximoModulo } =
+                calculateDynamicModules(turma);
 
               return (
-                <tr key={turma.id} className={isEditing ? "bg-blue-50" : "hover:bg-gray-50"}>
+                <tr
+                  key={turma.id}
+                  className={isEditing ? "bg-blue-50" : "hover:bg-gray-50"}
+                >
                   <td className="p-1 font-semibold">
                     {isEditing && canEditMap ? (
                       <select
@@ -534,7 +661,10 @@ function MapaTurmasPage() {
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap font-semibold">
                     {!turma.isMapaOnly ? (
-                      <Link to={`/turma/${turma.id}`} className="text-blue-600 hover:underline">
+                      <Link
+                        to={`/turma/${turma.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
                         {turma.name}
                       </Link>
                     ) : (
@@ -562,8 +692,8 @@ function MapaTurmasPage() {
                           moduloAtual.includes("Finalizado")
                             ? "text-gray-500"
                             : moduloAtual === "Aguardando"
-                              ? "text-orange-600"
-                              : ""
+                            ? "text-orange-600"
+                            : ""
                         }
                       >
                         {moduloAtual}
@@ -684,7 +814,9 @@ function MapaTurmasPage() {
                             </button>
                             {turma.isMapaOnly && (
                               <button
-                                onClick={() => handleDeleteMapClass(turma.id, turma.name)}
+                                onClick={() =>
+                                  handleDeleteMapClass(turma.id, turma.name)
+                                }
                                 className="text-red-600 hover:text-red-800"
                                 title="Apagar Linha"
                               >
@@ -697,12 +829,14 @@ function MapaTurmasPage() {
                     </td>
                   )}
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
         {filteredClasses.length === 0 && (
-          <p className="text-center text-gray-500 py-8">Nenhuma turma de planejamento encontrada.</p>
+          <p className="text-center text-gray-500 py-8">
+            Nenhuma turma de planejamento encontrada.
+          </p>
         )}
       </div>
 
@@ -716,7 +850,7 @@ function MapaTurmasPage() {
         />
       )}
     </div>
-  )
+  );
 }
 
-export default MapaTurmasPage
+export default MapaTurmasPage;
