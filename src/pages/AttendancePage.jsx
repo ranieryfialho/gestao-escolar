@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { Link } from "react-router-dom";
-import { List, Search, CheckCircle, Calendar } from "lucide-react";
+import { List, Search, CheckCircle, Calendar, Clock } from "lucide-react";
 
 const formatDateForDisplay = (dateValue) => {
   if (!dateValue) return "-";
@@ -142,6 +142,12 @@ function AttendancePage() {
                             <Calendar size={14} />
                             <span>
                               Término: {formatDateForDisplay(turma.dataTermino)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={14} />
+                            <span>
+                              Horário: {turma.horario || 'Não definido'}
                             </span>
                           </div>
                         </div>
