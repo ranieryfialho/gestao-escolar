@@ -176,7 +176,14 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                     </button>
                   </td>
                   <td className="px-4 py-2 font-mono">{formatTimeSlots(entry.timeSlot)}</td>
-                  <td className="px-4 py-2 font-bold text-gray-900">{entry.studentName}</td>
+
+                  <td className="px-4 py-2">
+                    <div className="font-bold text-gray-900">{entry.studentName}</div>
+                    {entry.studentCode && entry.studentCode !== 'VISITANTE' && (
+                      <div className="text-xs text-gray-500">Matrícula: {entry.studentCode}</div>
+                    )}
+                  </td>
+                  
                   <td className="px-4 py-2 text-gray-600">{entry.studentClassName}</td>
                   <td className="px-4 py-2">
                     {entry.subject ? `${entry.activity} (${entry.subject})` : entry.activity}
