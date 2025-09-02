@@ -87,15 +87,6 @@ const formatDateForInput = (dateValue) => {
   return `${year}-${month}-${day}`;
 };
 
-const formatTimestampForInput = (timestamp) => {
-  if (!timestamp || typeof timestamp.toDate !== "function") return "";
-  const date = timestamp.toDate();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
 
@@ -220,9 +211,7 @@ function MapaTurmasPage() {
 
   const [selectedInstructor, setSelectedInstructor] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState(
-    location.state?.filter || null
-  );
+  const [activeFilter, setActiveFilter] = useState(location.state || null);
 
   const handleInstructorSelect = (instructorName) => {
     if (selectedInstructor === instructorName) {
@@ -280,7 +269,14 @@ function MapaTurmasPage() {
   const filteredClasses = useMemo(() => {
     let result = sortedClasses;
 
-    if (activeFilter === "endingThisMonth") {
+    if (activeFilter?.filter === "module" && activeFilter.moduleName) {
+      result = result.filter((turma) => {
+        const { moduloAtual } = calculateDynamicModules(turma);
+        return moduloAtual.startsWith(activeFilter.moduleName);
+      });
+    }
+
+    if (activeFilter?.filter === "endingThisMonth") {
       const today = new Date();
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
@@ -298,7 +294,8 @@ function MapaTurmasPage() {
 
     if (selectedInstructor) {
       result = result.filter(
-        (turma) => (turma.professorName || "Não Definido") === selectedInstructor
+        (turma) =>
+          (turma.professorName || "Não Definido") === selectedInstructor
       );
     }
 
@@ -511,6 +508,13 @@ function MapaTurmasPage() {
     return <div className="p-8">Carregando mapa de turmas...</div>;
   }
 
+  let filterMessage = null;
+  if (activeFilter?.filter === "endingThisMonth") {
+    filterMessage = "Mostrando turmas que finalizam este mês.";
+  } else if (activeFilter?.filter === "module") {
+    filterMessage = `Mostrando turmas no módulo: ${activeFilter.moduleName}.`;
+  }
+
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
@@ -554,10 +558,10 @@ function MapaTurmasPage() {
         selected={selectedInstructor}
       />
 
-      {activeFilter === "endingThisMonth" && (
-        <div className="flex justify-between items-center mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
-          <span className="text-sm font-semibold text-teal-800">
-            Mostrando turmas que finalizam este mês.
+      {filterMessage && (
+        <div className="flex justify-between items-center mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-sm font-semibold text-blue-800">
+            {filterMessage}
           </span>
           <button
             onClick={() => {

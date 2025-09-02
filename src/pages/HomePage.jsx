@@ -9,12 +9,11 @@ import {
   ClipboardList,
   Loader,
   ClipboardCheck,
-  FileWarning,
   CalendarClock,
   BookOpenCheck,
   BookCopy,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
@@ -25,7 +24,7 @@ const StatCard = ({
   value,
   icon,
   to,
-  state, // <-- ADICIONADO
+  state,
   bgColor = "bg-blue-100",
   textColor = "text-blue-600",
 }) => {
@@ -58,6 +57,7 @@ const StatCard = ({
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const tasksQuery = query(
@@ -135,9 +135,6 @@ function HomePage() {
     );
   });
   const modulesEndingCount = classesWithModulesEndingThisMonth.length;
-  const modulesEndingClassNames = classesWithModulesEndingThisMonth
-    .map((turma) => turma.name)
-    .join(", ");
 
   const moduleCounts = activeClasses.reduce((acc, turma) => {
     const currentModule = turma.modules?.[0]?.id || "N/D";
@@ -156,9 +153,27 @@ function HomePage() {
       },
     ],
   };
+
+  const handleChartClick = (event, elements) => {
+    if (!elements || elements.length === 0) {
+      return;
+    }
+    const { index } = elements[0];
+    const moduleName = moduleChartData.labels[index];
+
+    navigate("/mapa-turmas", {
+      state: { filter: "module", moduleName: moduleName },
+    });
+  };
+  
   const moduleChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: handleChartClick,
+    onHover: (event, chartElement) => {
+      const target = event.native ? event.native.target : event.target;
+      target.style.cursor = chartElement[0] ? "pointer" : "default";
+    },
     plugins: {
       legend: { display: false },
       title: { display: true, text: "Turmas por Módulo Atual" },
@@ -228,7 +243,6 @@ function HomePage() {
             icon={ClipboardCheck}
             to="/mapa-turmas"
           />
-
           <StatCard
             title="Módulos Finalizando Este Mês"
             value={modulesEndingCount}
