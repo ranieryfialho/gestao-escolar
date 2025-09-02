@@ -18,6 +18,7 @@ import {
   Clock,
   CheckCircle,
   Loader,
+  Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -39,7 +40,7 @@ const callFollowUpApi = async (functionName, payload, token) => {
 };
 
 function AcademicFollowUpPage() {
-  const { classes, loadingClasses } = useClasses();
+  const { classes, loadingClasses, allStudentsMap } = useClasses();
   const { firebaseUser } = useAuth();
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedDate, setSelectedDate] = useState(
@@ -49,6 +50,8 @@ function AcademicFollowUpPage() {
   const [followUpData, setFollowUpData] = useState({});
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [selectedClassDetails, setSelectedClassDetails] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState("idle");
   const debounceTimeout = useRef(null);
@@ -58,6 +61,36 @@ function AcademicFollowUpPage() {
       .filter((c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly)
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [classes]);
+
+  useEffect(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    if (!searchTerm.trim()) {
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    debounceTimeout.current = setTimeout(() => {
+      const studentData = allStudentsMap.get(searchTerm.trim());
+
+      if (studentData && studentData.classId) {
+        if (selectedClassId !== studentData.classId) {
+          setSelectedClassId(studentData.classId);
+          toast.success(`Aluno(a) ${studentData.name} encontrado na turma ${studentData.className}!`, {
+            id: 'student-found-toast',
+          });
+        }
+      }
+      setIsSearching(false);
+    }, 500);
+
+    return () => {
+      clearTimeout(debounceTimeout.current);
+    };
+  }, [searchTerm, allStudentsMap, selectedClassId]);
 
   const fetchFollowUpData = useCallback(async () => {
     if (!selectedClassId || !selectedDate || !firebaseUser) return;
@@ -109,6 +142,16 @@ function AcademicFollowUpPage() {
   useEffect(() => {
     fetchFollowUpData();
   }, [selectedDate, fetchFollowUpData]);
+
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return students;
+    }
+    return students.filter((student) =>
+      student.code?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [students, searchTerm]);
+
 
   const handleSave = useCallback(
     async (currentData) => {
@@ -186,7 +229,6 @@ function AcademicFollowUpPage() {
         };
       });
 
-      // Lógica de debounce para salvar
       if (debounceTimeout.current) {
         clearTimeout(debounceTimeout.current);
       }
@@ -264,18 +306,46 @@ function AcademicFollowUpPage() {
       </h1>
 
       <div className="bg-white p-4 rounded-lg shadow-md mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="md:col-span-1 relative">
+            <label
+              htmlFor="student-search"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Pesquisar Aluno por Matrícula
+            </label>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                id="student-search"
+                placeholder="Digite a matrícula..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                {isSearching ? (
+                  <Loader className="h-5 w-5 text-gray-400 animate-spin" />
+                ) : (
+                  <Search className="h-5 w-5 text-gray-400" />
+                )}
+              </div>
+            </div>
+          </div>
           <div>
             <label
               htmlFor="class-select"
               className="block text-sm font-medium text-gray-700"
             >
-              Selecione a Turma
+              Turma
             </label>
             <select
               id="class-select"
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm("");
+                setSelectedClassId(e.target.value);
+              }}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
               disabled={loadingClasses}
             >
@@ -393,102 +463,114 @@ function AcademicFollowUpPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {students.map((student) => {
-                    const studentId = student.studentId || student.id;
-                    const data = followUpData[studentId] || {};
-                    const naoRespondeu = data.respostaFalta === "nao";
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((student) => {
+                      const studentId = student.studentId || student.id;
+                      const data = followUpData[studentId] || {};
+                      const naoRespondeu = data.respostaFalta === "nao";
 
-                    return (
-                      <tr key={studentId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {student.name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Cód: {student.code}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <input
-                            type="checkbox"
-                            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            checked={!!data.lembreteEnviado}
-                            onChange={(e) =>
-                              handleFollowUpChange(
-                                studentId,
-                                "lembreteEnviado",
-                                e.target.checked
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                            value={data.respostaFalta || "pendente"}
-                            onChange={(e) =>
-                              handleFollowUpChange(
-                                studentId,
-                                "respostaFalta",
-                                e.target.value
-                              )
-                            }
-                          >
-                            <option value="pendente">Pendente</option>
-                            <option value="sim">Sim</option>
-                            <option value="nao">Não</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {naoRespondeu && (
-                            <select
-                              className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                              value={data.contactType || "falta"}
-                              onChange={(e) =>
-                                handleFollowUpChange(
-                                  studentId,
-                                  "contactType",
-                                  e.target.value
-                                )
-                              }
-                            >
-                              <option value="falta">Falta</option>
-                              <option value="lembrete">Lembrete de Aula</option>
-                            </select>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          {naoRespondeu && (
+                      return (
+                        <tr key={studentId} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {student.name}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Cód: {student.code}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
                             <input
                               type="checkbox"
                               className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              checked={!!data.obsNaResposta}
+                              checked={!!data.lembreteEnviado}
                               onChange={(e) =>
                                 handleFollowUpChange(
                                   studentId,
-                                  "obsNaResposta",
+                                  "lembreteEnviado",
                                   e.target.checked
                                 )
                               }
                             />
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          {naoRespondeu && (
-                            <button
-                              onClick={() =>
-                                handleCopyObservationMessage(student)
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <select
+                              className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                              value={data.respostaFalta || "pendente"}
+                              onChange={(e) =>
+                                handleFollowUpChange(
+                                  studentId,
+                                  "respostaFalta",
+                                  e.target.value
+                                )
                               }
-                              className="text-blue-600 hover:text-blue-800"
-                              title="Copiar mensagem de observação"
                             >
-                              <ClipboardCopy size={20} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              <option value="pendente">Pendente</option>
+                              <option value="sim">Sim</option>
+                              <option value="nao">Não</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {naoRespondeu && (
+                              <select
+                                className="w-full text-center p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                value={data.contactType || "falta"}
+                                onChange={(e) =>
+                                  handleFollowUpChange(
+                                    studentId,
+                                    "contactType",
+                                    e.target.value
+                                  )
+                                }
+                              >
+                                <option value="falta">Falta</option>
+                                <option value="lembrete">
+                                  Lembrete de Aula
+                                </option>
+                              </select>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {naoRespondeu && (
+                              <input
+                                type="checkbox"
+                                className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                checked={!!data.obsNaResposta}
+                                onChange={(e) =>
+                                  handleFollowUpChange(
+                                    studentId,
+                                    "obsNaResposta",
+                                    e.target.checked
+                                  )
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {naoRespondeu && (
+                              <button
+                                onClick={() =>
+                                  handleCopyObservationMessage(student)
+                                }
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Copiar mensagem de observação"
+                              >
+                                <ClipboardCopy size={20} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center p-6 text-gray-500">
+                        {searchTerm.trim() && !isSearching
+                          ? `Nenhum aluno encontrado com a matrícula "${searchTerm}".`
+                          : "Nenhum aluno nesta turma."}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </>
@@ -497,8 +579,7 @@ function AcademicFollowUpPage() {
       ) : (
         <div className="text-center bg-white p-8 rounded-lg shadow-md">
           <p className="text-gray-500">
-            Por favor, selecione uma turma e uma data para iniciar o
-            acompanhamento.
+            Selecione uma turma ou pesquise por uma matrícula para iniciar.
           </p>
         </div>
       )}

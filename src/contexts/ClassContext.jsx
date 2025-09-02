@@ -100,6 +100,7 @@ export const ClassesProvider = ({ children }) => {
               name: aluno.name,
               code: aluno.code.toString(),
               className: turma.name,
+              classId: turma.id, // <-- AQUI ESTÁ A MUDANÇA
             });
           }
         });
@@ -113,6 +114,7 @@ export const ClassesProvider = ({ children }) => {
           name: aluno.name,
           code: aluno.code.toString(),
           className: "Concluído",
+          classId: "concludentes", // Identificador para turma de concludentes
         });
       }
     });
@@ -137,8 +139,8 @@ export const ClassesProvider = ({ children }) => {
       console.error("Erro ao atualizar turma: ", error);
     }
   };
-
-  const updateClassStatus = async (classId, newStatus) => {
+  
+    const updateClassStatus = async (classId, newStatus) => {
     try {
       const classDocRef = doc(db, "classes", classId);
       await updateDoc(classDocRef, { status: newStatus });
@@ -174,8 +176,8 @@ export const ClassesProvider = ({ children }) => {
       throw error;
     }
   };
-
-  const addStudentToClass = async (classId, studentData) => {
+  
+    const addStudentToClass = async (classId, studentData) => {
     const classRef = doc(db, "classes", classId);
     const newStudentId =
       studentData.studentId || doc(collection(db, "students")).id;
@@ -262,6 +264,7 @@ export const ClassesProvider = ({ children }) => {
     }
   };
 
+
   const value = {
     classes,
     graduates,
@@ -275,7 +278,7 @@ export const ClassesProvider = ({ children }) => {
     addStudentToClass,
     removeStudentFromClass,
     updateStudentAttendance,
-    updateClassStatus,
+    updateClassStatus
   };
 
   return (
