@@ -13,6 +13,7 @@ import {
   CalendarClock,
   BookOpenCheck,
   BookCopy,
+  FileText,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -274,14 +275,34 @@ function HomePage() {
   // Filtrar cards baseado na role do usuário
   const getVisibleCards = () => {
     if (hasRestrictedAccess) {
-      // Retornar apenas cards específicos para secretaria e comercial
+      // Cards específicos APENAS para secretaria e comercial
       return [
         <StatCard
-          key="teachers"
-          title="Professores Ativos"
-          value={activeTeachers}
-          icon={ClipboardCheck}
+          key="mapa-turmas"
+          title="Mapa de Turmas"
+          value="Visualizar"
+          icon={CalendarClock}
           to="/mapa-turmas"
+          bgColor="bg-green-100"
+          textColor="text-green-600"
+        />,
+        <StatCard
+          key="gerar-contrato"
+          title="Gerar Contrato - Treinamento Básico"
+          value="Criar"
+          icon={FileText}
+          to="/gerar-contrato"
+          bgColor="bg-purple-100"
+          textColor="text-purple-600"
+        />,
+        <StatCard
+          key="laboratorio-apoio"
+          title="Laboratório de Apoio"
+          value="Acessar"
+          icon={ClipboardCheck}
+          to="/laboratorio"
+          bgColor="bg-orange-100"
+          textColor="text-orange-600"
         />,
         <StatCard
           key="tb-classes"
