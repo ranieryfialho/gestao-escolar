@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useClasses } from "../contexts/ClassContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { List, Search, CheckCircle, Calendar, Clock } from "lucide-react";
 
@@ -22,7 +23,11 @@ const formatDateForDisplay = (dateValue) => {
 
 function AttendancePage() {
   const { classes } = useClasses();
+  const { userProfile } = useAuth(); // Adicionar userProfile para verificar a role
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Verificar se o usuário é secretaria
+  const isSecretaria = userProfile?.role === "secretaria";
 
   const getClassType = (turma) => {
     const nameUpper = (turma.name || "").toUpperCase();
@@ -69,6 +74,81 @@ function AttendancePage() {
     });
   }, [classes, searchTerm]);
 
+  const ClassItem = ({ turma }) => {
+    const type = getClassType(turma);
+    const isFinished = turma.status === "finalizada";
+
+    const content = (
+      <div className={`block p-4 border rounded-lg transition-all duration-200 ${
+        isFinished
+          ? "bg-gray-100 opacity-70"
+          : "bg-white"
+      } ${!isSecretaria ? "hover:shadow-md hover:bg-gray-50" : ""}`}>
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold text-blue-700">
+                {turma.name}
+              </h2>
+              <span
+                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                  type === "Treinamento Básico"
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-purple-100 text-purple-800"
+                }`}
+              >
+                {type}
+              </span>
+              {isFinished && (
+                <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                  <CheckCircle size={12} /> Finalizada
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Professor(a): {turma.professorName || "A definir"}
+            </p>
+            <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <Calendar size={14} />
+                <span>
+                  Início: {formatDateForDisplay(turma.dataInicio)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Calendar size={14} />
+                <span>
+                  Término: {formatDateForDisplay(turma.dataTermino)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock size={14} />
+                <span>
+                  Horário: {turma.horario || 'Não definido'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <span className="text-sm font-medium text-gray-700">
+            {turma.students?.length || 0} aluno(s)
+          </span>
+        </div>
+      </div>
+    );
+
+    // Se for secretaria, retorna apenas o conteúdo sem link
+    if (isSecretaria) {
+      return content;
+    }
+
+    // Para outros perfis, mantém o link clicável
+    return (
+      <Link to={`/frequencia/${turma.id}`} className="cursor-pointer">
+        {content}
+      </Link>
+    );
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -93,73 +173,11 @@ function AttendancePage() {
       <div className="bg-white p-6 rounded-lg shadow-md">
         {extraClasses.length > 0 ? (
           <ul className="space-y-4">
-            {extraClasses.map((turma) => {
-              const type = getClassType(turma);
-              const isFinished = turma.status === "finalizada";
-
-              return (
-                <li key={turma.id}>
-                  <Link
-                    to={`/frequencia/${turma.id}`}
-                    className={`block p-4 border rounded-lg hover:shadow-md transition-all duration-200 ${
-                      isFinished
-                        ? "bg-gray-100 opacity-70 hover:opacity-100"
-                        : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-semibold text-blue-700">
-                            {turma.name}
-                          </h2>
-                          <span
-                            className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                              type === "Treinamento Básico"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-purple-100 text-purple-800"
-                            }`}
-                          >
-                            {type}
-                          </span>
-                          {isFinished && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                              <CheckCircle size={12} /> Finalizada
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Professor(a): {turma.professorName || "A definir"}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar size={14} />
-                            <span>
-                              Início: {formatDateForDisplay(turma.dataInicio)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Calendar size={14} />
-                            <span>
-                              Término: {formatDateForDisplay(turma.dataTermino)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={14} />
-                            <span>
-                              Horário: {turma.horario || 'Não definido'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">
-                        {turma.students?.length || 0} aluno(s)
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
+            {extraClasses.map((turma) => (
+              <li key={turma.id}>
+                <ClassItem turma={turma} />
+              </li>
+            ))}
           </ul>
         ) : (
           <div className="text-center py-10">
