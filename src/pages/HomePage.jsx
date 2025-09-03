@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useClasses } from "../contexts/ClassContext";
-import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import {
@@ -58,17 +57,12 @@ const StatCard = ({
 
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
-  const { userProfile } = useAuth();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
   const navigate = useNavigate();
   const barChartRef = useRef();
   const doughnutChartRef = useRef();
 
-  const isUserSecretaria = userProfile && userProfile.role === "secretaria";
-
   useEffect(() => {
-    if (isUserSecretaria) return;
-
     const tasksQuery = query(
       collection(db, "tasks"),
       where("status", "in", ["todo", "inprogress"])
@@ -83,7 +77,7 @@ function HomePage() {
       setTaskCounts(counts);
     });
     return () => unsubscribe();
-  }, [isUserSecretaria]);
+  }, []);
 
   const sliderSettings = {
     dots: true,
@@ -150,7 +144,6 @@ function HomePage() {
     acc[currentModule] = (acc[currentModule] || 0) + 1;
     return acc;
   }, {});
-
   const moduleChartData = {
     labels: Object.keys(moduleCounts),
     datasets: [
@@ -164,11 +157,10 @@ function HomePage() {
     ],
   };
 
-  // --- MUDANÇA AQUI: A função de clique agora funciona para todos os perfis ---
-  const handleBarChartClick = (event) => {
-    if (!barChartRef.current) return;
-    const elements = getElementAtEvent(barChartRef.current, event);
-    if (!elements || elements.length === 0) return;
+  const handleBarChartClick = (event, elements) => {
+    if (!elements || elements.length === 0) {
+      return;
+    }
     const { index } = elements[0];
     const moduleName = moduleChartData.labels[index];
     navigate("/mapa-turmas", {
@@ -179,7 +171,7 @@ function HomePage() {
   const moduleChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    onClick: handleBarChartClick, // O evento de clique é adicionado aqui
+    onClick: handleBarChartClick,
     onHover: (event, chartElement) => {
       const target = event.native ? event.native.target : event.target;
       target.style.cursor = chartElement[0] ? "pointer" : "default";
@@ -207,7 +199,7 @@ function HomePage() {
                   studentName: student.name,
                   studentCode: student.code,
                   className: turma.name,
-                  professorName: turma.professorName || "A definir",
+                  professorName: turma.professorName || "A definir", // <-- ADICIONADO AQUI
                   module: moduleId,
                   grade: grade.toFixed(1),
                 });
@@ -236,9 +228,7 @@ function HomePage() {
     ],
   };
 
-  const handleDoughnutChartClick = (event) => {
-    if (!doughnutChartRef.current) return;
-    const elements = getElementAtEvent(doughnutChartRef.current, event);
+  const handleDoughnutChartClick = (event, elements) => {
     if (!elements || elements.length === 0) return;
     const { index } = elements[0];
     if (index === 1) {
@@ -265,118 +255,93 @@ function HomePage() {
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Geral</h1>
-
-      {isUserSecretaria ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="md:col-span-2">
-            <StatCard
-              title="Turmas Ativas"
-              value={activeClasses.length}
-              icon={School}
-              to="/mapa-turmas"
-              bgColor="bg-green-100"
-              textColor="text-green-600"
-            />
-          </div>
-          <div className="md:col-span-2 h-80 sm:h-96">
-            <BarChart
-              chartRef={barChartRef}
-              chartData={moduleChartData}
-              chartOptions={moduleChartOptions}
-            />
-          </div>
+      <div className="mb-8">
+        <Slider {...sliderSettings}>
+          <StatCard
+            title="Alunos Ativos"
+            value={totalStudents}
+            icon={Users}
+            to="/boletim"
+          />
+          <StatCard
+            title="Turmas Ativas"
+            value={activeClasses.length}
+            icon={School}
+            to="/boletim"
+          />
+          <StatCard
+            title="Professores Ativos"
+            value={activeTeachers}
+            icon={ClipboardCheck}
+            to="/mapa-turmas"
+          />
+          <StatCard
+            title="Módulos Finalizando Este Mês"
+            value={modulesEndingCount}
+            icon={CalendarClock}
+            to="/mapa-turmas"
+            state={{ filter: "endingThisMonth" }}
+            bgColor="bg-teal-100"
+            textColor="text-teal-600"
+          />
+          <StatCard
+            title="Certificados Prontos"
+            value={certificatesReady}
+            icon={GraduationCap}
+            to="/turma/concludentes"
+            bgColor="bg-green-100"
+            textColor="text-green-600"
+          />
+          <StatCard
+            title="Treinamentos Básicos"
+            value={tbClassesCount}
+            icon={BookOpenCheck}
+            to="/frequencia"
+            bgColor="bg-indigo-100"
+            textColor="text-indigo-600"
+          />
+          <StatCard
+            title="Cursos Extras"
+            value={extraCoursesCount}
+            icon={BookCopy}
+            to="/frequencia"
+            bgColor="bg-purple-100"
+            textColor="text-purple-600"
+          />
+          <StatCard
+            title="Tarefas a Fazer"
+            value={taskCounts.todo}
+            icon={ClipboardList}
+            to="/kanban"
+            bgColor="bg-red-100"
+            textColor="text-red-600"
+          />
+          <StatCard
+            title="Tarefas em Progresso"
+            value={taskCounts.inprogress}
+            icon={Loader}
+            to="/kanban"
+            bgColor="bg-yellow-100"
+            textColor="text-yellow-600"
+          />
+        </Slider>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 h-80 sm:h-96">
+          <BarChart
+            chartRef={barChartRef}
+            chartData={moduleChartData}
+            chartOptions={moduleChartOptions}
+          />
         </div>
-      ) : (
-        <>
-          <div className="mb-8">
-            <Slider {...sliderSettings}>
-              <StatCard
-                title="Alunos Ativos"
-                value={totalStudents}
-                icon={Users}
-                to="/boletim"
-              />
-              <StatCard
-                title="Turmas Ativas"
-                value={activeClasses.length}
-                icon={School}
-                to="/boletim"
-              />
-              <StatCard
-                title="Professores Ativos"
-                value={activeTeachers}
-                icon={ClipboardCheck}
-                to="/mapa-turmas"
-              />
-              <StatCard
-                title="Módulos Finalizando Este Mês"
-                value={modulesEndingCount}
-                icon={CalendarClock}
-                to="/mapa-turmas"
-                state={{ filter: "endingThisMonth" }}
-                bgColor="bg-teal-100"
-                textColor="text-teal-600"
-              />
-              <StatCard
-                title="Certificados Prontos"
-                value={certificatesReady}
-                icon={GraduationCap}
-                to="/turma/concludentes"
-                bgColor="bg-green-100"
-                textColor="text-green-600"
-              />
-              <StatCard
-                title="Treinamentos Básicos"
-                value={tbClassesCount}
-                icon={BookOpenCheck}
-                to="/frequencia"
-                bgColor="bg-indigo-100"
-                textColor="text-indigo-600"
-              />
-              <StatCard
-                title="Cursos Extras"
-                value={extraCoursesCount}
-                icon={BookCopy}
-                to="/frequencia"
-                bgColor="bg-purple-100"
-                textColor="text-purple-600"
-              />
-              <StatCard
-                title="Tarefas a Fazer"
-                value={taskCounts.todo}
-                icon={ClipboardList}
-                to="/kanban"
-                bgColor="bg-red-100"
-                textColor="text-red-600"
-              />
-              <StatCard
-                title="Tarefas em Progresso"
-                value={taskCounts.inprogress}
-                icon={Loader}
-                to="/kanban"
-                bgColor="bg-yellow-100"
-                textColor="text-yellow-600"
-              />
-            </Slider>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-80 sm:h-96">
-              <BarChart
-                chartRef={barChartRef}
-                chartData={moduleChartData}
-                chartOptions={moduleChartOptions}
-              />
-            </div>
-            <div className="lg:col-span-1 h-80 sm:h-96">
-              <DoughnutChart
-                chartRef={doughnutChartRef}
-                chartData={doughnutChartData}
-                chartOptions={doughnutChartOptions}
-              />
-            </div>
-          </div>
-        </>
-      )}
+        <div className="lg:col-span-1 h-80 sm:h-96">
+          <DoughnutChart
+            chartRef={doughnutChartRef}
+            chartData={doughnutChartData}
+            chartOptions={doughnutChartOptions}
+          />
+        </div>
+      </div>
     </div>
   );
 }
