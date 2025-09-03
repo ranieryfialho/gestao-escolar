@@ -179,14 +179,16 @@ function MapaTurmasPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // --- MUDANÇA AQUI: Adicionada verificação para o perfil Secretaria ---
-  const isUserSecretaria = userProfile && userProfile.role === "secretaria";
+  // Verificação para perfis com acesso restrito
+  const isSecretaria = userProfile?.role === "secretaria";
+  const isComercial = userProfile?.role === "comercial";
+  const hasRestrictedAccess = isSecretaria || isComercial;
+
   const canEditMap =
     userProfile &&
     ["coordenador", "auxiliar_coordenacao", "diretor", "admin"].includes(
       userProfile.role
     );
-  // --- FIM DA MUDANÇA ---
 
   const [editingRowId, setEditingRowId] = useState(null);
   const [editedData, setEditedData] = useState({});
@@ -619,8 +621,8 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap font-semibold">
-                    {/* --- MUDANÇA AQUI: Renderização condicional do Link --- */}
-                    {!turma.isMapaOnly && !isUserSecretaria ? (
+                    {/* Renderização condicional do Link baseado no acesso */}
+                    {!turma.isMapaOnly && !hasRestrictedAccess ? (
                       <Link
                         to={`/turma/${turma.id}`}
                         className="text-blue-600 hover:underline"

@@ -58,18 +58,20 @@ const StatCard = ({
 
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
-  const { userProfile } = useAuth(); // Adicionar userProfile para verificar a role
+  const { userProfile } = useAuth();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
   const navigate = useNavigate();
   const barChartRef = useRef();
   const doughnutChartRef = useRef();
 
-  // Verificar se o usuário é secretaria
+  // Definir variáveis de controle de acesso
   const isSecretaria = userProfile?.role === "secretaria";
+  const isComercial = userProfile?.role === "comercial";
+  const hasRestrictedAccess = isSecretaria || isComercial;
 
   useEffect(() => {
-    // Só carregar tasks se o usuário não for secretaria
-    if (!isSecretaria) {
+    // Só carregar tasks se o usuário não tiver acesso restrito
+    if (!hasRestrictedAccess) {
       const tasksQuery = query(
         collection(db, "tasks"),
         where("status", "in", ["todo", "inprogress"])
@@ -85,7 +87,7 @@ function HomePage() {
       });
       return () => unsubscribe();
     }
-  }, [isSecretaria]);
+  }, [hasRestrictedAccess]);
 
   const sliderSettings = {
     dots: true,
@@ -192,14 +194,14 @@ function HomePage() {
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
 
-  // Só calcular dados de notas se o usuário não for secretaria
+  // Só calcular dados de notas se o usuário não tiver acesso restrito
   let studentsWithLowGrades = [];
   let gradeStatusCounts = { green: 0, red: 0 };
   let doughnutChartData = null;
   let doughnutChartOptions = null;
   let handleDoughnutChartClick = null;
 
-  if (!isSecretaria) {
+  if (!hasRestrictedAccess) {
     gradeStatusCounts = activeClasses.reduce(
       (acc, turma) => {
         turma.students?.forEach((student) => {
@@ -271,8 +273,8 @@ function HomePage() {
 
   // Filtrar cards baseado na role do usuário
   const getVisibleCards = () => {
-    if (isSecretaria) {
-      // Retornar apenas cards específicos para secretaria
+    if (hasRestrictedAccess) {
+      // Retornar apenas cards específicos para secretaria e comercial
       return [
         <StatCard
           key="teachers"
@@ -397,14 +399,14 @@ function HomePage() {
         </Slider>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className={isSecretaria ? "lg:col-span-3 h-80 sm:h-96" : "lg:col-span-2 h-80 sm:h-96"}>
+        <div className={hasRestrictedAccess ? "lg:col-span-3 h-80 sm:h-96" : "lg:col-span-2 h-80 sm:h-96"}>
           <BarChart
             chartRef={barChartRef}
             chartData={moduleChartData}
             chartOptions={moduleChartOptions}
           />
         </div>
-        {!isSecretaria && (
+        {!hasRestrictedAccess && (
           <div className="lg:col-span-1 h-80 sm:h-96">
             <DoughnutChart
               chartRef={doughnutChartRef}

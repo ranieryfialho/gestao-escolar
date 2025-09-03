@@ -23,11 +23,13 @@ const formatDateForDisplay = (dateValue) => {
 
 function AttendancePage() {
   const { classes } = useClasses();
-  const { userProfile } = useAuth(); // Adicionar userProfile para verificar a role
+  const { userProfile } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Verificar se o usuário é secretaria
+  // Verificar se o usuário tem acesso restrito
   const isSecretaria = userProfile?.role === "secretaria";
+  const isComercial = userProfile?.role === "comercial";
+  const hasRestrictedAccess = isSecretaria || isComercial;
 
   const getClassType = (turma) => {
     const nameUpper = (turma.name || "").toUpperCase();
@@ -83,7 +85,7 @@ function AttendancePage() {
         isFinished
           ? "bg-gray-100 opacity-70"
           : "bg-white"
-      } ${!isSecretaria ? "hover:shadow-md hover:bg-gray-50" : ""}`}>
+      } ${!hasRestrictedAccess ? "hover:shadow-md hover:bg-gray-50" : ""}`}>
         <div className="flex justify-between items-center">
           <div>
             <div className="flex items-center gap-3">
@@ -136,8 +138,8 @@ function AttendancePage() {
       </div>
     );
 
-    // Se for secretaria, retorna apenas o conteúdo sem link
-    if (isSecretaria) {
+    // Se tiver acesso restrito, retorna apenas o conteúdo sem link
+    if (hasRestrictedAccess) {
       return content;
     }
 
