@@ -350,6 +350,12 @@ function MapaTurmasPage() {
   };
 
   const handleSaveEdit = async (turmaId) => {
+    const originalTurma = classes.find(t => t.id === turmaId);
+    if (!originalTurma) {
+      toast.error("Turma original não encontrada!");
+      return;
+    }
+
     const dataToSave = {
       professorName: editedData.instrutor,
       sala: editedData.sala,
@@ -357,11 +363,14 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
-      modules: [
-        { id: editedData.modulo_atual || "" },
-        { id: editedData.proximo_modulo || "" },
-      ],
+      modules: originalTurma.isMapaOnly
+        ? [
+          { id: editedData.modulo_atual || "" },
+          { id: editedData.proximo_modulo || "" },
+        ]
+        : originalTurma.modules,
     };
+
     const classDocRef = doc(db, "classes", turmaId);
     const promise = updateDoc(classDocRef, dataToSave);
     await toast.promise(promise, {
@@ -654,8 +663,8 @@ function MapaTurmasPage() {
                           moduloAtual.includes("Finalizado")
                             ? "text-gray-500"
                             : moduloAtual === "Aguardando"
-                            ? "text-orange-600"
-                            : ""
+                              ? "text-orange-600"
+                              : ""
                         }
                       >
                         {moduloAtual}
