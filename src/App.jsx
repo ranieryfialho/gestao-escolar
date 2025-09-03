@@ -18,6 +18,7 @@ import AttendancePage from './pages/AttendancePage';
 import AttendanceDetailPage from './pages/AttendanceDetailPage';
 import AcademicFollowUpPage from './pages/AcademicFollowUpPage';
 import LowGradesPage from './pages/LowGradesPage';
+import ContractGeneratorPage from './pages/ContractGeneratorPage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
           <Route path="frequencia/:classId" element={<AttendanceDetailPage />} />
           <Route path="acompanhamento" element={<AcademicFollowUpPage />} />
           <Route path="alunos-nota-baixa" element={<LowGradesPage />} />
+          <Route path="gerar-contrato" element={<ContractGeneratorPage />} />
           
         </Route>
       </Route>

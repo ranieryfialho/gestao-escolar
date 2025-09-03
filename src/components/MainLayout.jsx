@@ -14,10 +14,20 @@ const MainLayout = () => {
     "admin",
     "auxiliar_coordenacao",
   ];
+
   const isUserAdmin = userProfile && adminRoles.includes(userProfile.role);
   const isUserProfessor =
     userProfile && ["professor", "professor_apoio"].includes(userProfile.role);
   const isUserComercial = userProfile && userProfile.role === "comercial";
+  
+  // --- MUDANÇA AQUI: Nova variável para o perfil Secretaria ---
+  const isUserSecretaria = userProfile && userProfile.role === "secretaria";
+
+  const canAccessContractPage =
+    userProfile &&
+    ["coordenador", "diretor", "secretaria", "comercial"].includes(
+      userProfile.role
+    );
 
   const canAccessAttendance = isUserAdmin || isUserProfessor;
   const canAccessFollowUp = isUserAdmin || isUserProfessor;
@@ -65,7 +75,6 @@ const MainLayout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              {/* 2. O <span> foi trocado por <Link> */}
               <Link
                 to="/dashboard"
                 className="font-bold text-white text-xl hover:opacity-80 transition-opacity"
@@ -74,16 +83,64 @@ const MainLayout = () => {
               </Link>
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
-                  {isUserComercial ? (
-                    <NavLink
-                      to="/laboratorio"
-                      className="text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-                    >
-                      Laboratório de Apoio
-                    </NavLink>
+                  {isUserComercial || isUserSecretaria ? (
+                    <>
+                      {/* Usuário comercial e secretaria veem o menu Operacional */}
+                      <div className="relative" ref={operationalMenuRef}>
+                        <button
+                          onClick={() => {
+                            setOperationalMenuOpen(!operationalMenuOpen);
+                            setAcademicMenuOpen(false);
+                          }}
+                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
+                        >
+                          <span>Operacional</span>
+                          <ChevronDown
+                            size={16}
+                            className={`ml-1 transition-transform ${
+                              operationalMenuOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                        {operationalMenuOpen && (
+                          <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                            <div className="py-1">
+                              {/* --- MUDANÇA AQUI: Condições para Secretaria --- */}
+                              {isUserSecretaria && (
+                                <NavLink
+                                  to="/mapa-turmas"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Mapa de Turmas
+                                </NavLink>
+                              )}
+                              {canAccessContractPage && (
+                                <NavLink
+                                  to="/gerar-contrato"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Gerar Contrato de Curso
+                                </NavLink>
+                              )}
+                              {isUserComercial && (
+                                <NavLink
+                                  to="/laboratorio"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Laboratório de Apoio
+                                </NavLink>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   ) : (
                     <>
-                      {/* --- GRUPO ACADÊMICO --- */}
+                      {/* --- GRUPO ACADÊMICO (Visível para outros, exceto comercial/secretaria) --- */}
                       <div className="relative" ref={academicMenuRef}>
                         <button
                           onClick={() => {
@@ -160,6 +217,15 @@ const MainLayout = () => {
                               >
                                 Mapa de Turmas
                               </NavLink>
+                              {canAccessContractPage && (
+                                <NavLink
+                                  to="/gerar-contrato"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Gerar Contrato de Curso
+                                </NavLink>
+                              )}
                               <NavLink
                                 to="/laboratorio"
                                 className={getDropdownNavLinkClass}
@@ -221,6 +287,7 @@ const MainLayout = () => {
         </div>
       </header>
 
+      {/* --- MENU MOBILE --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -238,14 +305,40 @@ const MainLayout = () => {
             <X size={24} />
           </button>
           <nav className="mt-16 space-y-4">
-            {isUserComercial ? (
-              <NavLink
-                to="/laboratorio"
-                className="block py-3 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Laboratório de Apoio
-              </NavLink>
+            {isUserComercial || isUserSecretaria ? (
+              <>
+                <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
+                  Operacional
+                </h4>
+                {/* --- MUDANÇA AQUI: Condições para Secretaria --- */}
+                {isUserSecretaria && (
+                    <NavLink
+                        to="/mapa-turmas"
+                        className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        Mapa de Turmas
+                    </NavLink>
+                )}
+                {canAccessContractPage && (
+                  <NavLink
+                    to="/gerar-contrato"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Gerar Contrato de Curso
+                  </NavLink>
+                )}
+                {isUserComercial && (
+                  <NavLink
+                    to="/laboratorio"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Laboratório de Apoio
+                  </NavLink>
+                )}
+              </>
             ) : (
               <>
                 <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
@@ -287,6 +380,15 @@ const MainLayout = () => {
                 >
                   Mapa de Turmas
                 </NavLink>
+                {canAccessContractPage && (
+                  <NavLink
+                    to="/gerar-contrato"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Gerar Contrato de Curso
+                  </NavLink>
+                )}
                 <NavLink
                   to="/laboratorio"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"

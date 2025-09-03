@@ -4,6 +4,7 @@ import { useUsers } from "../contexts/UserContext.jsx";
 import Modal from "../components/Modal.jsx";
 import { useNavigate } from "react-router-dom";
 
+// Função auxiliar para chamar a API (mantida como no seu arquivo original)
 const callUserApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -109,6 +110,18 @@ function UsersPage() {
     return <div className="p-8 text-center">A verificar permissões...</div>;
   }
 
+  // --- MUDANÇA AQUI: Lista de cargos alinhada com seu sistema ---
+  const rolesOptions = [
+    { value: "professor", label: "Professor" },
+    { value: "professor_apoio", label: "Professor de Apoio" },
+    { value: "auxiliar_coordenacao", label: "Auxiliar de Coordenação" },
+    { value: "coordenador", label: "Coordenador" },
+    { value: "diretor", label: "Diretor" },
+    { value: "financeiro", label: "Financeiro" },
+    { value: "comercial", label: "Comercial" },
+    { value: "secretaria", label: "Secretaria" },
+  ];
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">
@@ -166,16 +179,11 @@ function UsersPage() {
               onChange={(e) => setUserRole(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border rounded-md"
             >
-              <option value="professor">Professor</option>
-              <option value="professor_apoio">Professor de Apoio</option>
-              <option value="auxiliar_coordenacao">
-                Auxiliar de Coordenação
-              </option>
-              <option value="coordenador">Coordenador</option>
-              <option value="diretor">Diretor</option>
-              <option value="financeiro">Financeiro</option>
-              {/* NOVO PERFIL ADICIONADO ABAIXO */}
-              <option value="comercial">Comercial</option>
+              {rolesOptions.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="md:col-span-3">
@@ -287,15 +295,11 @@ function UsersPage() {
                 }
                 className="mt-1 w-full px-3 py-2 border rounded-md"
               >
-                <option value="professor">Professor</option>
-                <option value="professor_apoio">Professor de Apoio</option>
-                <option value="auxiliar_coordenacao">
-                  Auxiliar de Coordenação
-                </option>
-                <option value="coordenador">Coordenador</option>
-                <option value="diretor">Diretor</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="comercial">Comercial</option>
+                {rolesOptions.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex justify-end gap-4 pt-4">
