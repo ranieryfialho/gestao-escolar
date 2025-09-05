@@ -350,9 +350,9 @@ function MapaTurmasPage() {
   };
 
   const handleSaveEdit = async (turmaId) => {
-    const originalTurma = classes.find(t => t.id === turmaId);
+    const originalTurma = classes.find((t) => t.id === turmaId);
     if (!originalTurma) {
-      toast.error("Turma original não encontrada!");
+      toast.error("Erro: Turma original não encontrada!");
       return;
     }
 
@@ -363,21 +363,40 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
-      modules: originalTurma.isMapaOnly
-        ? [
-          { id: editedData.modulo_atual || "" },
-          { id: editedData.proximo_modulo || "" },
-        ]
-        : originalTurma.modules,
     };
+
+    if (originalTurma.isMapaOnly) {
+      dataToSave.modules = [
+        { id: editedData.modulo_atual || "" },
+        { id: editedData.proximo_modulo || "" },
+      ];
+    } else {
+      const newCurrentModuleId = editedData.modulo_atual;
+      const originalModules = originalTurma.modules || [];
+
+      const newStartIndex = originalModules.findIndex(
+        (m) => m.id === newCurrentModuleId
+      );
+
+      if (newStartIndex !== -1) {
+        dataToSave.modules = originalModules.slice(newStartIndex);
+      } else {
+        toast.error(
+          `O módulo "${newCurrentModuleId}" não faz parte da grade original desta turma. A sequência de módulos não foi alterada.`
+        );
+        dataToSave.modules = originalModules;
+      }
+    }
 
     const classDocRef = doc(db, "classes", turmaId);
     const promise = updateDoc(classDocRef, dataToSave);
+
     await toast.promise(promise, {
-      loading: "Salvando...",
+      loading: "Salvando alterações...",
       success: "Turma atualizada com sucesso!",
       error: "Erro ao atualizar a turma.",
     });
+
     handleCancelEdit();
   };
 
@@ -663,8 +682,8 @@ function MapaTurmasPage() {
                           moduloAtual.includes("Finalizado")
                             ? "text-gray-500"
                             : moduloAtual === "Aguardando"
-                              ? "text-orange-600"
-                              : ""
+                            ? "text-orange-600"
+                            : ""
                         }
                       >
                         {moduloAtual}
