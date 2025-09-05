@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useClasses } from "../contexts/ClassContext";
+import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import {
@@ -12,6 +13,7 @@ import {
   CalendarClock,
   BookOpenCheck,
   BookCopy,
+  FileText,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -57,27 +59,36 @@ const StatCard = ({
 
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
+  const { userProfile } = useAuth();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
   const navigate = useNavigate();
   const barChartRef = useRef();
   const doughnutChartRef = useRef();
 
+  // Definir variáveis de controle de acesso
+  const isSecretaria = userProfile?.role === "secretaria";
+  const isComercial = userProfile?.role === "comercial";
+  const hasRestrictedAccess = isSecretaria || isComercial;
+
   useEffect(() => {
-    const tasksQuery = query(
-      collection(db, "tasks"),
-      where("status", "in", ["todo", "inprogress"])
-    );
-    const unsubscribe = onSnapshot(tasksQuery, (querySnapshot) => {
-      const counts = { todo: 0, inprogress: 0 };
-      querySnapshot.forEach((doc) => {
-        const task = doc.data();
-        if (task.status === "todo") counts.todo += 1;
-        else if (task.status === "inprogress") counts.inprogress += 1;
+    // Só carregar tasks se o usuário não tiver acesso restrito
+    if (!hasRestrictedAccess) {
+      const tasksQuery = query(
+        collection(db, "tasks"),
+        where("status", "in", ["todo", "inprogress"])
+      );
+      const unsubscribe = onSnapshot(tasksQuery, (querySnapshot) => {
+        const counts = { todo: 0, inprogress: 0 };
+        querySnapshot.forEach((doc) => {
+          const task = doc.data();
+          if (task.status === "todo") counts.todo += 1;
+          else if (task.status === "inprogress") counts.inprogress += 1;
+        });
+        setTaskCounts(counts);
       });
-      setTaskCounts(counts);
-    });
-    return () => unsubscribe();
-  }, []);
+      return () => unsubscribe();
+    }
+  }, [hasRestrictedAccess]);
 
   const sliderSettings = {
     dots: true,
@@ -144,6 +155,7 @@ function HomePage() {
     acc[currentModule] = (acc[currentModule] || 0) + 1;
     return acc;
   }, {});
+  
   const moduleChartData = {
     labels: Object.keys(moduleCounts),
     datasets: [
@@ -183,164 +195,247 @@ function HomePage() {
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
 
-  const studentsWithLowGrades = [];
-  const gradeStatusCounts = activeClasses.reduce(
-    (acc, turma) => {
-      turma.students?.forEach((student) => {
-        if (student.grades) {
-          Object.entries(student.grades).forEach(([moduleId, gradeInfo]) => {
-            const grade = parseFloat(
-              typeof gradeInfo === "object" ? gradeInfo.finalGrade : gradeInfo
-            );
-            if (!isNaN(grade)) {
-              if (grade < 7) {
-                acc.red++;
-                studentsWithLowGrades.push({
-                  studentName: student.name,
-                  studentCode: student.code,
-                  className: turma.name,
-                  professorName: turma.professorName || "A definir", // <-- ADICIONADO AQUI
-                  module: moduleId,
-                  grade: grade.toFixed(1),
-                });
-              } else {
-                acc.green++;
+  // Só calcular dados de notas se o usuário não tiver acesso restrito
+  let studentsWithLowGrades = [];
+  let gradeStatusCounts = { green: 0, red: 0 };
+  let doughnutChartData = null;
+  let doughnutChartOptions = null;
+  let handleDoughnutChartClick = null;
+
+  if (!hasRestrictedAccess) {
+    gradeStatusCounts = activeClasses.reduce(
+      (acc, turma) => {
+        turma.students?.forEach((student) => {
+          if (student.grades) {
+            Object.entries(student.grades).forEach(([moduleId, gradeInfo]) => {
+              const grade = parseFloat(
+                typeof gradeInfo === "object" ? gradeInfo.finalGrade : gradeInfo
+              );
+              if (!isNaN(grade)) {
+                if (grade < 7) {
+                  acc.red++;
+                  studentsWithLowGrades.push({
+                    studentName: student.name,
+                    studentCode: student.code,
+                    className: turma.name,
+                    professorName: turma.professorName || "A definir",
+                    module: moduleId,
+                    grade: grade.toFixed(1),
+                  });
+                } else {
+                  acc.green++;
+                }
               }
-            }
-          });
-        }
-      });
-      return acc;
-    },
-    { green: 0, red: 0 }
-  );
-
-  const doughnutChartData = {
-    labels: ["Notas Acima da Média", "Notas Abaixo da Média"],
-    datasets: [
-      {
-        data: [gradeStatusCounts.green, gradeStatusCounts.red],
-        backgroundColor: ["#4CAF50", "#F44336"],
-        hoverBackgroundColor: ["#66BB6A", "#EF5350"],
-        borderColor: "#fff",
-        borderWidth: 2,
+            });
+          }
+        });
+        return acc;
       },
-    ],
-  };
+      { green: 0, red: 0 }
+    );
 
-  const handleDoughnutChartClick = (event, elements) => {
-    if (!elements || elements.length === 0) return;
-    const { index } = elements[0];
-    if (index === 1) {
-      navigate("/alunos-nota-baixa", {
-        state: { students: studentsWithLowGrades },
-      });
+    doughnutChartData = {
+      labels: ["Notas Acima da Média", "Notas Abaixo da Média"],
+      datasets: [
+        {
+          data: [gradeStatusCounts.green, gradeStatusCounts.red],
+          backgroundColor: ["#4CAF50", "#F44336"],
+          hoverBackgroundColor: ["#66BB6A", "#EF5350"],
+          borderColor: "#fff",
+          borderWidth: 2,
+        },
+      ],
+    };
+
+    handleDoughnutChartClick = (event, elements) => {
+      if (!elements || elements.length === 0) return;
+      const { index } = elements[0];
+      if (index === 1) {
+        navigate("/alunos-nota-baixa", {
+          state: { students: studentsWithLowGrades },
+        });
+      }
+    };
+
+    doughnutChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: handleDoughnutChartClick,
+      onHover: (event, chartElement) => {
+        const target = event.native ? event.native.target : event.target;
+        target.style.cursor = chartElement[0] ? "pointer" : "default";
+      },
+      plugins: {
+        legend: { position: "bottom" },
+        title: { display: true, text: "Desempenho Geral de Notas" },
+      },
+    };
+  }
+
+  // Filtrar cards baseado na role do usuário
+  const getVisibleCards = () => {
+    if (hasRestrictedAccess) {
+      // Cards específicos APENAS para secretaria e comercial
+      return [
+        <StatCard
+          key="mapa-turmas"
+          title="Mapa de Turmas"
+          value="Visualizar"
+          icon={CalendarClock}
+          to="/mapa-turmas"
+          bgColor="bg-green-100"
+          textColor="text-green-600"
+        />,
+        <StatCard
+          key="gerar-contrato"
+          title="Gerar Contrato - Treinamento Básico"
+          value="Criar"
+          icon={FileText}
+          to="/gerar-contrato"
+          bgColor="bg-purple-100"
+          textColor="text-purple-600"
+        />,
+        <StatCard
+          key="laboratorio-apoio"
+          title="Laboratório de Apoio"
+          value="Acessar"
+          icon={ClipboardCheck}
+          to="/laboratorio"
+          bgColor="bg-orange-100"
+          textColor="text-orange-600"
+        />,
+        <StatCard
+          key="tb-classes"
+          title="Treinamentos Básicos"
+          value={tbClassesCount}
+          icon={BookOpenCheck}
+          to="/frequencia"
+          bgColor="bg-indigo-100"
+          textColor="text-indigo-600"
+        />
+      ];
     }
-  };
 
-  const doughnutChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    onClick: handleDoughnutChartClick,
-    onHover: (event, chartElement) => {
-      const target = event.native ? event.native.target : event.target;
-      target.style.cursor = chartElement[0] ? "pointer" : "default";
-    },
-    plugins: {
-      legend: { position: "bottom" },
-      title: { display: true, text: "Desempenho Geral de Notas" },
-    },
+    // Retornar todos os cards para outros usuários
+    return [
+      <StatCard
+        key="students"
+        title="Alunos Ativos"
+        value={totalStudents}
+        icon={Users}
+        to="/boletim"
+      />,
+      <StatCard
+        key="classes"
+        title="Turmas Ativas"
+        value={activeClasses.length}
+        icon={School}
+        to="/boletim"
+      />,
+      <StatCard
+        key="teachers"
+        title="Professores Ativos"
+        value={activeTeachers}
+        icon={ClipboardCheck}
+        to="/mapa-turmas"
+      />,
+      <StatCard
+        key="modules-ending"
+        title="Módulos Finalizando Este Mês"
+        value={modulesEndingCount}
+        icon={CalendarClock}
+        to="/mapa-turmas"
+        state={{ filter: "endingThisMonth" }}
+        bgColor="bg-teal-100"
+        textColor="text-teal-600"
+      />,
+      <StatCard
+        key="certificates"
+        title="Certificados Prontos"
+        value={certificatesReady}
+        icon={GraduationCap}
+        to="/turma/concludentes"
+        bgColor="bg-green-100"
+        textColor="text-green-600"
+      />,
+      <StatCard
+        key="tb-classes"
+        title="Treinamentos Básicos"
+        value={tbClassesCount}
+        icon={BookOpenCheck}
+        to="/frequencia"
+        bgColor="bg-indigo-100"
+        textColor="text-indigo-600"
+      />,
+      <StatCard
+        key="extra-courses"
+        title="Cursos Extras"
+        value={extraCoursesCount}
+        icon={BookCopy}
+        to="/frequencia"
+        bgColor="bg-purple-100"
+        textColor="text-purple-600"
+      />,
+      <StatCard
+        key="todo-tasks"
+        title="Tarefas a Fazer"
+        value={taskCounts.todo}
+        icon={ClipboardList}
+        to="/kanban"
+        bgColor="bg-red-100"
+        textColor="text-red-600"
+      />,
+      <StatCard
+        key="progress-tasks"
+        title="Tarefas em Progresso"
+        value={taskCounts.inprogress}
+        icon={Loader}
+        to="/kanban"
+        bgColor="bg-yellow-100"
+        textColor="text-yellow-600"
+      />
+    ];
   };
 
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Geral</h1>
+      
+      {/* Seção de boas-vindas */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Bem-vindo(a), {userProfile?.name || "Usuário"}!
+        </h2>
+        <p className="text-md text-gray-600">
+          O seu perfil de acesso é:{" "}
+          <span className="font-semibold text-blue-600 capitalize">
+            {userProfile?.role?.replace(/_/g, " ") || "Carregando..."}
+          </span>
+        </p>
+      </div>
+
       <div className="mb-8">
         <Slider {...sliderSettings}>
-          <StatCard
-            title="Alunos Ativos"
-            value={totalStudents}
-            icon={Users}
-            to="/boletim"
-          />
-          <StatCard
-            title="Turmas Ativas"
-            value={activeClasses.length}
-            icon={School}
-            to="/boletim"
-          />
-          <StatCard
-            title="Professores Ativos"
-            value={activeTeachers}
-            icon={ClipboardCheck}
-            to="/mapa-turmas"
-          />
-          <StatCard
-            title="Módulos Finalizando Este Mês"
-            value={modulesEndingCount}
-            icon={CalendarClock}
-            to="/mapa-turmas"
-            state={{ filter: "endingThisMonth" }}
-            bgColor="bg-teal-100"
-            textColor="text-teal-600"
-          />
-          <StatCard
-            title="Certificados Prontos"
-            value={certificatesReady}
-            icon={GraduationCap}
-            to="/turma/concludentes"
-            bgColor="bg-green-100"
-            textColor="text-green-600"
-          />
-          <StatCard
-            title="Treinamentos Básicos"
-            value={tbClassesCount}
-            icon={BookOpenCheck}
-            to="/frequencia"
-            bgColor="bg-indigo-100"
-            textColor="text-indigo-600"
-          />
-          <StatCard
-            title="Cursos Extras"
-            value={extraCoursesCount}
-            icon={BookCopy}
-            to="/frequencia"
-            bgColor="bg-purple-100"
-            textColor="text-purple-600"
-          />
-          <StatCard
-            title="Tarefas a Fazer"
-            value={taskCounts.todo}
-            icon={ClipboardList}
-            to="/kanban"
-            bgColor="bg-red-100"
-            textColor="text-red-600"
-          />
-          <StatCard
-            title="Tarefas em Progresso"
-            value={taskCounts.inprogress}
-            icon={Loader}
-            to="/kanban"
-            bgColor="bg-yellow-100"
-            textColor="text-yellow-600"
-          />
+          {getVisibleCards()}
         </Slider>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 h-80 sm:h-96">
+        <div className={hasRestrictedAccess ? "lg:col-span-3 h-80 sm:h-96" : "lg:col-span-2 h-80 sm:h-96"}>
           <BarChart
             chartRef={barChartRef}
             chartData={moduleChartData}
             chartOptions={moduleChartOptions}
           />
         </div>
-        <div className="lg:col-span-1 h-80 sm:h-96">
-          <DoughnutChart
-            chartRef={doughnutChartRef}
-            chartData={doughnutChartData}
-            chartOptions={doughnutChartOptions}
-          />
-        </div>
+        {!hasRestrictedAccess && (
+          <div className="lg:col-span-1 h-80 sm:h-96">
+            <DoughnutChart
+              chartRef={doughnutChartRef}
+              chartData={doughnutChartData}
+              chartOptions={doughnutChartOptions}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

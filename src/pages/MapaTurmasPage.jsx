@@ -179,14 +179,16 @@ function MapaTurmasPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // --- MUDANÇA AQUI: Adicionada verificação para o perfil Secretaria ---
-  const isUserSecretaria = userProfile && userProfile.role === "secretaria";
+  // Verificação para perfis com acesso restrito
+  const isSecretaria = userProfile?.role === "secretaria";
+  const isComercial = userProfile?.role === "comercial";
+  const hasRestrictedAccess = isSecretaria || isComercial;
+
   const canEditMap =
     userProfile &&
     ["coordenador", "auxiliar_coordenacao", "diretor", "admin"].includes(
       userProfile.role
     );
-  // --- FIM DA MUDANÇA ---
 
   const [editingRowId, setEditingRowId] = useState(null);
   const [editedData, setEditedData] = useState({});
@@ -348,6 +350,12 @@ function MapaTurmasPage() {
   };
 
   const handleSaveEdit = async (turmaId) => {
+    const originalTurma = classes.find(t => t.id === turmaId);
+    if (!originalTurma) {
+      toast.error("Turma original não encontrada!");
+      return;
+    }
+
     const dataToSave = {
       professorName: editedData.instrutor,
       sala: editedData.sala,
@@ -355,11 +363,14 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
-      modules: [
-        { id: editedData.modulo_atual || "" },
-        { id: editedData.proximo_modulo || "" },
-      ],
+      modules: originalTurma.isMapaOnly
+        ? [
+          { id: editedData.modulo_atual || "" },
+          { id: editedData.proximo_modulo || "" },
+        ]
+        : originalTurma.modules,
     };
+
     const classDocRef = doc(db, "classes", turmaId);
     const promise = updateDoc(classDocRef, dataToSave);
     await toast.promise(promise, {
@@ -619,8 +630,8 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap font-semibold">
-                    {/* --- MUDANÇA AQUI: Renderização condicional do Link --- */}
-                    {!turma.isMapaOnly && !isUserSecretaria ? (
+                    {/* Renderização condicional do Link baseado no acesso */}
+                    {!turma.isMapaOnly && !hasRestrictedAccess ? (
                       <Link
                         to={`/turma/${turma.id}`}
                         className="text-blue-600 hover:underline"
@@ -652,8 +663,8 @@ function MapaTurmasPage() {
                           moduloAtual.includes("Finalizado")
                             ? "text-gray-500"
                             : moduloAtual === "Aguardando"
-                            ? "text-orange-600"
-                            : ""
+                              ? "text-orange-600"
+                              : ""
                         }
                       >
                         {moduloAtual}
