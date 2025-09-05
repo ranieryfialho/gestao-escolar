@@ -581,14 +581,6 @@ exports.listGraduates = functions.https.onRequest((req, res) => {
 
 exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== "POST") {
-      return res.status(405).send("Método não permitido");
-    }
-    const idToken = req.headers.authorization?.split("Bearer ")[1];
-
-    if (!(await isAdmin(idToken))) {
-      return res.status(403).json({ error: "Ação não autorizada." });
-    }
 
     const { updatedStudents } = req.body.data;
     if (!Array.isArray(updatedStudents)) {
@@ -602,13 +594,19 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
           const docRef = db
             .collection("concludentes")
             .doc(String(student.code));
+
           const dataToUpdate = {};
+
           if (student.grades) {
             dataToUpdate.grades = student.grades;
           }
           if (student.certificateStatus) {
             dataToUpdate.certificateStatus = student.certificateStatus;
           }
+          if (typeof student.observation === "string") {
+            dataToUpdate.observation = student.observation;
+          }
+
           if (Object.keys(dataToUpdate).length > 0) {
             batch.update(docRef, dataToUpdate);
           }
@@ -640,11 +638,17 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
 
     const { classId, date } = req.body.data;
     if (!classId || !date) {
-      return res.status(400).json({ error: "ID da turma e data são obrigatórios." });
+      return res
+        .status(400)
+        .json({ error: "ID da turma e data são obrigatórios." });
     }
 
     try {
-      const followUpDocRef = db.collection('classes').doc(classId).collection('academicFollowUp').doc(date);
+      const followUpDocRef = db
+        .collection("classes")
+        .doc(classId)
+        .collection("academicFollowUp")
+        .doc(date);
       const docSnap = await followUpDocRef.get();
 
       if (docSnap.exists) {
@@ -654,7 +658,9 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
       }
     } catch (error) {
       console.error("Erro ao buscar dados de acompanhamento:", error);
-      return res.status(500).json({ error: "Erro no servidor ao buscar dados." });
+      return res
+        .status(500)
+        .json({ error: "Erro no servidor ao buscar dados." });
     }
   });
 });
@@ -669,22 +675,29 @@ exports.saveFollowUpForDate = functions.https.onRequest((req, res) => {
     if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
     }
-    
+
     const { classId, date, followUpData } = req.body.data;
     if (!classId || !date || !followUpData) {
-       return res.status(400).json({ error: "Dados incompletos para salvar." });
+      return res.status(400).json({ error: "Dados incompletos para salvar." });
     }
 
     try {
-      const followUpDocRef = db.collection('classes').doc(classId).collection('academicFollowUp').doc(date);
+      const followUpDocRef = db
+        .collection("classes")
+        .doc(classId)
+        .collection("academicFollowUp")
+        .doc(date);
 
       await followUpDocRef.set(followUpData, { merge: true });
 
-      return res.status(200).json({ message: "Acompanhamento salvo com sucesso!" });
-
+      return res
+        .status(200)
+        .json({ message: "Acompanhamento salvo com sucesso!" });
     } catch (error) {
-        console.error("Erro ao salvar acompanhamento:", error);
-        return res.status(500).json({ error: "Erro no servidor ao salvar os dados." });
+      console.error("Erro ao salvar acompanhamento:", error);
+      return res
+        .status(500)
+        .json({ error: "Erro no servidor ao salvar os dados." });
     }
   });
 });

@@ -596,20 +596,43 @@ function ClassDetailsPage() {
 
   const handleSaveObservation = async (studentId, observationText) => {
     if (!turma) return;
-    const updatedStudents = turma.students.map((student) => {
-      if ((student.studentId || student.id) === studentId) {
-        return { ...student, observation: observationText };
-      }
-      return student;
-    });
 
-    try {
-      await updateClass(turma.id, { students: updatedStudents });
-      toast.success("Observação salva com sucesso!");
-      handleCloseObservationModal();
-    } catch (error) {
-      toast.error("Erro ao salvar observação.");
-      console.error(error);
+    const studentToUpdate = turma.students.find(
+      (s) => (s.studentId || s.id) === studentId
+    );
+
+    if (!studentToUpdate) {
+      toast.error("Aluno não encontrado para salvar a observação.");
+      return;
+    }
+
+    const updatedStudentPayload = {
+      ...studentToUpdate,
+      observation: observationText,
+    };
+
+    if (turma.isVirtual) {
+      await handleApiAction(
+        "updateGraduatesBatch",
+        {
+          updatedStudents: [updatedStudentPayload],
+        },
+        handleCloseObservationModal
+      );
+    } else {
+      const updatedStudents = turma.students.map((student) =>
+        (student.studentId || student.id) === studentId
+          ? updatedStudentPayload
+          : student
+      );
+      try {
+        await updateClass(turma.id, { students: updatedStudents });
+        toast.success("Observação salva com sucesso!");
+        handleCloseObservationModal();
+      } catch (error) {
+        toast.error("Erro ao salvar observação.");
+        console.error(error);
+      }
     }
   };
 
@@ -617,10 +640,7 @@ function ClassDetailsPage() {
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <Link
-        to="/boletim"
-        className="text-blue-600 hover:underline mb-6 block"
-      >
+      <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block">
         &larr; Voltar para o Boletim
       </Link>
 
