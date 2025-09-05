@@ -95,6 +95,8 @@ function ClassDetailsPage() {
 
   const [editingSubGrades, setEditingSubGrades] = useState({});
 
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
   const isUserProfessor =
     userProfile && ["professor", "professor_apoio"].includes(userProfile.role);
   const isUserAdmin =
@@ -288,7 +290,15 @@ function ClassDetailsPage() {
       rolesPermitidos.includes(user.role)
     );
     setTeacherList(filteredTeachers);
-  }, [turmaId, classes, users, studentSearchTerm, firebaseUser, navigate]);
+  }, [
+    turmaId,
+    classes,
+    users,
+    studentSearchTerm,
+    firebaseUser,
+    navigate,
+    refetchTrigger,
+  ]);
 
   const handleSaveWhatsappLink = async () => {
     await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
@@ -370,10 +380,14 @@ function ClassDetailsPage() {
       toast.error("Nenhum aluno válido encontrado no arquivo.");
       return;
     }
-    await handleApiAction("importStudentsBatch", {
-      classId: turma.id,
-      studentsToImport: importedStudents,
-    });
+    await handleApiAction(
+      "importStudentsBatch",
+      {
+        classId: turma.id,
+        studentsToImport: importedStudents,
+      },
+      () => setRefetchTrigger((prev) => prev + 1)
+    );
   };
 
   const handleSaveGrades = async (newGrades, newCertificateStatuses) => {
@@ -406,21 +420,14 @@ function ClassDetailsPage() {
       if (changedStudents.length === 0) {
         return toast.success("Nenhuma alteração foi feita.");
       }
-      await handleApiAction("updateGraduatesBatch", {
-        updatedStudents: changedStudents,
-      });
+      await handleApiAction(
+        "updateGraduatesBatch",
+        {
+          updatedStudents: changedStudents,
+        },
+        () => setRefetchTrigger((prev) => prev + 1)
+      );
     } else {
-      const changedStudents = turma.students
-        .filter((s) => newGrades[s.studentId || s.id])
-        .map((s) => ({
-          ...s,
-          grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
-        }));
-
-      if (changedStudents.length === 0) {
-        return toast.success("Nenhuma nota foi alterada.");
-      }
-
       const allUpdatedStudents = turma.students.map((s) => ({
         ...s,
         grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
@@ -448,7 +455,10 @@ function ClassDetailsPage() {
     await handleApiAction(
       "transferStudent",
       { studentData, sourceClassId, targetClassId },
-      () => handleCloseTransferModal()
+      () => {
+        handleCloseTransferModal();
+        setRefetchTrigger((prev) => prev + 1);
+      }
     );
   };
 
@@ -511,7 +521,9 @@ function ClassDetailsPage() {
     );
 
     if (turma.isVirtual) {
-      await handleApiAction("updateGraduatesBatch", { updatedStudents });
+      await handleApiAction("updateGraduatesBatch", { updatedStudents }, () =>
+        setRefetchTrigger((prev) => prev + 1)
+      );
     } else {
       await updateClass(turma.id, { students: updatedStudents });
     }
@@ -531,7 +543,10 @@ function ClassDetailsPage() {
         studentCode: newStudentData.code,
         studentName: newStudentData.name,
       },
-      () => handleCloseAddStudentModal()
+      () => {
+        handleCloseAddStudentModal();
+        setRefetchTrigger((prev) => prev + 1);
+      }
     );
   };
 
@@ -575,10 +590,13 @@ function ClassDetailsPage() {
     showConfirmationToast(
       `Remover "${studentNameToDelete}" da turma?`,
       async () => {
-        const updatedStudents = turma.students.filter(
-          (student) => (student.studentId || s.id) !== studentId
+        const studentToRemove = turma.students.find(
+          (s) => (s.studentId || s.id) === studentId
         );
-        await updateClass(turma.id, { students: updatedStudents });
+
+        await updateClass(turma.id, {
+          students: admin.firestore.FieldValue.arrayRemove(studentToRemove),
+        });
         toast.success("Aluno removido com sucesso.");
       }
     );
@@ -606,33 +624,34 @@ function ClassDetailsPage() {
       return;
     }
 
-    const updatedStudentPayload = {
+    const studentPayload = {
       ...studentToUpdate,
       observation: observationText,
     };
 
-    if (turma.isVirtual) {
-      await handleApiAction(
-        "updateGraduatesBatch",
-        {
-          updatedStudents: [updatedStudentPayload],
-        },
-        handleCloseObservationModal
-      );
-    } else {
-      const updatedStudents = turma.students.map((student) =>
-        (student.studentId || student.id) === studentId
-          ? updatedStudentPayload
-          : student
-      );
-      try {
+    try {
+      if (turma.isVirtual) {
+        // O handleApiAction já exibe um toast de sucesso.
+        await handleApiAction("updateGraduatesBatch", {
+          updatedStudents: [studentPayload],
+        });
+      } else {
+        // Lógica para turmas normais que não usa handleApiAction
+        const updatedStudents = turma.students.map((student) =>
+          (student.studentId || student.id) === studentId
+            ? { ...student, observation: observationText }
+            : student
+        );
         await updateClass(turma.id, { students: updatedStudents });
+        // <<-- TOAST MOVIDO PARA CÁ -->>
         toast.success("Observação salva com sucesso!");
-        handleCloseObservationModal();
-      } catch (error) {
-        toast.error("Erro ao salvar observação.");
-        console.error(error);
       }
+
+      handleCloseObservationModal();
+      setRefetchTrigger((prev) => prev + 1);
+    } catch (error) {
+      toast.error("Erro ao salvar observação.");
+      console.error(error);
     }
   };
 
