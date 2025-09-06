@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -50,14 +50,11 @@ const formatDateForDisplay = (dateValue) => {
   if (isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("pt-BR");
 };
-
 const formatDateForInput = (dateValue) => {
   if (!dateValue) return "";
   let date;
   if (typeof dateValue === "string") {
-    if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return dateValue;
-    }
+    if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) return dateValue;
     const [year, month, day] = dateValue.split("-");
     if (year && month && day) {
       date = new Date(
@@ -79,7 +76,6 @@ const formatDateForInput = (dateValue) => {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
   if (typeof dateValue === "string") {
@@ -100,75 +96,54 @@ const parseDate = (dateValue) => {
   return null;
 };
 
-const calculateDynamicModules = (turma) => {
+const getDisplayModules = (turma) => {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  let moduloAtual = "N/D";
-  let proximoModulo = "-";
+
   if (!turma.modules || turma.modules.length === 0) {
-    return { moduloAtual, proximoModulo };
+    return { moduloAtual: "Sem Módulos", proximoModulo: "-" };
   }
-  const modulosValidos = turma.modules.filter(
-    (mod) => mod.dataInicio && mod.dataTermino
-  );
-  if (modulosValidos.length === 0) {
-    if (turma.modules[0]?.id) {
-      moduloAtual = turma.modules[0].id;
-    }
-    if (turma.modules[1]?.id) {
-      proximoModulo = turma.modules[1].id;
-    }
-    return { moduloAtual, proximoModulo };
-  }
-  const modAtualEncontrado = modulosValidos.find((mod) => {
-    const inicio = parseDate(mod.dataInicio);
-    const termino = parseDate(mod.dataTermino);
-    if (!inicio || !termino) return false;
-    inicio.setHours(0, 0, 0, 0);
-    termino.setHours(23, 59, 59, 999);
-    return hoje >= inicio && hoje <= termino;
-  });
-  if (modAtualEncontrado) {
-    moduloAtual = modAtualEncontrado.id;
+
+  let currentModuleId;
+
+  if (turma.mapa_modulo_atual_id) {
+    currentModuleId = turma.mapa_modulo_atual_id;
   } else {
-    const modulosFuturos = modulosValidos
-      .filter((mod) => {
-        const inicio = parseDate(mod.dataInicio);
-        return inicio && inicio > hoje;
-      })
-      .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio));
-    if (modulosFuturos.length > 0) {
-      moduloAtual = "Aguardando";
+    const modAtualPorData = turma.modules.find((mod) => {
+      const inicio = parseDate(mod.dataInicio);
+      const termino = parseDate(mod.dataTermino);
+      return inicio && termino && hoje >= inicio && hoje <= termino;
+    });
+
+    if (modAtualPorData) {
+      currentModuleId = modAtualPorData.id;
     } else {
-      const modulosPassados = modulosValidos
+      const modulosPassados = turma.modules
         .filter((mod) => {
           const termino = parseDate(mod.dataTermino);
           return termino && termino < hoje;
         })
         .sort((a, b) => parseDate(b.dataTermino) - parseDate(a.dataTermino));
+
       if (modulosPassados.length > 0) {
-        moduloAtual = modulosPassados[0].id + " (Finalizado)";
-      } else if (turma.modules[0]?.id) {
-        moduloAtual = turma.modules[0].id;
+        currentModuleId = modulosPassados[0].id;
+      } else {
+        currentModuleId = turma.modules[0].id;
       }
     }
   }
-  const modulosFuturos = modulosValidos
-    .filter((mod) => {
-      const inicio = parseDate(mod.dataInicio);
-      return inicio && inicio > hoje;
-    })
-    .sort((a, b) => parseDate(a.dataInicio) - parseDate(b.dataInicio));
-  if (modulosFuturos.length > 0) {
-    proximoModulo = modulosFuturos[0].id;
-  } else {
-    const indexAtual = turma.modules.findIndex(
-      (mod) => mod.id === moduloAtual.replace(" (Finalizado)", "")
-    );
-    if (indexAtual >= 0 && indexAtual < turma.modules.length - 1) {
-      proximoModulo = turma.modules[indexAtual + 1].id;
-    }
+
+  const currentIndex = turma.modules.findIndex(
+    (mod) => mod.id === currentModuleId
+  );
+
+  if (currentIndex === -1) {
+    return { moduloAtual: currentModuleId, proximoModulo: "N/A" };
   }
+
+  const moduloAtual = turma.modules[currentIndex].id;
+  const proximoModulo = turma.modules[currentIndex + 1]?.id || "Finalizado";
+
   return { moduloAtual, proximoModulo };
 };
 
@@ -179,16 +154,13 @@ function MapaTurmasPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Verificação para perfis com acesso restrito
-  const isSecretaria = userProfile?.role === "secretaria";
-  const isComercial = userProfile?.role === "comercial";
-  const hasRestrictedAccess = isSecretaria || isComercial;
-
   const canEditMap =
     userProfile &&
     ["coordenador", "auxiliar_coordenacao", "diretor", "admin"].includes(
       userProfile.role
     );
+  const hasRestrictedAccess =
+    userProfile?.role === "secretaria" || userProfile?.role === "comercial";
 
   const [editingRowId, setEditingRowId] = useState(null);
   const [editedData, setEditedData] = useState({});
@@ -197,13 +169,7 @@ function MapaTurmasPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState(location.state || null);
 
-  const handleInstructorSelect = (instructorName) => {
-    if (selectedInstructor === instructorName) {
-      setSelectedInstructor(null);
-    } else {
-      setSelectedInstructor(instructorName);
-    }
-  };
+  const moduleOptions = Object.keys(masterModuleList);
 
   const sortedClasses = useMemo(() => {
     const dayOrder = {
@@ -226,11 +192,7 @@ function MapaTurmasPage() {
         const timeB = b.horario
           ? parseInt(b.horario.replace(":", ""), 10)
           : 9999;
-        if (timeA !== timeB) return timeA - timeB;
-        const numA = parseInt(a.name, 10);
-        const numB = parseInt(b.name, 10);
-        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-        return a.name.localeCompare(b.name);
+        return timeA - timeB;
       });
   }, [classes]);
 
@@ -250,24 +212,9 @@ function MapaTurmasPage() {
   const filteredClasses = useMemo(() => {
     let result = sortedClasses;
     if (activeFilter?.filter === "module" && activeFilter.moduleName) {
-      result = result.filter((turma) => {
-        const { moduloAtual } = calculateDynamicModules(turma);
-        return moduloAtual.startsWith(activeFilter.moduleName);
-      });
-    }
-    if (activeFilter?.filter === "endingThisMonth") {
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
-      result = result.filter((turma) => {
-        if (!turma.dataTermino) return false;
-        const termDate = parseDate(turma.dataTermino);
-        return (
-          termDate &&
-          termDate.getMonth() === currentMonth &&
-          termDate.getFullYear() === currentYear
-        );
-      });
+      result = result.filter((turma) =>
+        getDisplayModules(turma).moduloAtual.startsWith(activeFilter.moduleName)
+      );
     }
     if (selectedInstructor) {
       result = result.filter(
@@ -284,7 +231,7 @@ function MapaTurmasPage() {
           turma.sala,
           turma.horario,
           turma.dia_semana,
-          turma.modules?.[0]?.id,
+          getDisplayModules(turma).moduloAtual,
         ]
           .join(" ")
           .toLowerCase()
@@ -294,7 +241,6 @@ function MapaTurmasPage() {
     return result;
   }, [sortedClasses, selectedInstructor, searchTerm, activeFilter]);
 
-  const moduleOptions = Object.keys(masterModuleList);
   const instructorOptions = users.filter((u) =>
     [
       "professor",
@@ -324,18 +270,15 @@ function MapaTurmasPage() {
 
   const handleStartEdit = (turma) => {
     setEditingRowId(turma.id);
-    const { moduloAtual, proximoModulo } = calculateDynamicModules(turma);
+    const { moduloAtual } = getDisplayModules(turma);
     setEditedData({
-      modulo_atual: moduloAtual
-        .replace(" (Finalizado)", "")
-        .replace("Aguardando", ""),
-      proximo_modulo: proximoModulo === "-" ? "" : proximoModulo,
       data_inicio: formatDateForInput(turma.dataInicio),
       data_termino: formatDateForInput(turma.dataTermino),
       instrutor: turma.professorName || "",
       sala: turma.sala || "",
       horario: turma.horario || "",
       dia_semana: turma.dia_semana || "",
+      modulo_atual: turma.mapa_modulo_atual_id || "AUTOMATICO",
     });
   };
 
@@ -343,19 +286,12 @@ function MapaTurmasPage() {
     setEditingRowId(null);
     setEditedData({});
   };
-
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditedData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSaveEdit = async (turmaId) => {
-    const originalTurma = classes.find((t) => t.id === turmaId);
-    if (!originalTurma) {
-      toast.error("Erro: Turma original não encontrada!");
-      return;
-    }
-
     const dataToSave = {
       professorName: editedData.instrutor,
       sala: editedData.sala,
@@ -363,35 +299,12 @@ function MapaTurmasPage() {
       dataInicio: editedData.data_inicio,
       dataTermino: editedData.data_termino,
       dia_semana: editedData.dia_semana,
+      mapa_modulo_atual_id:
+        editedData.modulo_atual === "AUTOMATICO" ? "" : editedData.modulo_atual,
     };
 
-    if (originalTurma.isMapaOnly) {
-      dataToSave.modules = [
-        { id: editedData.modulo_atual || "" },
-        { id: editedData.proximo_modulo || "" },
-      ];
-    } else {
-      const newCurrentModuleId = editedData.modulo_atual;
-      const originalModules = originalTurma.modules || [];
-
-      const newStartIndex = originalModules.findIndex(
-        (m) => m.id === newCurrentModuleId
-      );
-
-      if (newStartIndex !== -1) {
-        dataToSave.modules = originalModules.slice(newStartIndex);
-      } else {
-        toast.error(
-          `O módulo "${newCurrentModuleId}" não faz parte da grade original desta turma. A sequência de módulos não foi alterada.`
-        );
-        dataToSave.modules = originalModules;
-      }
-    }
-
     const classDocRef = doc(db, "classes", turmaId);
-    const promise = updateDoc(classDocRef, dataToSave);
-
-    await toast.promise(promise, {
+    await toast.promise(updateDoc(classDocRef, dataToSave), {
       loading: "Salvando alterações...",
       success: "Turma atualizada com sucesso!",
       error: "Erro ao atualizar a turma.",
@@ -401,36 +314,32 @@ function MapaTurmasPage() {
   };
 
   const handleDeleteMapClass = async (turmaId, turmaName) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-3 p-2">
-          <span className="text-center">Apagar "{turmaName}"?</span>
-          <div className="flex gap-2">
-            <button
-              className="w-full bg-red-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-700"
-              onClick={async () => {
-                const promise = deleteDoc(doc(db, "classes", turmaId));
-                await toast.promise(promise, {
-                  loading: "Apagando...",
-                  success: "Turma apagada do mapa.",
-                  error: "Erro ao apagar turma.",
-                });
-                toast.dismiss(t.id);
-              }}
-            >
-              Confirmar
-            </button>
-            <button
-              className="w-full bg-gray-300 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-gray-400"
-              onClick={() => toast.dismiss(t.id)}
-            >
-              Cancelar
-            </button>
-          </div>
+    toast((t) => (
+      <div className="flex flex-col gap-3 p-2">
+        <span>Apagar "{turmaName}"?</span>
+        <div className="flex gap-2">
+          <button
+            className="w-full bg-red-600 text-white font-bold px-4 py-2 rounded-lg"
+            onClick={async () => {
+              await toast.promise(deleteDoc(doc(db, "classes", turmaId)), {
+                loading: "Apagando...",
+                success: "Turma apagada.",
+                error: "Erro.",
+              });
+              toast.dismiss(t.id);
+            }}
+          >
+            Confirmar
+          </button>
+          <button
+            className="w-full bg-gray-300 px-4 py-2 rounded-lg"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Cancelar
+          </button>
         </div>
-      ),
-      { duration: 6000 }
-    );
+      </div>
+    ));
   };
 
   const handleAddMapClass = async (formData) => {
@@ -446,82 +355,37 @@ function MapaTurmasPage() {
       isMapaOnly: true,
       students: [],
     };
-    const promise = addDoc(collection(db, "classes"), dataToSave);
-    await toast.promise(promise, {
+    await toast.promise(addDoc(collection(db, "classes"), dataToSave), {
       loading: "Adicionando...",
       success: "Turma de planejamento adicionada!",
-      error: "Erro ao adicionar turma.",
+      error: "Erro.",
     });
     setIsAddModalOpen(false);
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(18);
-    doc.text("Mapa de Turmas", 14, 22);
-    const tableColumn = [
-      "Dia",
-      "Horário",
-      "Turma",
-      "Módulo Atual",
-      "Próx. Módulo",
-      "Início",
-      "Término",
-      "Instrutor",
-      "Sala",
-    ];
-    const tableRows = [];
-    filteredClasses.forEach((turma) => {
-      const { moduloAtual, proximoModulo } = calculateDynamicModules(turma);
-      const turmaData = [
-        turma.dia_semana || "-",
-        turma.horario || "-",
-        turma.name || "N/D",
-        moduloAtual,
-        proximoModulo,
-        formatDateForDisplay(turma.dataInicio),
-        formatDateForDisplay(turma.dataTermino),
-        turma.professorName || "A definir",
-        turma.sala || "-",
-      ];
-      tableRows.push(turmaData);
-    });
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 30,
-    });
-    doc.save("mapa-de-turmas.pdf");
   };
 
-  if (loadingClasses) {
+  if (loadingClasses)
     return <div className="p-8">Carregando mapa de turmas...</div>;
-  }
-
-  let filterMessage = null;
-  if (activeFilter?.filter === "endingThisMonth") {
-    filterMessage = "Mostrando turmas que finalizam este mês.";
-  } else if (activeFilter?.filter === "module") {
-    filterMessage = `Mostrando turmas no módulo: ${activeFilter.moduleName}.`;
-  }
 
   return (
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Mapa de Turmas</h1>
+        <h1 className="text-2xl font-bold">Mapa de Turmas</h1>
         <div className="flex items-center gap-4">
           {canEditMap && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+              className="flex items-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700"
             >
               <PlusCircle size={18} />
-              <span>Adicionar Curso Extra/TB</span>
+              <span>Adicionar Curso Extra</span>
             </button>
           )}
           <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             <FileDown size={18} />
             <span>Exportar PDF</span>
@@ -536,65 +400,66 @@ function MapaTurmasPage() {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar turma, instrutor, sala, horário, dia ou módulo..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Buscar turma, instrutor, sala, módulo..."
+          className="w-full pl-10 pr-4 py-2 border rounded-lg"
         />
       </div>
       <InstructorStats
         stats={instructorStats}
-        onSelect={handleInstructorSelect}
+        onSelect={(name) =>
+          setSelectedInstructor(selectedInstructor === name ? null : name)
+        }
         selected={selectedInstructor}
       />
-      {filterMessage && (
-        <div className="flex justify-between items-center mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <span className="text-sm font-semibold text-blue-800">
-            {filterMessage}
-          </span>
+      {activeFilter && (
+        <div className="flex justify-between items-center mb-4 p-3 bg-blue-50 border-blue-200 rounded-lg">
+          <span className="text-sm font-semibold text-blue-800">{`Filtro ativo: ${activeFilter.moduleName}`}</span>
           <button
             onClick={() => {
               setActiveFilter(null);
               navigate(location.pathname, { replace: true, state: {} });
             }}
-            className="flex items-center gap-1 text-sm text-red-600 hover:underline font-bold"
+            className="flex items-center gap-1 text-sm text-red-600 font-bold"
           >
             <XCircle size={16} />
-            Limpar Filtro
+            Limpar
           </button>
         </div>
       )}
+
       <div className="bg-white rounded-lg shadow-md overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Dia
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Horário
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Turma
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Módulo Atual
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Próx. Módulo
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Início
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Término
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Instrutor
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
                 Sala
               </th>
               {canEditMap && (
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-center font-medium text-gray-500 uppercase">
                   Ações
                 </th>
               )}
@@ -603,22 +468,28 @@ function MapaTurmasPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredClasses.map((turma) => {
               const isEditing = editingRowId === turma.id;
-              const { moduloAtual, proximoModulo } =
-                calculateDynamicModules(turma);
+              const { moduloAtual, proximoModulo } = getDisplayModules(turma);
+              const displayProximoModulo = isEditing
+                ? turma.modules[
+                    turma.modules.findIndex(
+                      (m) => m.id === editedData.modulo_atual
+                    ) + 1
+                  ]?.id || "Finalizado"
+                : proximoModulo;
+
               return (
                 <tr
                   key={turma.id}
                   className={isEditing ? "bg-blue-50" : "hover:bg-gray-50"}
                 >
                   <td className="p-1 font-semibold">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <select
                         name="dia_semana"
                         value={editedData.dia_semana}
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="">Selecione...</option>
                         {dayOptions.map((d) => (
                           <option key={d} value={d}>
                             {d}
@@ -630,14 +501,13 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <select
                         name="horario"
                         value={editedData.horario}
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="">Selecione...</option>
                         {scheduleOptions.map((s) => (
                           <option key={s} value={s}>
                             {s}
@@ -648,8 +518,7 @@ function MapaTurmasPage() {
                       turma.horario || "-"
                     )}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap font-semibold">
-                    {/* Renderização condicional do Link baseado no acesso */}
+                  <td className="px-4 py-2 font-semibold">
                     {!turma.isMapaOnly && !hasRestrictedAccess ? (
                       <Link
                         to={`/turma/${turma.id}`}
@@ -658,59 +527,36 @@ function MapaTurmasPage() {
                         {turma.name}
                       </Link>
                     ) : (
-                      <span className="text-gray-900">{turma.name}</span>
+                      <span>{turma.name}</span>
                     )}
                   </td>
-                  <td className="px-4 py-2">
-                    {isEditing && canEditMap ? (
+
+                  <td className="p-1">
+                    {isEditing ? (
                       <select
                         name="modulo_atual"
                         value={editedData.modulo_atual}
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="">Selecione...</option>
-                        {moduleOptions.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
+                        <option value="AUTOMATICO">
+                          -- Automático por Data --
+                        </option>
+
+                        {moduleOptions.map((modId) => (
+                          <option key={modId} value={modId}>
+                            {modId}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <span
-                        className={
-                          moduloAtual.includes("Finalizado")
-                            ? "text-gray-500"
-                            : moduloAtual === "Aguardando"
-                            ? "text-orange-600"
-                            : ""
-                        }
-                      >
-                        {moduloAtual}
-                      </span>
+                      <span>{moduloAtual}</span>
                     )}
                   </td>
-                  <td className="px-4 py-2">
-                    {isEditing && canEditMap ? (
-                      <select
-                        name="proximo_modulo"
-                        value={editedData.proximo_modulo}
-                        onChange={handleEditChange}
-                        className="w-full p-2 border rounded-md"
-                      >
-                        <option value="">Selecione...</option>
-                        {moduleOptions.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      proximoModulo
-                    )}
-                  </td>
+                  <td className="px-4 py-2">{displayProximoModulo}</td>
+
                   <td className="p-1">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <input
                         type="date"
                         name="data_inicio"
@@ -723,7 +569,7 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <input
                         type="date"
                         name="data_termino"
@@ -736,14 +582,14 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <select
                         name="instrutor"
                         value={editedData.instrutor}
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="">Selecione...</option>
+                        <option value="">A definir</option>
                         {instructorOptions.map((i) => (
                           <option key={i.id} value={i.name}>
                             {i.name}
@@ -755,14 +601,14 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="p-1">
-                    {isEditing && canEditMap ? (
+                    {isEditing ? (
                       <select
                         name="sala"
                         value={editedData.sala}
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="">Selecione...</option>
+                        <option value="">A definir</option>
                         {roomOptions.map((r) => (
                           <option key={r} value={r}>
                             {r}
@@ -773,8 +619,9 @@ function MapaTurmasPage() {
                       turma.sala || "-"
                     )}
                   </td>
+
                   {canEditMap && (
-                    <td className="px-4 py-2 whitespace-nowrap">
+                    <td className="px-4 py-2">
                       <div className="flex items-center justify-center gap-4">
                         {isEditing ? (
                           <>
@@ -798,7 +645,7 @@ function MapaTurmasPage() {
                             <button
                               onClick={() => handleStartEdit(turma)}
                               className="text-blue-600 hover:text-blue-800"
-                              title="Editar Linha"
+                              title="Editar"
                             >
                               <Pencil size={16} />
                             </button>
@@ -808,7 +655,7 @@ function MapaTurmasPage() {
                                   handleDeleteMapClass(turma.id, turma.name)
                                 }
                                 className="text-red-600 hover:text-red-800"
-                                title="Apagar Linha"
+                                title="Apagar"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -825,7 +672,7 @@ function MapaTurmasPage() {
         </table>
         {filteredClasses.length === 0 && (
           <p className="text-center text-gray-500 py-8">
-            Nenhuma turma de planejamento encontrada.
+            Nenhuma turma encontrada.
           </p>
         )}
       </div>
