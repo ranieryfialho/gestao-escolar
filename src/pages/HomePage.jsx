@@ -19,7 +19,6 @@ import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
-import { getElementAtEvent } from "react-chartjs-2";
 import "../styles/slider.css";
 
 const StatCard = ({
@@ -57,6 +56,68 @@ const StatCard = ({
   );
 };
 
+const parseDate = (dateValue) => {
+  if (!dateValue) return null;
+  if (typeof dateValue === "string") {
+    if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateValue.split("-");
+      return new Date(
+        Number.parseInt(year),
+        Number.parseInt(month) - 1,
+        Number.parseInt(day)
+      );
+    }
+    return new Date(dateValue);
+  } else if (dateValue.toDate) {
+    return dateValue.toDate();
+  } else if (dateValue instanceof Date) {
+    return dateValue;
+  }
+  return null;
+};
+
+const getDisplayModules = (turma) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    if (!turma.modules || turma.modules.length === 0) {
+        return { moduloAtual: "Sem Módulos" };
+    }
+
+    let currentModuleId;
+
+    if (turma.mapa_modulo_atual_id) {
+        currentModuleId = turma.mapa_modulo_atual_id;
+    } else {
+        const modAtualPorData = turma.modules.find((mod) => {
+            const inicio = parseDate(mod.startDate);
+            const termino = parseDate(mod.endDate);
+            return inicio && termino && hoje >= inicio && hoje <= termino;
+        });
+
+        if (modAtualPorData) {
+            currentModuleId = modAtualPorData.id;
+        } else {
+            const modulosPassados = turma.modules
+                .filter((mod) => {
+                    const termino = parseDate(mod.endDate);
+                    return termino && termino < hoje;
+                })
+                .sort((a, b) => parseDate(b.endDate) - parseDate(a.endDate));
+
+            if (modulosPassados.length > 0) {
+                currentModuleId = modulosPassados[0].id;
+            } else if (turma.modules.length > 0) {
+                currentModuleId = turma.modules[0].id;
+            } else {
+                currentModuleId = "N/D";
+            }
+        }
+    }
+    return { moduloAtual: currentModuleId };
+};
+
+
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
   const { userProfile } = useAuth();
@@ -65,13 +126,11 @@ function HomePage() {
   const barChartRef = useRef();
   const doughnutChartRef = useRef();
 
-  // Definir variáveis de controle de acesso
   const isSecretaria = userProfile?.role === "secretaria";
   const isComercial = userProfile?.role === "comercial";
   const hasRestrictedAccess = isSecretaria || isComercial;
 
   useEffect(() => {
-    // Só carregar tasks se o usuário não tiver acesso restrito
     if (!hasRestrictedAccess) {
       const tasksQuery = query(
         collection(db, "tasks"),
@@ -116,9 +175,7 @@ function HomePage() {
     (sum, c) => sum + (c.students?.length || 0),
     0
   );
-  const activeTeachers = new Set(
-    activeClasses.map((c) => c.professorName).filter(Boolean)
-  ).size;
+  
   const certificatesReady = graduates.filter(
     (g) =>
       g.certificateStatus === "impresso" || g.certificateStatus === "entregue"
@@ -133,35 +190,60 @@ function HomePage() {
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
+
   const classesWithModulesEndingThisMonth = activeClasses.filter((turma) => {
-    if (!turma.dataTermino) return false;
-    let termDate;
-    if (turma.dataTermino.toDate) {
-      termDate = turma.dataTermino.toDate();
-    } else if (typeof turma.dataTermino === "string") {
-      termDate = new Date(turma.dataTermino + "T12:00:00");
-    } else {
-      termDate = new Date(turma.dataTermino);
+    if (!turma.modules || turma.modules.length === 0) {
+        const termDate = parseDate(turma.dataTermino);
+        return termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear;
     }
-    return (
-      termDate.getMonth() === currentMonth &&
-      termDate.getFullYear() === currentYear
-    );
+    
+    return turma.modules.some(mod => {
+        const termDate = parseDate(mod.endDate || mod.dataTermino || turma.dataTermino);
+        return termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear;
+    });
   });
   const modulesEndingCount = classesWithModulesEndingThisMonth.length;
+  
+  const classesEndingCourseThisMonth = activeClasses.filter((turma) => {
+    const { moduloAtual } = getDisplayModules(turma);
+    const isLastModule = moduloAtual === 'CMV';
+    
+    const termDate = parseDate(turma.dataTermino);
+    const isEndingThisMonth = termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear;
+
+    return isLastModule && isEndingThisMonth;
+  });
+  const courseEndingCount = classesEndingCourseThisMonth.length;
+
+
+  // ### LÓGICA DO GRÁFICO - CORREÇÃO DA ORDEM ###
+  const moduleOrder = ['ICN', 'OFFA', 'ADM', 'PWB', 'TRI', 'CMV'];
 
   const moduleCounts = activeClasses.reduce((acc, turma) => {
-    const currentModule = turma.modules?.[0]?.id || "N/D";
-    acc[currentModule] = (acc[currentModule] || 0) + 1;
+    const { moduloAtual } = getDisplayModules(turma);
+    acc[moduloAtual] = (acc[moduloAtual] || 0) + 1;
     return acc;
   }, {});
   
+  // Filtra e ordena os módulos de acordo com a ordem definida
+  const allModulesInChart = Object.keys(moduleCounts);
+  const sortedLabels = moduleOrder.filter(mod => allModulesInChart.includes(mod));
+  
+  // Pega os módulos restantes que não estão na ordem definida (ex: "N/D")
+  const remainingLabels = allModulesInChart.filter(mod => !moduleOrder.includes(mod));
+  
+  // Combina os módulos ordenados com os restantes
+  const finalLabels = [...sortedLabels, ...remainingLabels];
+  
+  // Mapeia os dados (contagens) na nova ordem
+  const finalData = finalLabels.map(label => moduleCounts[label]);
+
   const moduleChartData = {
-    labels: Object.keys(moduleCounts),
+    labels: finalLabels,
     datasets: [
       {
         label: "Nº de Turmas",
-        data: Object.values(moduleCounts),
+        data: finalData,
         backgroundColor: "rgba(59, 130, 246, 0.6)",
         borderColor: "rgba(59, 130, 246, 1)",
         borderWidth: 1,
@@ -195,7 +277,6 @@ function HomePage() {
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
 
-  // Só calcular dados de notas se o usuário não tiver acesso restrito
   let studentsWithLowGrades = [];
   let gradeStatusCounts = { green: 0, red: 0 };
   let doughnutChartData = null;
@@ -272,10 +353,8 @@ function HomePage() {
     };
   }
 
-  // Filtrar cards baseado na role do usuário
   const getVisibleCards = () => {
     if (hasRestrictedAccess) {
-      // Cards específicos APENAS para secretaria e comercial
       return [
         <StatCard
           key="mapa-turmas"
@@ -312,11 +391,10 @@ function HomePage() {
           to="/frequencia"
           bgColor="bg-indigo-100"
           textColor="text-indigo-600"
-        />
+        />,
       ];
     }
 
-    // Retornar todos os cards para outros usuários
     return [
       <StatCard
         key="students"
@@ -333,11 +411,14 @@ function HomePage() {
         to="/boletim"
       />,
       <StatCard
-        key="teachers"
-        title="Professores Ativos"
-        value={activeTeachers}
-        icon={ClipboardCheck}
+        key="course-ending"
+        title="Turmas Finalizando (em CMV)"
+        value={courseEndingCount}
+        icon={GraduationCap} 
         to="/mapa-turmas"
+        state={{ filter: "endingCourseThisMonth" }}
+        bgColor="bg-orange-100"
+        textColor="text-orange-600"
       />,
       <StatCard
         key="modules-ending"
@@ -393,7 +474,7 @@ function HomePage() {
         to="/kanban"
         bgColor="bg-yellow-100"
         textColor="text-yellow-600"
-      />
+      />,
     ];
   };
 
@@ -401,7 +482,6 @@ function HomePage() {
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Geral</h1>
       
-      {/* Seção de boas-vindas */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <h2 className="text-2xl font-bold text-gray-800">
           Bem-vindo(a), {userProfile?.name || "Usuário"}!

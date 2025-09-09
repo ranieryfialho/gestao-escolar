@@ -110,8 +110,8 @@ const getDisplayModules = (turma) => {
     currentModuleId = turma.mapa_modulo_atual_id;
   } else {
     const modAtualPorData = turma.modules.find((mod) => {
-      const inicio = parseDate(mod.dataInicio);
-      const termino = parseDate(mod.dataTermino);
+      const inicio = parseDate(mod.dataInicio || mod.startDate);
+      const termino = parseDate(mod.dataTermino || mod.endDate);
       return inicio && termino && hoje >= inicio && hoje <= termino;
     });
 
@@ -120,10 +120,14 @@ const getDisplayModules = (turma) => {
     } else {
       const modulosPassados = turma.modules
         .filter((mod) => {
-          const termino = parseDate(mod.dataTermino);
+          const termino = parseDate(mod.dataTermino || mod.endDate);
           return termino && termino < hoje;
         })
-        .sort((a, b) => parseDate(b.dataTermino) - parseDate(a.dataTermino));
+        .sort(
+          (a, b) =>
+            parseDate(b.dataTermino || b.endDate) -
+            parseDate(a.dataTermino || a.endDate)
+        );
 
       if (modulosPassados.length > 0) {
         currentModuleId = modulosPassados[0].id;
@@ -211,11 +215,60 @@ function MapaTurmasPage() {
 
   const filteredClasses = useMemo(() => {
     let result = sortedClasses;
-    if (activeFilter?.filter === "module" && activeFilter.moduleName) {
-      result = result.filter((turma) =>
-        getDisplayModules(turma).moduloAtual.startsWith(activeFilter.moduleName)
-      );
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    if (activeFilter?.filter) {
+      switch (activeFilter.filter) {
+        case "endingCourseThisMonth":
+          result = result.filter((turma) => {
+            const { moduloAtual } = getDisplayModules(turma);
+            const isLastModule = moduloAtual === "CMV";
+            const termDate = parseDate(turma.dataTermino);
+            const isEndingThisMonth =
+              termDate &&
+              termDate.getMonth() === currentMonth &&
+              termDate.getFullYear() === currentYear;
+            return isLastModule && isEndingThisMonth;
+          });
+          break;
+        case "endingThisMonth":
+          result = result.filter((turma) => {
+            if (!turma.modules || turma.modules.length === 0) {
+              const termDate = parseDate(turma.dataTermino);
+              return (
+                termDate &&
+                termDate.getMonth() === currentMonth &&
+                termDate.getFullYear() === currentYear
+              );
+            }
+            return turma.modules.some((module) => {
+              const termDate = parseDate(
+                module.dataTermino || module.endDate || turma.dataTermino
+              );
+              return (
+                termDate &&
+                termDate.getMonth() === currentMonth &&
+                termDate.getFullYear() === currentYear
+              );
+            });
+          });
+          break;
+        case "module":
+          if (activeFilter.moduleName) {
+            result = result.filter((turma) =>
+              getDisplayModules(turma).moduloAtual.startsWith(
+                activeFilter.moduleName
+              )
+            );
+          }
+          break;
+        default:
+          break;
+      }
     }
+
     if (selectedInstructor) {
       result = result.filter(
         (turma) =>
@@ -270,7 +323,6 @@ function MapaTurmasPage() {
 
   const handleStartEdit = (turma) => {
     setEditingRowId(turma.id);
-    const { moduloAtual } = getDisplayModules(turma);
     setEditedData({
       data_inicio: formatDateForInput(turma.dataInicio),
       data_termino: formatDateForInput(turma.dataTermino),
@@ -364,6 +416,23 @@ function MapaTurmasPage() {
   };
 
   const handleExportPDF = () => {
+    const doc = new jsPDF();
+    autoTable(doc, { html: "#mapa-turmas-table" });
+    doc.save("mapa-de-turmas.pdf");
+  };
+
+  const getActiveFilterText = () => {
+    if (!activeFilter || !activeFilter.filter) return "";
+    switch (activeFilter.filter) {
+      case "endingCourseThisMonth":
+        return "Turmas finalizando em CMV este mês";
+      case "endingThisMonth":
+        return "Módulos finalizando este mês";
+      case "module":
+        return activeFilter.moduleName;
+      default:
+        return "";
+    }
   };
 
   if (loadingClasses)
@@ -411,9 +480,12 @@ function MapaTurmasPage() {
         }
         selected={selectedInstructor}
       />
-      {activeFilter && (
+
+      {activeFilter && activeFilter.filter && (
         <div className="flex justify-between items-center mb-4 p-3 bg-blue-50 border-blue-200 rounded-lg">
-          <span className="text-sm font-semibold text-blue-800">{`Filtro ativo: ${activeFilter.moduleName}`}</span>
+          <span className="text-sm font-semibold text-blue-800">
+            {`Filtro ativo: ${getActiveFilterText()}`}
+          </span>
           <button
             onClick={() => {
               setActiveFilter(null);
@@ -428,7 +500,10 @@ function MapaTurmasPage() {
       )}
 
       <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <table
+          id="mapa-turmas-table"
+          className="min-w-full divide-y divide-gray-200 text-sm"
+        >
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">
@@ -530,7 +605,6 @@ function MapaTurmasPage() {
                       <span>{turma.name}</span>
                     )}
                   </td>
-
                   <td className="p-1">
                     {isEditing ? (
                       <select
@@ -542,7 +616,6 @@ function MapaTurmasPage() {
                         <option value="AUTOMATICO">
                           -- Automático por Data --
                         </option>
-
                         {moduleOptions.map((modId) => (
                           <option key={modId} value={modId}>
                             {modId}
@@ -554,7 +627,6 @@ function MapaTurmasPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">{displayProximoModulo}</td>
-
                   <td className="p-1">
                     {isEditing ? (
                       <input
@@ -619,7 +691,6 @@ function MapaTurmasPage() {
                       turma.sala || "-"
                     )}
                   </td>
-
                   {canEditMap && (
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-center gap-4">
