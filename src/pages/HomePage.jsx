@@ -412,7 +412,7 @@ function HomePage() {
       />,
       <StatCard
         key="course-ending"
-        title="Turmas Finalizando (em CMV)"
+        title="Turmas Finalizando Este Mês"
         value={courseEndingCount}
         icon={GraduationCap} 
         to="/mapa-turmas"
