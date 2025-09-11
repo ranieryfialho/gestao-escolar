@@ -51,7 +51,7 @@ function BoletimPage() {
     setTeacherList(users.filter((user) => rolesPermitidos.includes(user.role)));
   }, [users]);
 
-  // Filtra as turmas normais
+  // Filtra as turmas normais - VERSÃO MELHORADA
   useEffect(() => {
     if (loadingClasses || !selectedSchoolId) {
       setFilteredClasses([]);
@@ -64,12 +64,52 @@ function BoletimPage() {
         !c.isMapaOnly &&
         c.name !== "CONCLUDENTES"
     );
-    const results = schoolClasses.filter(
-      (turma) =>
-        turma.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (turma.professorName &&
-          turma.professorName.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const results = schoolClasses.filter((turma) => {
+      const searchTermLower = searchTerm.toLowerCase();
+
+      // Busca pelo nome da turma
+      if (turma.name.toLowerCase().includes(searchTermLower)) {
+        return true;
+      }
+
+      // Busca pelo nome do professor
+      if (
+        turma.professorName &&
+        turma.professorName.toLowerCase().includes(searchTermLower)
+      ) {
+        return true;
+      }
+
+      // Busca por aluno (nome ou código/matrícula)
+      if (turma.students && turma.students.length > 0) {
+        const studentMatch = turma.students.some((student) => {
+          // Busca pelo nome do aluno
+          const nameMatch =
+            student.name &&
+            student.name.toLowerCase().includes(searchTermLower);
+
+          // Busca pelo código/matrícula do aluno
+          const codeMatch =
+            student.code &&
+            student.code.toString().toLowerCase().includes(searchTermLower);
+
+          // Busca pelo campo matricula (caso ainda exista em alguns registros)
+          const matriculaMatch =
+            student.matricula &&
+            student.matricula
+              .toString()
+              .toLowerCase()
+              .includes(searchTermLower);
+
+          return nameMatch || codeMatch || matriculaMatch;
+        });
+        if (studentMatch) {
+          return true;
+        }
+      }
+
+      return false;
+    });
     results.sort((a, b) => a.name.localeCompare(b.name));
     setFilteredClasses(results);
   }, [classes, loadingClasses, selectedSchoolId, searchTerm]);
@@ -152,7 +192,7 @@ function BoletimPage() {
           <input
             id="search-input"
             type="text"
-            placeholder="Buscar por turma, professor ou aluno..."
+            placeholder="Buscar por turma, professor, nome do aluno ou matrícula..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
