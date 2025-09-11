@@ -6,9 +6,12 @@ import { useUsers } from "../contexts/UserContext";
 import CreateClassForm from "../components/CreateClassForm";
 import { modulePackages, masterModuleList } from "../data/mockData";
 import toast from "react-hot-toast";
-import { GraduationCap, Users, School } from "lucide-react"; // Adicionado School
+import { GraduationCap, Users, School } from "lucide-react";
 import { db } from "../firebase";
 import { collection, getDocs } from "firebase/firestore";
+
+// Constante para a chave do localStorage
+const SELECTED_SCHOOL_KEY = "boletim_selected_school_id";
 
 function BoletimPage() {
   const { userProfile } = useAuth();
@@ -40,6 +43,37 @@ function BoletimPage() {
     };
     fetchSchools();
   }, []);
+
+  // Carrega a unidade selecionada do localStorage quando as escolas são carregadas
+  useEffect(() => {
+    if (schools.length > 0) {
+      const savedSchoolId = localStorage.getItem(SELECTED_SCHOOL_KEY);
+      if (savedSchoolId) {
+        // Verifica se a escola salva ainda existe na lista
+        const schoolExists = schools.some(
+          (school) => school.id === savedSchoolId
+        );
+        if (schoolExists) {
+          setSelectedSchoolId(savedSchoolId);
+        } else {
+          // Remove do localStorage se a escola não existe mais
+          localStorage.removeItem(SELECTED_SCHOOL_KEY);
+        }
+      }
+    }
+  }, [schools]);
+
+  // Salva a unidade selecionada no localStorage sempre que mudar
+  const handleSchoolChange = (schoolId) => {
+    setSelectedSchoolId(schoolId);
+    if (schoolId) {
+      localStorage.setItem(SELECTED_SCHOOL_KEY, schoolId);
+    } else {
+      localStorage.removeItem(SELECTED_SCHOOL_KEY);
+    }
+    // Limpa o termo de busca ao trocar de escola
+    setSearchTerm("");
+  };
 
   useEffect(() => {
     const rolesPermitidos = [
@@ -148,6 +182,14 @@ function BoletimPage() {
     toast.success(`Turma "${className}" criada com sucesso!`);
   };
 
+  // Função para obter o nome da escola selecionada
+  const getSelectedSchoolName = () => {
+    const selectedSchool = schools.find(
+      (school) => school.id === selectedSchoolId
+    );
+    return selectedSchool ? selectedSchool.name : "";
+  };
+
   return (
     <div className="p-4 md:p-8">
       {isUserAdmin && (
@@ -171,7 +213,7 @@ function BoletimPage() {
           <select
             id="school-filter"
             value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
+            onChange={(e) => handleSchoolChange(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Escolha uma escola...</option>
@@ -188,6 +230,11 @@ function BoletimPage() {
             className="block text-sm font-medium text-gray-700 mb-1"
           >
             Buscar na unidade selecionada
+            {selectedSchoolId && (
+              <span className="text-blue-600 font-semibold ml-1">
+                ({getSelectedSchoolName()})
+              </span>
+            )}
           </label>
           <input
             id="search-input"
@@ -200,6 +247,26 @@ function BoletimPage() {
           />
         </div>
       </div>
+
+      {/* Indicador da unidade selecionada */}
+      {selectedSchoolId && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <School className="text-blue-600" size={20} />
+              <span className="text-blue-800 font-semibold">
+                Visualizando turmas de: {getSelectedSchoolName()}
+              </span>
+            </div>
+            <button
+              onClick={() => handleSchoolChange("")}
+              className="text-blue-600 hover:text-blue-800 text-sm underline"
+            >
+              Trocar unidade
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid de Turmas */}
       {selectedSchoolId && (
@@ -238,6 +305,31 @@ function BoletimPage() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Mensagem quando nenhuma turma é encontrada */}
+      {selectedSchoolId && filteredClasses.length === 0 && !loadingClasses && (
+        <div className="text-center py-12">
+          <Users className="mx-auto text-gray-300 mb-4" size={64} />
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">
+            {searchTerm
+              ? "Nenhuma turma encontrada"
+              : "Nenhuma turma cadastrada"}
+          </h3>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `Não encontramos turmas que correspondam a "${searchTerm}" nesta unidade.`
+              : "Esta unidade ainda não possui turmas cadastradas."}
+          </p>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="mt-4 text-blue-600 hover:text-blue-800 underline"
+            >
+              Limpar busca
+            </button>
+          )}
         </div>
       )}
     </div>
