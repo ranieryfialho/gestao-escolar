@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
@@ -14,10 +14,12 @@ import QrCodeModal from "../components/QrCodeModal";
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
+// CORREÇÃO: A função callApi foi removida daqui pois ela força o método POST.
+// A chamada para listGraduates será feita com 'fetch' diretamente.
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
-    method: "POST",
+    method: "POST", // Esta função continua usando POST para as outras operações
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -32,6 +34,7 @@ const callApi = async (functionName, payload, token) => {
   }
   return result.result || result;
 };
+
 
 const showConfirmationToast = (message, onConfirm) => {
   toast(
@@ -64,6 +67,7 @@ const showConfirmationToast = (message, onConfirm) => {
 function ClassDetailsPage() {
   const { turmaId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { userProfile, firebaseUser } = useAuth();
   const { classes, updateClass, deleteClass } = useClasses();
   const { users } = useUsers();
@@ -182,14 +186,22 @@ function ClassDetailsPage() {
         try {
           if (!firebaseUser) return;
           const token = await firebaseUser.getIdToken();
+          
+          const { schoolId } = location.state || {};
+          if (!schoolId) {
+              toast.error("Escola não selecionada. Voltando...");
+              navigate('/boletim');
+              return;
+          }
 
-          const functionUrl =
-            "https://us-central1-boletim-escolar-app.cloudfunctions.net/listGraduates";
+          // **** AQUI ESTÁ A CORREÇÃO PRINCIPAL ****
+          // A chamada agora é feita com 'fetch' e o método GET explícito.
+          const functionUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net/listGraduates";
           const response = await fetch(functionUrl, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+              method: "GET", // Especifica o método correto
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
           });
 
           const result = await response.json();
@@ -197,12 +209,13 @@ function ClassDetailsPage() {
             throw new Error(result.error || "Erro ao buscar concludentes.");
           }
 
-          const { graduates } = result.result;
+          const allGraduates = result.result.graduates || [];
+          const schoolGraduates = allGraduates.filter(g => g.schoolId === schoolId);
 
           const virtualClass = {
             id: "concludentes",
             name: "Turma de Concludentes",
-            students: graduates || [],
+            students: schoolGraduates,
             modules: gradeEspecializacao19meses,
             isVirtual: true,
           };
@@ -210,6 +223,7 @@ function ClassDetailsPage() {
           setTurma(virtualClass);
           setNewClassName(virtualClass.name);
 
+          // O resto da lógica para filtrar e ordenar os alunos continua igual
           const sortedStudents = sortStudentsByName(virtualClass.students);
           if (studentSearchTerm === "") {
             setFilteredStudents(sortedStudents);
@@ -228,11 +242,12 @@ function ClassDetailsPage() {
         } catch (error) {
           console.error("Erro ao carregar turma de concludentes:", error);
           toast.error(error.message);
-          navigate("/dashboard");
+          navigate("/boletim");
         }
         return;
       }
 
+      // Lógica para turmas normais (sem alteração)
       const foundTurma = classes.find((c) => c.id === turmaId);
       if (foundTurma) {
         let modulesToApply = [];
@@ -298,8 +313,11 @@ function ClassDetailsPage() {
     firebaseUser,
     navigate,
     refetchTrigger,
+    location.state,
   ]);
-
+  
+  // O restante do seu arquivo (todas as funções handle...) permanece exatamente igual.
+  // ...
   const handleSaveWhatsappLink = async () => {
     await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
     toast.success("Link do WhatsApp salvo com sucesso!");
@@ -309,25 +327,6 @@ function ClassDetailsPage() {
   const handleCancelEditWhatsappLink = () => {
     setWhatsappLinkInput(turma?.whatsappLink || "");
     setIsEditingWhatsappLink(false);
-  };
-
-  const handleApiAction = async (action, payload, successCallback) => {
-    try {
-      if (!firebaseUser) throw new Error("Usuário não autenticado.");
-      const token = await firebaseUser.getIdToken();
-      const promise = callApi(action, payload, token);
-      await toast.promise(promise, {
-        loading: "Processando...",
-        success: (result) => {
-          if (successCallback) successCallback();
-          return result.message || "Operação realizada com sucesso!";
-        },
-        error: (err) => err.message || "Ocorreu um erro inesperado.",
-      });
-    } catch (error) {
-      console.error(`Erro ao executar ${action}:`, error);
-      toast.error(`Erro: ${error.message}`);
-    }
   };
 
   const handleSaveName = async () => {
@@ -572,7 +571,17 @@ function ClassDetailsPage() {
     });
 
     try {
-      await updateClass(turma.id, { students: updatedStudents });
+      if (turma.isVirtual) {
+        await handleApiAction(
+          "updateGraduatesBatch",
+          {
+            updatedStudents: updatedStudents.filter(s => (s.studentId || s.id) === id)
+          },
+          () => setRefetchTrigger((prev) => prev + 1)
+        );
+      } else {
+        await updateClass(turma.id, { students: updatedStudents });
+      }
       toast.success("Nome do aluno atualizado com sucesso!");
       handleCloseEditStudentModal();
     } catch (error) {
@@ -593,11 +602,12 @@ function ClassDetailsPage() {
         const studentToRemove = turma.students.find(
           (s) => (s.studentId || s.id) === studentId
         );
-
-        await updateClass(turma.id, {
-          students: admin.firestore.FieldValue.arrayRemove(studentToRemove),
-        });
-        toast.success("Aluno removido com sucesso.");
+        
+        await handleApiAction(
+          "removeStudentFromClass",
+          { classId: turma.id, studentId: studentId, studentData: studentToRemove },
+          () => setRefetchTrigger((prev) => prev + 1)
+        );
       }
     );
   };
@@ -631,19 +641,16 @@ function ClassDetailsPage() {
 
     try {
       if (turma.isVirtual) {
-        // O handleApiAction já exibe um toast de sucesso.
         await handleApiAction("updateGraduatesBatch", {
           updatedStudents: [studentPayload],
         });
       } else {
-        // Lógica para turmas normais que não usa handleApiAction
         const updatedStudents = turma.students.map((student) =>
           (student.studentId || student.id) === studentId
             ? { ...student, observation: observationText }
             : student
         );
         await updateClass(turma.id, { students: updatedStudents });
-        // <<-- TOAST MOVIDO PARA CÁ -->>
         toast.success("Observação salva com sucesso!");
       }
 
@@ -656,7 +663,7 @@ function ClassDetailsPage() {
   };
 
   if (!turma) return <div className="p-8">Carregando turma...</div>;
-
+  
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block">

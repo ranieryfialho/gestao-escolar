@@ -19,3 +19,6 @@ firebase-debug.log*
 
 .env
 .env.*
+
+# Pasta de scripts com chaves secretas
+/scripts-firebase

@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { db } from "../firebase"; // Certifique-se que o caminho para o firebase.js está correto
+import { collection, getDocs } from "firebase/firestore";
 
+// Adicionamos a busca e seleção de escolas, mantendo suas props originais
 function CreateClassForm({ onClassCreated, packages, teachers }) {
   const [className, setClassName] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
@@ -8,24 +11,65 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
   const [horario, setHorario] = useState("07:30 as 09:20");
   const [sala, setSala] = useState("Lab 01");
 
+  // Estados para a nova funcionalidade de escolas
+  const [schools, setSchools] = useState([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+
+  // Efeito para buscar as escolas do Firestore quando o componente montar
+  useEffect(() => {
+    const fetchSchools = async () => {
+      try {
+        const schoolsCollection = collection(db, "schools");
+        const schoolSnapshot = await getDocs(schoolsCollection);
+        const schoolList = schoolSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setSchools(schoolList);
+      } catch (err) {
+        console.error("Erro ao buscar as escolas: ", err);
+        // Opcional: Adicionar um feedback de erro para o usuário
+      }
+    };
+    fetchSchools();
+  }, []);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!className.trim() || !selectedPackageId || !selectedTeacherId) {
-      alert("Por favor, preencha todos os campos: nome, pacote e professor.");
+    // Adicionamos a validação para o campo de escola
+    if (
+      !className.trim() ||
+      !selectedPackageId ||
+      !selectedTeacherId ||
+      !selectedSchoolId
+    ) {
+      alert(
+        "Por favor, preencha todos os campos: nome, pacote, professor e escola."
+      );
       return;
     }
-    onClassCreated(className, selectedPackageId, selectedTeacherId, {
-      dia_semana: diaSemana,
-      horario,
-      sala,
-    });
 
+    // Adicionamos o 'selectedSchoolId' ao chamar a função onClassCreated
+    onClassCreated(
+      className,
+      selectedPackageId,
+      selectedTeacherId,
+      {
+        dia_semana: diaSemana,
+        horario,
+        sala,
+      },
+      selectedSchoolId // Passando o ID da escola selecionada
+    );
+
+    // Limpando todos os campos após o envio
     setClassName("");
     setSelectedPackageId("");
     setSelectedTeacherId("");
     setDiaSemana("Segunda-feira");
     setHorario("07:30 as 09:20");
     setSala("Lab 01");
+    setSelectedSchoolId(""); // Limpa a escola selecionada
   };
 
   const roomOptions = ["Lab 01", "Lab 02", "Lab 03", "EAD"];
@@ -50,6 +94,7 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
     <div className="bg-white p-6 rounded-lg shadow-md mb-8">
       <h3 className="text-xl font-bold mb-4">Cadastrar Nova Turma</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Campo Nome da Turma (sem alterações) */}
         <div>
           <label
             htmlFor="className"
@@ -67,6 +112,7 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
           />
         </div>
 
+        {/* Linha com Pacote e Professor (sem alterações) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label
@@ -92,7 +138,6 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
               ))}
             </select>
           </div>
-
           <div>
             <label
               htmlFor="teacher"
@@ -119,6 +164,33 @@ function CreateClassForm({ onClassCreated, packages, teachers }) {
           </div>
         </div>
 
+        {/* NOVA SEÇÃO: Seletor de Escola */}
+        <div>
+          <label
+            htmlFor="school"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Unidade Escolar
+          </label>
+          <select
+            id="school"
+            value={selectedSchoolId}
+            onChange={(e) => setSelectedSchoolId(e.target.value)}
+            required
+            className="w-full px-3 py-2 border rounded-lg"
+          >
+            <option value="" disabled>
+              Selecione a unidade
+            </option>
+            {schools.map((school) => (
+              <option key={school.id} value={school.id}>
+                {school.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Seção de agendamento (sem alterações) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
           <div>
             <label
