@@ -4,7 +4,16 @@ import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { Check, X, Calendar, BookOpen, Users, Clock, CheckCircle, XCircle } from "lucide-react";
+import {
+  Check,
+  X,
+  Calendar,
+  BookOpen,
+  Users,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
@@ -37,6 +46,7 @@ function NexusAttendancePage() {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Filtragem das turmas Nexus
   useEffect(() => {
     if (!loadingClasses && classes.length > 0) {
       const filtered = classes.filter((c) => c.schoolId === NEXUS_SCHOOL_ID);
@@ -44,6 +54,7 @@ function NexusAttendancePage() {
     }
   }, [classes, loadingClasses]);
 
+  // Busca os detalhes dos alunos
   useEffect(() => {
     if (!selectedClassId) {
       setStudents([]);
@@ -114,16 +125,23 @@ function NexusAttendancePage() {
     }
   };
 
+  // Estatísticas de presença
   const stats = {
     total: students.length,
-    presente: Object.values(attendance).filter(status => status === "presente").length,
-    falta: Object.values(attendance).filter(status => status === "falta").length,
-    naoLancado: Object.values(attendance).filter(status => status === "nao_lancado").length
+    presente: Object.values(attendance).filter(
+      (status) => status === "presente"
+    ).length,
+    falta: Object.values(attendance).filter((status) => status === "falta")
+      .length,
+    naoLancado: Object.values(attendance).filter(
+      (status) => status === "nao_lancado"
+    ).length,
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4 shadow-lg">
             <Users className="text-white" size={32} />
@@ -136,9 +154,12 @@ function NexusAttendancePage() {
           </p>
         </div>
 
+        {/* Card principal */}
         <div className="bg-white rounded-3xl shadow-xl border-0 overflow-hidden">
+          {/* Seção de controles */}
           <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-8 border-b border-gray-100">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Seletor de turma */}
               <div className="lg:col-span-2">
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <BookOpen className="mr-2 text-blue-600" size={18} />
@@ -163,6 +184,7 @@ function NexusAttendancePage() {
                 </select>
               </div>
 
+              {/* Seletor de data */}
               <div>
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <Calendar className="mr-2 text-blue-600" size={18} />
@@ -177,6 +199,7 @@ function NexusAttendancePage() {
               </div>
             </div>
 
+            {/* Estatísticas */}
             {selectedClassId && students.length > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -184,7 +207,9 @@ function NexusAttendancePage() {
                     <Users className="text-gray-500 mr-2" size={20} />
                     <div>
                       <p className="text-sm text-gray-600">Total</p>
-                      <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+                      <p className="text-2xl font-bold text-gray-800">
+                        {stats.total}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -193,7 +218,9 @@ function NexusAttendancePage() {
                     <CheckCircle className="text-green-600 mr-2" size={20} />
                     <div>
                       <p className="text-sm text-green-700">Presentes</p>
-                      <p className="text-2xl font-bold text-green-800">{stats.presente}</p>
+                      <p className="text-2xl font-bold text-green-800">
+                        {stats.presente}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -202,7 +229,9 @@ function NexusAttendancePage() {
                     <XCircle className="text-red-600 mr-2" size={20} />
                     <div>
                       <p className="text-sm text-red-700">Faltas</p>
-                      <p className="text-2xl font-bold text-red-800">{stats.falta}</p>
+                      <p className="text-2xl font-bold text-red-800">
+                        {stats.falta}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -211,7 +240,9 @@ function NexusAttendancePage() {
                     <Clock className="text-yellow-600 mr-2" size={20} />
                     <div>
                       <p className="text-sm text-yellow-700">Pendentes</p>
-                      <p className="text-2xl font-bold text-yellow-800">{stats.naoLancado}</p>
+                      <p className="text-2xl font-bold text-yellow-800">
+                        {stats.naoLancado}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -219,6 +250,7 @@ function NexusAttendancePage() {
             )}
           </div>
 
+          {/* Lista de alunos */}
           <div className="p-8">
             {isLoadingStudents ? (
               <div className="flex items-center justify-center py-16">
@@ -258,7 +290,9 @@ function NexusAttendancePage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => handleStatusChange(student.code, "presente")}
+                        onClick={() =>
+                          handleStatusChange(student.code, "presente")
+                        }
                         className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
                           attendance[student.code] === "presente"
                             ? "bg-green-600 text-white shadow-lg transform scale-105"
@@ -269,7 +303,9 @@ function NexusAttendancePage() {
                         Presente
                       </button>
                       <button
-                        onClick={() => handleStatusChange(student.code, "falta")}
+                        onClick={() =>
+                          handleStatusChange(student.code, "falta")
+                        }
                         className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
                           attendance[student.code] === "falta"
                             ? "bg-red-600 text-white shadow-lg transform scale-105"
@@ -286,6 +322,7 @@ function NexusAttendancePage() {
             )}
           </div>
 
+          {/* Botão de salvar */}
           {students.length > 0 && (
             <div className="bg-gray-50 p-8 border-t border-gray-100">
               <div className="flex justify-center">

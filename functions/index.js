@@ -32,6 +32,31 @@ const isAdmin = async (idToken) => {
   }
 };
 
+const isProfessorOrAdmin = async (idToken) => {
+  try {
+    if (!idToken) {
+      console.log("isProfessorOrAdmin check: Token não fornecido.");
+      return false;
+    }
+    const decodedToken = await auth.verifyIdToken(idToken);
+    const userRole = decodedToken.role;
+
+    console.log("Verificando permissão para professor ou admin (role):", userRole);
+
+    return [
+      "diretor",
+      "coordenador", 
+      "admin",
+      "auxiliar_coordenacao",
+      "professor",
+      "professor_apoio"
+    ].includes(userRole);
+  } catch (error) {
+    console.error("Erro ao verificar token de professor/admin:", error);
+    return false;
+  }
+};
+
 exports.listAllUsers = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "GET") {
