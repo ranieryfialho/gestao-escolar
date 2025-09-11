@@ -56,10 +56,27 @@ export const ClassesProvider = ({ children }) => {
         querySnapshot.forEach((doc) => {
           classesData.push({ id: doc.id, ...doc.data() });
         });
+
+        // --- PONTO DE VERIFICAÇÃO 1 ---
+        console.log(
+          `[DIAGNÓSTICO ClassContext] Recebidas ${classesData.length} turmas do Firestore.`
+        );
+        const nexusClassesFound = classesData.filter(
+          (c) => c.schoolId === "GEYs70ghHbdAm9oeE8hu"
+        );
+        console.log(
+          `[DIAGNÓSTICO ClassContext] Dessas, ${nexusClassesFound.length} pertencem à Nexus.`
+        );
+        // --- FIM DO PONTO DE VERIFICAÇÃO ---
+
         setClasses(classesData);
       },
       (error) => {
-        console.error("Erro ao escutar as alterações nas turmas:", error);
+        // --- PONTO DE VERIFICAÇÃO DE ERRO ---
+        console.error(
+          "[DIAGNÓSTICO ClassContext] ERRO ao buscar turmas:",
+          error
+        );
         setLoading(false);
       }
     );
@@ -89,7 +106,6 @@ export const ClassesProvider = ({ children }) => {
 
   const allStudentsMap = useMemo(() => {
     const map = new Map();
-
     classes.forEach((turma) => {
       if (turma.students && Array.isArray(turma.students)) {
         turma.students.forEach((aluno) => {
@@ -100,13 +116,12 @@ export const ClassesProvider = ({ children }) => {
               name: aluno.name,
               code: aluno.code.toString(),
               className: turma.name,
-              classId: turma.id, // <-- AQUI ESTÁ A MUDANÇA
+              classId: turma.id,
             });
           }
         });
       }
     });
-
     graduates.forEach((aluno) => {
       if (aluno.code && !map.has(aluno.code.toString())) {
         map.set(aluno.code.toString(), {
@@ -114,57 +129,51 @@ export const ClassesProvider = ({ children }) => {
           name: aluno.name,
           code: aluno.code.toString(),
           className: "Concluído",
-          classId: "concludentes", // Identificador para turma de concludentes
+          classId: "concludentes",
         });
       }
     });
-
     return map;
   }, [classes, graduates]);
 
   const addClass = async (newClassData) => {
     try {
-      const classesCollectionRef = collection(db, "classes");
-      await addDoc(classesCollectionRef, newClassData);
+      await addDoc(collection(db, "classes"), newClassData);
     } catch (error) {
       console.error("Erro ao adicionar turma: ", error);
     }
   };
-
   const updateClass = async (classId, updatedData) => {
     try {
-      const classDocRef = doc(db, "classes", classId);
-      await updateDoc(classDocRef, updatedData);
+      await updateDoc(doc(db, "classes", classId), updatedData);
     } catch (error) {
       console.error("Erro ao atualizar turma: ", error);
     }
   };
-  
-    const updateClassStatus = async (classId, newStatus) => {
+  const updateClassStatus = async (classId, newStatus) => {
     try {
-      const classDocRef = doc(db, "classes", classId);
-      await updateDoc(classDocRef, { status: newStatus });
-      toast.success(`Turma marcada como ${newStatus === 'finalizada' ? 'Finalizada' : 'Ativa'}!`);
+      await updateDoc(doc(db, "classes", classId), { status: newStatus });
+      toast.success(
+        `Turma marcada como ${
+          newStatus === "finalizada" ? "Finalizada" : "Ativa"
+        }!`
+      );
     } catch (error) {
       console.error("Erro ao atualizar status da turma:", error);
       toast.error("Não foi possível atualizar o status da turma.");
     }
   };
-
   const deleteClass = async (classId) => {
     try {
-      const classDocRef = doc(db, "classes", classId);
-      await deleteDoc(classDocRef);
+      await deleteDoc(doc(db, "classes", classId));
     } catch (error) {
       console.error("Erro ao deletar turma: ", error);
       alert("Ocorreu um erro ao deletar a turma.");
     }
   };
-
   const findClassById = (classId) => {
     return classes.find((c) => c.id === classId);
   };
-
   const findStudentByCode = async (code) => {
     if (!firebaseUser) throw new Error("Usuário não autenticado.");
     const token = await firebaseUser.getIdToken();
@@ -176,12 +185,10 @@ export const ClassesProvider = ({ children }) => {
       throw error;
     }
   };
-  
-    const addStudentToClass = async (classId, studentData) => {
+  const addStudentToClass = async (classId, studentData) => {
     const classRef = doc(db, "classes", classId);
     const newStudentId =
       studentData.studentId || doc(collection(db, "students")).id;
-
     const newStudentPayload = {
       studentId: newStudentId,
       name: studentData.name,
@@ -190,18 +197,14 @@ export const ClassesProvider = ({ children }) => {
       observation: "",
       attendance: {},
     };
-
     try {
-      await updateDoc(classRef, {
-        students: arrayUnion(newStudentPayload),
-      });
+      await updateDoc(classRef, { students: arrayUnion(newStudentPayload) });
       toast.success("Aluno adicionado com sucesso!");
     } catch (error) {
       console.error("Erro ao adicionar aluno à turma:", error);
       toast.error("Não foi possível adicionar o aluno.");
     }
   };
-
   const removeStudentFromClass = async (classId, studentId) => {
     const classRef = doc(db, "classes", classId);
     const classDoc = classes.find((c) => c.id === classId);
@@ -216,18 +219,14 @@ export const ClassesProvider = ({ children }) => {
       toast.error("Não foi possível encontrar o aluno para remover.");
       return;
     }
-
     try {
-      await updateDoc(classRef, {
-        students: arrayRemove(studentToRemove),
-      });
+      await updateDoc(classRef, { students: arrayRemove(studentToRemove) });
       toast.success("Aluno removido com sucesso!");
     } catch (error) {
       console.error("Erro ao remover aluno:", error);
       toast.error("Não foi possível remover o aluno.");
     }
   };
-
   const updateStudentAttendance = async (
     classId,
     studentId,
@@ -236,22 +235,18 @@ export const ClassesProvider = ({ children }) => {
   ) => {
     const classDoc = classes.find((c) => c.id === classId);
     if (!classDoc) return;
-
     const updatedStudents = classDoc.students.map((student) => {
       if ((student.studentId || student.id) === studentId) {
         const updatedAttendance = { ...(student.attendance || {}) };
-
         if (updatedAttendance[dateString] === status) {
           delete updatedAttendance[dateString];
         } else {
           updatedAttendance[dateString] = status;
         }
-
         return { ...student, attendance: updatedAttendance };
       }
       return student;
     });
-
     try {
       await updateClass(classId, { students: updatedStudents });
       toast.success("Frequência salva!", {
@@ -263,7 +258,6 @@ export const ClassesProvider = ({ children }) => {
       console.error(error);
     }
   };
-
 
   const value = {
     classes,
@@ -278,9 +272,8 @@ export const ClassesProvider = ({ children }) => {
     addStudentToClass,
     removeStudentFromClass,
     updateStudentAttendance,
-    updateClassStatus
+    updateClassStatus,
   };
-
   return (
     <ClassContext.Provider value={value}>{children}</ClassContext.Provider>
   );

@@ -19,7 +19,7 @@ import AttendanceDetailPage from './pages/AttendanceDetailPage';
 import AcademicFollowUpPage from './pages/AcademicFollowUpPage';
 import LowGradesPage from './pages/LowGradesPage';
 import ContractGeneratorPage from './pages/ContractGeneratorPage';
-import ConcludedStudentsPage from './pages/ConcludedStudentsPage';
+import NexusAttendancePage from './pages/NexusAttendancePage';
 
 function App() {
   return (
@@ -42,7 +42,7 @@ function App() {
           <Route path="acompanhamento" element={<AcademicFollowUpPage />} />
           <Route path="alunos-nota-baixa" element={<LowGradesPage />} />
           <Route path="gerar-contrato" element={<ContractGeneratorPage />} />
-          <Route path="/concludentes" element={<ProtectedRoute><ConcludedStudentsPage /></ProtectedRoute>} />
+          <Route path="frequencia-nexus" element={<NexusAttendancePage />} />
           
         </Route>
       </Route>

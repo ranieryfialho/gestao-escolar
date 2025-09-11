@@ -701,3 +701,35 @@ exports.saveFollowUpForDate = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+exports.saveAttendance = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isProfessorOrAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+
+    const { classId, date, attendanceRecords } = req.body.data;
+    if (!classId || !date || !attendanceRecords) {
+      return res.status(400).json({ error: "Dados incompletos para salvar a frequência." });
+    }
+
+    try {
+      const attendanceDocRef = db.collection("classes").doc(classId).collection("attendance").doc(date);
+
+      await attendanceDocRef.set({
+        records: attendanceRecords,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({ message: "Frequência salva com sucesso!" });
+    } catch (error) {
+      console.error("Erro ao salvar frequência:", error);
+      return res.status(500).json({ error: "Erro no servidor ao salvar a frequência." });
+    }
+  });
+});

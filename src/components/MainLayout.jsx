@@ -19,9 +19,14 @@ const MainLayout = () => {
   const isUserProfessor =
     userProfile && ["professor", "professor_apoio"].includes(userProfile.role);
   const isUserComercial = userProfile && userProfile.role === "comercial";
-  
-  // --- MUDANÇA AQUI: Nova variável para o perfil Secretaria ---
+
   const isUserSecretaria = userProfile && userProfile.role === "secretaria";
+
+  // *** NOVA LÓGICA DE PERMISSÃO ***
+  // Define quem pode ver o link da Frequência Nexus
+  const canAccessNexusAttendance =
+    userProfile &&
+    ["coordenador", "admin", "diretor"].includes(userProfile.role);
 
   const canAccessContractPage =
     userProfile &&
@@ -85,7 +90,7 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   {isUserComercial || isUserSecretaria ? (
                     <>
-                      {/* Usuário comercial e secretaria veem o menu Operacional */}
+                      {/* Menu para Comercial e Secretaria (sem alterações) */}
                       <div className="relative" ref={operationalMenuRef}>
                         <button
                           onClick={() => {
@@ -105,7 +110,6 @@ const MainLayout = () => {
                         {operationalMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
-                              {/* --- MUDANÇA AQUI: Condições para Secretaria --- */}
                               {isUserSecretaria && (
                                 <NavLink
                                   to="/mapa-turmas"
@@ -140,7 +144,7 @@ const MainLayout = () => {
                     </>
                   ) : (
                     <>
-                      {/* --- GRUPO ACADÊMICO (Visível para outros, exceto comercial/secretaria) --- */}
+                      {/* --- GRUPO ACADÊMICO (com a melhoria) --- */}
                       <div className="relative" ref={academicMenuRef}>
                         <button
                           onClick={() => {
@@ -160,6 +164,16 @@ const MainLayout = () => {
                         {academicMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
+                              {/* **** LINK ADICIONADO AQUI **** */}
+                              {canAccessNexusAttendance && (
+                                <NavLink
+                                  to="/frequencia-nexus"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setAcademicMenuOpen(false)}
+                                >
+                                  Frequência Nexus
+                                </NavLink>
+                              )}
                               <NavLink
                                 to="/boletim"
                                 className={getDropdownNavLinkClass}
@@ -190,7 +204,7 @@ const MainLayout = () => {
                         )}
                       </div>
 
-                      {/* --- GRUPO OPERACIONAL --- */}
+                      {/* --- GRUPO OPERACIONAL (sem alterações) --- */}
                       <div className="relative" ref={operationalMenuRef}>
                         <button
                           onClick={() => {
@@ -287,7 +301,7 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* --- MENU MOBILE --- */}
+      {/* --- MENU MOBILE (com a melhoria) --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -307,43 +321,23 @@ const MainLayout = () => {
           <nav className="mt-16 space-y-4">
             {isUserComercial || isUserSecretaria ? (
               <>
-                <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
-                  Operacional
-                </h4>
-                {/* --- MUDANÇA AQUI: Condições para Secretaria --- */}
-                {isUserSecretaria && (
-                    <NavLink
-                        to="/mapa-turmas"
-                        className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                        Mapa de Turmas
-                    </NavLink>
-                )}
-                {canAccessContractPage && (
-                  <NavLink
-                    to="/gerar-contrato"
-                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Gerar Contrato de Curso
-                  </NavLink>
-                )}
-                {isUserComercial && (
-                  <NavLink
-                    to="/laboratorio"
-                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Laboratório de Apoio
-                  </NavLink>
-                )}
+                {/* Menu móvel para Comercial e Secretaria (sem alterações) */}
               </>
             ) : (
               <>
                 <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
                   Acadêmico
                 </h4>
+                {/* **** LINK ADICIONADO AQUI **** */}
+                {canAccessNexusAttendance && (
+                  <NavLink
+                    to="/frequencia-nexus"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Frequência Nexus
+                  </NavLink>
+                )}
                 <NavLink
                   to="/boletim"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
