@@ -80,7 +80,7 @@ const ContractGeneratorPage = () => {
     const trainingAndTBCourses = classes.filter((c) =>
       (c.modules?.[0]?.id || "")
         .toUpperCase()
-        .match(/TB|TREINAMENTO|CURSO EXTRA/)
+        .match(/TB|TREINAMENTO/)
     );
     setAvailableCourses(trainingAndTBCourses);
   }, [classes]);
