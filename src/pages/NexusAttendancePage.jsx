@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import toast from "react-hot-toast";
 import {
   Check,
@@ -13,6 +20,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Phone,
 } from "lucide-react";
 
 const callApi = async (functionName, payload, token) => {
@@ -46,7 +54,6 @@ function NexusAttendancePage() {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Filtragem das turmas Nexus
   useEffect(() => {
     if (!loadingClasses && classes.length > 0) {
       const filtered = classes.filter((c) => c.schoolId === NEXUS_SCHOOL_ID);
@@ -54,7 +61,6 @@ function NexusAttendancePage() {
     }
   }, [classes, loadingClasses]);
 
-  // Busca os detalhes dos alunos
   useEffect(() => {
     if (!selectedClassId) {
       setStudents([]);
@@ -64,33 +70,59 @@ function NexusAttendancePage() {
     const fetchClassDetails = async () => {
       setIsLoadingStudents(true);
       const classData = findClassById(selectedClassId);
-      if (classData && classData.students) {
-        const sortedStudents = [...classData.students].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
-        setStudents(sortedStudents);
-        const attendanceDocRef = doc(
-          db,
-          "classes",
-          selectedClassId,
-          "attendance",
-          date
-        );
-        const attendanceSnap = await getDoc(attendanceDocRef);
-        const initialAttendance = {};
-        const records = attendanceSnap.exists()
-          ? attendanceSnap.data().records
-          : {};
-        sortedStudents.forEach((student) => {
-          initialAttendance[student.code] =
-            records[student.code] || "nao_lancado";
-        });
-        setAttendance(initialAttendance);
+
+      if (classData && classData.students && classData.students.length > 0) {
+        try {
+          const studentCodes = classData.students.map((s) => s.code);
+
+          const studentsCollectionRef = collection(db, "students");
+          const q = query(
+            studentsCollectionRef,
+            where("code", "in", studentCodes)
+          );
+          const studentDocsSnap = await getDocs(q);
+
+          const fullStudentDataMap = new Map();
+          studentDocsSnap.forEach((doc) => {
+            const data = doc.data();
+            fullStudentDataMap.set(data.code, data);
+          });
+
+          const enrichedStudents = classData.students
+            .map((s) => ({
+              ...s,
+              ...fullStudentDataMap.get(s.code),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+          setStudents(enrichedStudents);
+
+          const attendanceDocRef = doc(
+            db,
+            "classes",
+            selectedClassId,
+            "attendance",
+            date
+          );
+          const attendanceSnap = await getDoc(attendanceDocRef);
+          const initialAttendance = {};
+          const records = attendanceSnap.exists()
+            ? attendanceSnap.data().records
+            : {};
+          enrichedStudents.forEach((student) => {
+            initialAttendance[student.code] =
+              records[student.code] || "nao_lancado";
+          });
+          setAttendance(initialAttendance);
+        } catch (error) {
+          console.error("Erro ao buscar detalhes dos alunos:", error);
+          toast.error("Não foi possível carregar os dados dos alunos.");
+          setStudents(
+            [...classData.students].sort((a, b) => a.name.localeCompare(b.name))
+          );
+        }
       } else {
         setStudents([]);
-        if (!classData) {
-          console.warn("Turma não encontrada no contexto.");
-        }
       }
       setIsLoadingStudents(false);
     };
@@ -114,7 +146,11 @@ function NexusAttendancePage() {
       const token = await firebaseUser.getIdToken();
       await callApi(
         "saveAttendance",
-        { classId: selectedClassId, date: date, attendanceRecords: attendance },
+        {
+          classId: selectedClassId,
+          date: date,
+          attendanceRecords: attendance,
+        },
         token
       );
       toast.success("Frequência salva com sucesso!");
@@ -125,7 +161,6 @@ function NexusAttendancePage() {
     }
   };
 
-  // Estatísticas de presença
   const stats = {
     total: students.length,
     presente: Object.values(attendance).filter(
@@ -141,7 +176,6 @@ function NexusAttendancePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4 shadow-lg">
             <Users className="text-white" size={32} />
@@ -154,12 +188,9 @@ function NexusAttendancePage() {
           </p>
         </div>
 
-        {/* Card principal */}
         <div className="bg-white rounded-3xl shadow-xl border-0 overflow-hidden">
-          {/* Seção de controles */}
           <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-8 border-b border-gray-100">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Seletor de turma */}
               <div className="lg:col-span-2">
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <BookOpen className="mr-2 text-blue-600" size={18} />
@@ -184,7 +215,6 @@ function NexusAttendancePage() {
                 </select>
               </div>
 
-              {/* Seletor de data */}
               <div>
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <Calendar className="mr-2 text-blue-600" size={18} />
@@ -199,7 +229,6 @@ function NexusAttendancePage() {
               </div>
             </div>
 
-            {/* Estatísticas */}
             {selectedClassId && students.length > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -250,7 +279,6 @@ function NexusAttendancePage() {
             )}
           </div>
 
-          {/* Lista de alunos */}
           <div className="p-8">
             {isLoadingStudents ? (
               <div className="flex items-center justify-center py-16">
@@ -284,9 +312,17 @@ function NexusAttendancePage() {
                       <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm mr-4">
                         {index + 1}
                       </div>
-                      <span className="font-semibold text-gray-800 text-lg">
-                        {student.name}
-                      </span>
+                      <div>
+                        <span className="font-semibold text-gray-800 text-lg">
+                          {student.name}
+                        </span>
+                        {student.phone && (
+                          <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-1">
+                            <Phone size={14} />
+                            <span>{student.phone}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
@@ -322,7 +358,6 @@ function NexusAttendancePage() {
             )}
           </div>
 
-          {/* Botão de salvar */}
           {students.length > 0 && (
             <div className="bg-gray-50 p-8 border-t border-gray-100">
               <div className="flex justify-center">
