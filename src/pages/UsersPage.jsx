@@ -113,6 +113,7 @@ function UsersPage() {
   // --- MUDANÇA AQUI: Lista de cargos alinhada com seu sistema ---
   const rolesOptions = [
     { value: "professor", label: "Professor" },
+    { value: "professor_nexus", label: "Professor Nexus" },
     { value: "professor_apoio", label: "Professor de Apoio" },
     { value: "auxiliar_coordenacao", label: "Auxiliar de Coordenação" },
     { value: "coordenador", label: "Coordenador" },

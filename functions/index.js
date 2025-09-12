@@ -46,8 +46,6 @@ const isProfessorOrAdmin = async (idToken) => {
       userRole
     );
 
-    // ##### MELHORIA APLICADA AQUI #####
-    // Adicionamos 'professor_nexus' à lista de perfis permitidos.
     return [
       "diretor",
       "coordenador",
@@ -55,7 +53,7 @@ const isProfessorOrAdmin = async (idToken) => {
       "auxiliar_coordenacao",
       "professor",
       "professor_apoio",
-      "professor_nexus", // <-- PERFIL ADICIONADO
+      "professor_nexus",
     ].includes(userRole);
   } catch (error) {
     console.error("Erro ao verificar token de professor/admin:", error);
