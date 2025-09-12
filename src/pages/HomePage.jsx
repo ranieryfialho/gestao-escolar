@@ -15,6 +15,7 @@ import {
   BookCopy,
   FileText,
   CalendarPlus,
+  BookMarked, // Ícone adicionado para o boletim
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -22,6 +23,7 @@ import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
 import "../styles/slider.css";
 
+// Componente StatCard (sem alterações)
 const StatCard = ({
   title,
   value,
@@ -57,6 +59,7 @@ const StatCard = ({
   );
 };
 
+// Funções de data e módulo (sem alterações)
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
   if (typeof dateValue === "string") {
@@ -118,6 +121,7 @@ const getDisplayModules = (turma) => {
   return { moduloAtual: currentModuleId };
 };
 
+// Componente Principal HomePage
 function HomePage() {
   const { classes, graduates, loadingClasses } = useClasses();
   const { userProfile } = useAuth();
@@ -128,10 +132,11 @@ function HomePage() {
 
   const isSecretaria = userProfile?.role === "secretaria";
   const isComercial = userProfile?.role === "comercial";
+  const isProfessorNexus = userProfile?.role === "professor_nexus";
   const hasRestrictedAccess = isSecretaria || isComercial;
 
   useEffect(() => {
-    if (!hasRestrictedAccess) {
+    if (!hasRestrictedAccess && !isProfessorNexus) {
       const tasksQuery = query(
         collection(db, "tasks"),
         where("status", "in", ["todo", "inprogress"])
@@ -147,7 +152,7 @@ function HomePage() {
       });
       return () => unsubscribe();
     }
-  }, [hasRestrictedAccess]);
+  }, [hasRestrictedAccess, isProfessorNexus]);
 
   const sliderSettings = {
     dots: true,
@@ -167,6 +172,63 @@ function HomePage() {
       <div className="p-8 text-center">Carregando dados do dashboard...</div>
     );
   }
+
+  // Se for professor nexus, renderiza a view simplificada
+  if (isProfessorNexus) {
+    return (
+      <div className="p-4 md:p-8">
+        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Bem-vindo(a), {userProfile?.name || "Professor(a) Nexus"}!
+          </h2>
+          <p className="text-md text-gray-600">
+            O seu perfil de acesso é:{" "}
+            <span className="font-semibold text-blue-600 capitalize">
+              {userProfile?.role?.replace(/_/g, " ") || "Carregando..."}
+            </span>
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="h-full">
+            <Link to="/frequencia-nexus" className="h-full block">
+              <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
+                <div className="bg-cyan-100 p-3 rounded-full mb-3">
+                  <CalendarPlus className="h-7 w-7 text-cyan-600" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-gray-800">Acessar</p>
+                  <h3 className="text-sm font-medium text-gray-500 mt-1">
+                    Frequência Nexus
+                  </h3>
+                </div>
+              </div>
+            </Link>
+          </div>
+          <div className="h-full">
+            <Link
+              to="/boletim"
+              state={{ initialFilter: "nexus" }}
+              className="h-full block"
+            >
+              <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
+                <div className="bg-amber-100 p-3 rounded-full mb-3">
+                  <BookMarked className="h-7 w-7 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-gray-800">Consultar</p>
+                  <h3 className="text-sm font-medium text-gray-500 mt-1">
+                    Boletim Nexus
+                  </h3>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- O restante do código é para os outros perfis ---
 
   const activeClasses = classes.filter(
     (c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly
@@ -239,12 +301,9 @@ function HomePage() {
     allModulesInChart.includes(mod)
   );
 
-  // ##### CORREÇÃO AQUI #####
-  // Filtra os módulos que não estão na ordem principal E também remove "Sem Módulos".
   const remainingLabels = allModulesInChart.filter(
     (mod) => !moduleOrder.includes(mod) && mod !== "Sem Módulos"
   );
-  // #########################
 
   const finalLabels = [...sortedLabels, ...remainingLabels];
   const finalData = finalLabels.map((label) => moduleCounts[label]);
