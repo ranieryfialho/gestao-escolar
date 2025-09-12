@@ -5,6 +5,7 @@ import { db } from "../firebase";
 import {
   doc,
   getDoc,
+  setDoc,
   collection,
   query,
   where,
@@ -21,7 +22,55 @@ import {
   CheckCircle,
   XCircle,
   Phone,
+  MessageSquarePlus,
+  MessageSquareText,
 } from "lucide-react";
+
+// Componente da Janela Modal para Observações
+const ObservationModal = ({
+  student,
+  date,
+  initialText,
+  onClose,
+  onSave,
+  isSaving,
+}) => {
+  const [text, setText] = useState(initialText);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg animate-fade-in">
+        <h2 className="text-xl font-bold mb-1">Observação do Aluno</h2>
+        <p className="font-semibold text-blue-600 mb-2">{student.name}</p>
+        <p className="text-sm text-gray-500 mb-4">
+          Data: {new Date(date + "T12:00:00").toLocaleDateString("pt-BR")}
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows="6"
+          className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500"
+          placeholder="Digite uma observação para este aluno nesta data..."
+        />
+        <div className="mt-6 flex justify-end gap-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-semibold"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(text)}
+            disabled={isSaving}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold disabled:bg-blue-300"
+          >
+            {isSaving ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
@@ -50,9 +99,14 @@ function NexusAttendancePage() {
   const [selectedClassId, setSelectedClassId] = useState("");
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState({});
+  const [observations, setObservations] = useState({});
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const [observationModalOpen, setObservationModalOpen] = useState(false);
+  const [currentStudent, setCurrentStudent] = useState(null);
+  const [isSavingObservation, setIsSavingObservation] = useState(false);
 
   useEffect(() => {
     if (!loadingClasses && classes.length > 0) {
@@ -65,6 +119,7 @@ function NexusAttendancePage() {
     if (!selectedClassId) {
       setStudents([]);
       setAttendance({});
+      setObservations({});
       return;
     }
     const fetchClassDetails = async () => {
@@ -72,57 +127,46 @@ function NexusAttendancePage() {
       const classData = findClassById(selectedClassId);
 
       if (classData && classData.students && classData.students.length > 0) {
-        try {
-          const studentCodes = classData.students.map((s) => s.code);
+        const studentCodes = classData.students.map((s) => s.code);
+        const studentsCollectionRef = collection(db, "students");
+        const q = query(
+          studentsCollectionRef,
+          where("code", "in", studentCodes)
+        );
+        const studentDocsSnap = await getDocs(q);
+        const fullStudentDataMap = new Map();
+        studentDocsSnap.forEach((doc) => {
+          const data = doc.data();
+          fullStudentDataMap.set(data.code, data);
+        });
+        const enrichedStudents = classData.students
+          .map((s) => ({ ...s, ...fullStudentDataMap.get(s.code) }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setStudents(enrichedStudents);
 
-          const studentsCollectionRef = collection(db, "students");
-          const q = query(
-            studentsCollectionRef,
-            where("code", "in", studentCodes)
-          );
-          const studentDocsSnap = await getDocs(q);
+        const attendanceDocRef = doc(
+          db,
+          "classes",
+          selectedClassId,
+          "attendance",
+          date
+        );
+        const attendanceSnap = await getDoc(attendanceDocRef);
+        const initialAttendance = {};
+        const attendanceData = attendanceSnap.exists()
+          ? attendanceSnap.data()
+          : {};
+        const records = attendanceData.records || {};
+        setObservations(attendanceData.observations || {});
 
-          const fullStudentDataMap = new Map();
-          studentDocsSnap.forEach((doc) => {
-            const data = doc.data();
-            fullStudentDataMap.set(data.code, data);
-          });
-
-          const enrichedStudents = classData.students
-            .map((s) => ({
-              ...s,
-              ...fullStudentDataMap.get(s.code),
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-
-          setStudents(enrichedStudents);
-
-          const attendanceDocRef = doc(
-            db,
-            "classes",
-            selectedClassId,
-            "attendance",
-            date
-          );
-          const attendanceSnap = await getDoc(attendanceDocRef);
-          const initialAttendance = {};
-          const records = attendanceSnap.exists()
-            ? attendanceSnap.data().records
-            : {};
-          enrichedStudents.forEach((student) => {
-            initialAttendance[student.code] =
-              records[student.code] || "nao_lancado";
-          });
-          setAttendance(initialAttendance);
-        } catch (error) {
-          console.error("Erro ao buscar detalhes dos alunos:", error);
-          toast.error("Não foi possível carregar os dados dos alunos.");
-          setStudents(
-            [...classData.students].sort((a, b) => a.name.localeCompare(b.name))
-          );
-        }
+        enrichedStudents.forEach((student) => {
+          initialAttendance[student.code] =
+            records[student.code] || "nao_lancado";
+        });
+        setAttendance(initialAttendance);
       } else {
         setStudents([]);
+        setObservations({});
       }
       setIsLoadingStudents(false);
     };
@@ -158,6 +202,43 @@ function NexusAttendancePage() {
       toast.error(`Erro ao salvar: ${error.message}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const openObservationModal = (student) => {
+    setCurrentStudent(student);
+    setObservationModalOpen(true);
+  };
+
+  const handleSaveObservation = async (newText) => {
+    if (!currentStudent) return;
+    setIsSavingObservation(true);
+    const studentCode = currentStudent.code;
+
+    const attendanceDocRef = doc(
+      db,
+      "classes",
+      selectedClassId,
+      "attendance",
+      date
+    );
+
+    const updatedObservations = { ...observations, [studentCode]: newText };
+
+    try {
+      await setDoc(
+        attendanceDocRef,
+        { observations: updatedObservations },
+        { merge: true }
+      );
+      setObservations(updatedObservations);
+      toast.success("Observação salva!");
+      setObservationModalOpen(false);
+    } catch (error) {
+      toast.error("Erro ao salvar observação.");
+      console.error(error);
+    } finally {
+      setIsSavingObservation(false);
     }
   };
 
@@ -303,57 +384,81 @@ function NexusAttendancePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {students.map((student, index) => (
-                  <div
-                    key={student.code}
-                    className="flex items-center justify-between p-6 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all duration-200 border border-gray-100"
-                  >
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm mr-4">
-                        {index + 1}
+                {students.map((student, index) => {
+                  const hasObservation =
+                    observations[student.code] &&
+                    observations[student.code].trim() !== "";
+                  return (
+                    <div
+                      key={student.code}
+                      className="flex items-center justify-between p-6 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-all duration-200 border border-gray-100"
+                    >
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm mr-4">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-800 text-lg">
+                            {student.name}
+                          </span>
+                          {student.phone && (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-1">
+                              <Phone size={14} />
+                              <span>{student.phone}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-semibold text-gray-800 text-lg">
-                          {student.name}
-                        </span>
-                        {student.phone && (
-                          <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-1">
-                            <Phone size={14} />
-                            <span>{student.phone}</span>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => openObservationModal(student)}
+                          title={
+                            hasObservation
+                              ? "Ver/Editar Observação"
+                              : "Adicionar Observação"
+                          }
+                          className={`p-3 rounded-full transition-all duration-200 ${
+                            hasObservation
+                              ? "bg-yellow-400 text-white hover:bg-yellow-500"
+                              : "bg-white text-gray-500 hover:bg-gray-200 border-2 border-gray-200"
+                          }`}
+                        >
+                          {hasObservation ? (
+                            <MessageSquareText size={18} />
+                          ) : (
+                            <MessageSquarePlus size={18} />
+                          )}
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleStatusChange(student.code, "presente")
+                          }
+                          className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
+                            attendance[student.code] === "presente"
+                              ? "bg-green-600 text-white shadow-lg transform scale-105"
+                              : "bg-white text-green-600 border-2 border-green-200 hover:bg-green-50"
+                          }`}
+                        >
+                          <Check size={16} className="mr-2" />
+                          Presente
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleStatusChange(student.code, "falta")
+                          }
+                          className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
+                            attendance[student.code] === "falta"
+                              ? "bg-red-600 text-white shadow-lg transform scale-105"
+                              : "bg-white text-red-600 border-2 border-red-200 hover:bg-red-50"
+                          }`}
+                        >
+                          <X size={16} className="mr-2" />
+                          Falta
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() =>
-                          handleStatusChange(student.code, "presente")
-                        }
-                        className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
-                          attendance[student.code] === "presente"
-                            ? "bg-green-600 text-white shadow-lg transform scale-105"
-                            : "bg-white text-green-600 border-2 border-green-200 hover:bg-green-50"
-                        }`}
-                      >
-                        <Check size={16} className="mr-2" />
-                        Presente
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleStatusChange(student.code, "falta")
-                        }
-                        className={`flex items-center px-6 py-3 rounded-full transition-all duration-200 font-semibold text-sm ${
-                          attendance[student.code] === "falta"
-                            ? "bg-red-600 text-white shadow-lg transform scale-105"
-                            : "bg-white text-red-600 border-2 border-red-200 hover:bg-red-50"
-                        }`}
-                      >
-                        <X size={16} className="mr-2" />
-                        Falta
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -382,6 +487,17 @@ function NexusAttendancePage() {
             </div>
           )}
         </div>
+
+        {observationModalOpen && currentStudent && (
+          <ObservationModal
+            student={currentStudent}
+            date={date}
+            initialText={observations[currentStudent.code] || ""}
+            onClose={() => setObservationModalOpen(false)}
+            onSave={handleSaveObservation}
+            isSaving={isSavingObservation}
+          />
+        )}
       </div>
     </div>
   );
