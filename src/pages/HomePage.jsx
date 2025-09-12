@@ -238,9 +238,14 @@ function HomePage() {
   const sortedLabels = moduleOrder.filter((mod) =>
     allModulesInChart.includes(mod)
   );
+
+  // ##### CORREÇÃO AQUI #####
+  // Filtra os módulos que não estão na ordem principal E também remove "Sem Módulos".
   const remainingLabels = allModulesInChart.filter(
-    (mod) => !moduleOrder.includes(mod)
+    (mod) => !moduleOrder.includes(mod) && mod !== "Sem Módulos"
   );
+  // #########################
+
   const finalLabels = [...sortedLabels, ...remainingLabels];
   const finalData = finalLabels.map((label) => moduleCounts[label]);
 
@@ -362,7 +367,6 @@ function HomePage() {
 
     let cards = [];
 
-    // **** ALTERAÇÃO 1: Adiciona o card da Nexus no início para perfis específicos ****
     if (userProfile.role === "admin" || userProfile.role === "coordenador") {
       cards.push(
         <StatCard
@@ -417,7 +421,6 @@ function HomePage() {
         />
       );
     } else {
-      // Adiciona o restante dos cards para usuários com acesso total
       cards.push(
         <StatCard
           key="students"
@@ -459,7 +462,7 @@ function HomePage() {
           value={certificatesReady}
           icon={GraduationCap}
           to="/turma/concludentes"
-          state={{ schoolId: "1SzXUMMWR0MtndKZXIa1" }} // Adicionado um schoolId padrão ou ajuste conforme necessário
+          state={{ schoolId: "1SzXUMMWR0MtndKZXIa1" }}
           bgColor="bg-green-100"
           textColor="text-green-600"
         />,
