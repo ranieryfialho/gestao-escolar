@@ -16,6 +16,7 @@ import {
   FileText,
   CalendarPlus,
   BookMarked,
+  BookImage, // <-- ÍCONE IMPORTADO
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -425,12 +426,34 @@ function HomePage() {
 
     let cards = [];
 
+    // LÓGICA DE PERMISSÃO PARA O NOVO CARD
+    const canAccessCursosPage =
+      userProfile &&
+      ["coordenador", "diretor", "comercial", "admin"].includes(
+        userProfile.role
+      );
+
     const canSeeNexusCards = [
       "auxiliar_coordenacao",
       "coordenador",
       "diretor",
       "admin",
     ].includes(userProfile.role);
+
+    // NOVO CARD
+    if (canAccessCursosPage) {
+      cards.push(
+        <StatCard
+          key="cursos-ementas"
+          title="Cursos e Ementas"
+          value="Visualizar"
+          icon={BookImage}
+          to="/cursos"
+          bgColor="bg-pink-100"
+          textColor="text-pink-600"
+        />
+      );
+    }
 
     if (canSeeNexusCards) {
       cards.push(

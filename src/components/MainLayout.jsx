@@ -23,7 +23,10 @@ const MainLayout = () => {
   const isUserSecretaria = userProfile && userProfile.role === "secretaria";
 
   // *** NOVA LÓGICA DE PERMISSÃO ***
-  // Define quem pode ver o link da Frequência Nexus
+  const canAccessCursosPage =
+    userProfile &&
+    ["coordenador", "diretor", "comercial", "admin"].includes(userProfile.role);
+
   const canAccessNexusAttendance =
     userProfile &&
     ["coordenador", "admin", "diretor"].includes(userProfile.role);
@@ -90,7 +93,7 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   {isUserComercial || isUserSecretaria ? (
                     <>
-                      {/* Menu para Comercial e Secretaria (sem alterações) */}
+                      {/* Menu para Comercial e Secretaria */}
                       <div className="relative" ref={operationalMenuRef}>
                         <button
                           onClick={() => {
@@ -110,6 +113,16 @@ const MainLayout = () => {
                         {operationalMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
+                              {/* NOVO LINK AQUI (PARA COMERCIAL) */}
+                              {canAccessCursosPage && (
+                                <NavLink
+                                  to="/cursos"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Cursos e Ementas
+                                </NavLink>
+                              )}
                               {isUserSecretaria && (
                                 <NavLink
                                   to="/mapa-turmas"
@@ -144,7 +157,7 @@ const MainLayout = () => {
                     </>
                   ) : (
                     <>
-                      {/* --- GRUPO ACADÊMICO (com a melhoria) --- */}
+                      {/* --- GRUPO ACADÊMICO --- */}
                       <div className="relative" ref={academicMenuRef}>
                         <button
                           onClick={() => {
@@ -164,7 +177,6 @@ const MainLayout = () => {
                         {academicMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
-                              {/* **** LINK ADICIONADO AQUI **** */}
                               {canAccessNexusAttendance && (
                                 <NavLink
                                   to="/frequencia-nexus"
@@ -204,7 +216,7 @@ const MainLayout = () => {
                         )}
                       </div>
 
-                      {/* --- GRUPO OPERACIONAL (sem alterações) --- */}
+                      {/* --- GRUPO OPERACIONAL --- */}
                       <div className="relative" ref={operationalMenuRef}>
                         <button
                           onClick={() => {
@@ -224,6 +236,16 @@ const MainLayout = () => {
                         {operationalMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
+                              {/* NOVO LINK AQUI (PARA COORD/DIRETOR) */}
+                              {canAccessCursosPage && (
+                                <NavLink
+                                  to="/cursos"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setOperationalMenuOpen(false)}
+                                >
+                                  Cursos e Ementas
+                                </NavLink>
+                              )}
                               <NavLink
                                 to="/mapa-turmas"
                                 className={getDropdownNavLinkClass}
@@ -301,7 +323,7 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* --- MENU MOBILE (com a melhoria) --- */}
+      {/* --- MENU MOBILE --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -321,14 +343,13 @@ const MainLayout = () => {
           <nav className="mt-16 space-y-4">
             {isUserComercial || isUserSecretaria ? (
               <>
-                {/* Menu móvel para Comercial e Secretaria (sem alterações) */}
+                {/* Menu móvel para Comercial e Secretaria */}
               </>
             ) : (
               <>
                 <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
                   Acadêmico
                 </h4>
-                {/* **** LINK ADICIONADO AQUI **** */}
                 {canAccessNexusAttendance && (
                   <NavLink
                     to="/frequencia-nexus"
@@ -367,6 +388,16 @@ const MainLayout = () => {
                 <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
                   Operacional
                 </h4>
+                {/* NOVO LINK AQUI (MOBILE) */}
+                {canAccessCursosPage && (
+                  <NavLink
+                    to="/cursos"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Cursos e Ementas
+                  </NavLink>
+                )}
                 <NavLink
                   to="/mapa-turmas"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
