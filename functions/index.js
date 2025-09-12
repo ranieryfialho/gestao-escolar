@@ -41,15 +41,21 @@ const isProfessorOrAdmin = async (idToken) => {
     const decodedToken = await auth.verifyIdToken(idToken);
     const userRole = decodedToken.role;
 
-    console.log("Verificando permissão para professor ou admin (role):", userRole);
+    console.log(
+      "Verificando permissão para professor ou admin (role):",
+      userRole
+    );
 
+    // ##### MELHORIA APLICADA AQUI #####
+    // Adicionamos 'professor_nexus' à lista de perfis permitidos.
     return [
       "diretor",
-      "coordenador", 
+      "coordenador",
       "admin",
       "auxiliar_coordenacao",
       "professor",
-      "professor_apoio"
+      "professor_apoio",
+      "professor_nexus", // <-- PERFIL ADICIONADO
     ].includes(userRole);
   } catch (error) {
     console.error("Erro ao verificar token de professor/admin:", error);
@@ -606,7 +612,6 @@ exports.listGraduates = functions.https.onRequest((req, res) => {
 
 exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-
     const { updatedStudents } = req.body.data;
     if (!Array.isArray(updatedStudents)) {
       return res.status(400).json({ error: "Dados dos alunos inválidos." });
@@ -650,7 +655,6 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   });
 });
 
-// FUNÇÃO PARA BUSCAR DADOS DE ACOMPANHAMENTO
 exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
@@ -690,7 +694,6 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
   });
 });
 
-// FUNÇÃO PARA SALVAR DADOS DE ACOMPANHAMENTO
 exports.saveFollowUpForDate = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
@@ -740,11 +743,17 @@ exports.saveAttendance = functions.https.onRequest((req, res) => {
 
     const { classId, date, attendanceRecords } = req.body.data;
     if (!classId || !date || !attendanceRecords) {
-      return res.status(400).json({ error: "Dados incompletos para salvar a frequência." });
+      return res
+        .status(400)
+        .json({ error: "Dados incompletos para salvar a frequência." });
     }
 
     try {
-      const attendanceDocRef = db.collection("classes").doc(classId).collection("attendance").doc(date);
+      const attendanceDocRef = db
+        .collection("classes")
+        .doc(classId)
+        .collection("attendance")
+        .doc(date);
 
       await attendanceDocRef.set({
         records: attendanceRecords,
@@ -754,7 +763,9 @@ exports.saveAttendance = functions.https.onRequest((req, res) => {
       return res.status(200).json({ message: "Frequência salva com sucesso!" });
     } catch (error) {
       console.error("Erro ao salvar frequência:", error);
-      return res.status(500).json({ error: "Erro no servidor ao salvar a frequência." });
+      return res
+        .status(500)
+        .json({ error: "Erro no servidor ao salvar a frequência." });
     }
   });
 });
