@@ -103,7 +103,6 @@ function NexusAttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
   const [observationModalOpen, setObservationModalOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(null);
   const [isSavingObservation, setIsSavingObservation] = useState(false);
@@ -214,7 +213,6 @@ function NexusAttendancePage() {
     if (!currentStudent) return;
     setIsSavingObservation(true);
     const studentCode = currentStudent.code;
-
     const attendanceDocRef = doc(
       db,
       "classes",
@@ -222,9 +220,7 @@ function NexusAttendancePage() {
       "attendance",
       date
     );
-
     const updatedObservations = { ...observations, [studentCode]: newText };
-
     try {
       await setDoc(
         attendanceDocRef,
@@ -399,7 +395,7 @@ function NexusAttendancePage() {
                         </div>
                         <div>
                           <span className="font-semibold text-gray-800 text-lg">
-                            {student.name}
+                           {student.code} - {student.name}
                           </span>
                           {student.phone && (
                             <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-1">
