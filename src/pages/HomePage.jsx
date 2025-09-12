@@ -171,7 +171,6 @@ function HomePage() {
     );
   }
 
-  // Se for professor nexus, renderiza a view simplificada
   if (isProfessorNexus) {
     return (
       <div className="p-4 md:p-8">
@@ -205,10 +204,9 @@ function HomePage() {
           <div className="h-full">
             <Link
               to="/boletim"
-              state={{ 
-                initialFilter: "nexus",
+              state={{
                 isNexusUser: true,
-                lockedSchoolId: "GEYs70ghHbdAm9oeE8hu"
+                lockedSchoolId: "GEYs70ghHbdAm9oeE8hu",
               }}
               className="h-full block"
             >
@@ -230,7 +228,6 @@ function HomePage() {
     );
   }
 
-  // --- O restante do código é para os outros perfis ---
 
   const activeClasses = classes.filter(
     (c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly
@@ -428,7 +425,14 @@ function HomePage() {
 
     let cards = [];
 
-    if (userProfile.role === "admin" || userProfile.role === "coordenador") {
+    const canSeeNexusCards = [
+      "auxiliar_coordenacao",
+      "coordenador",
+      "diretor",
+      "admin",
+    ].includes(userProfile.role);
+
+    if (canSeeNexusCards) {
       cards.push(
         <StatCard
           key="frequencia-nexus"
