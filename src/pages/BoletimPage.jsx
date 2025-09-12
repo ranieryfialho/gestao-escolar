@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
@@ -17,20 +17,22 @@ function BoletimPage() {
   const { userProfile } = useAuth();
   const { classes, addClass, loadingClasses } = useClasses();
   const { users } = useUsers();
+  const location = useLocation();
 
   const [teacherList, setTeacherList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredClasses, setFilteredClasses] = useState([]);
 
-  // Lógica de escolas que já implementamos
   const [schools, setSchools] = useState([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
+
+  const isNexusUser = location.state?.isNexusUser || userProfile?.role === "professor_nexus";
+  const lockedSchoolId = location.state?.lockedSchoolId;
 
   const isUserAdmin =
     userProfile &&
     ["coordenador", "diretor", "admin"].includes(userProfile.role);
 
-  // Busca as escolas
   useEffect(() => {
     const fetchSchools = async () => {
       const schoolsCollection = collection(db, "schools");
@@ -44,34 +46,37 @@ function BoletimPage() {
     fetchSchools();
   }, []);
 
-  // Carrega a unidade selecionada do localStorage quando as escolas são carregadas
   useEffect(() => {
     if (schools.length > 0) {
-      const savedSchoolId = localStorage.getItem(SELECTED_SCHOOL_KEY);
-      if (savedSchoolId) {
-        // Verifica se a escola salva ainda existe na lista
-        const schoolExists = schools.some(
-          (school) => school.id === savedSchoolId
-        );
-        if (schoolExists) {
-          setSelectedSchoolId(savedSchoolId);
-        } else {
-          // Remove do localStorage se a escola não existe mais
-          localStorage.removeItem(SELECTED_SCHOOL_KEY);
+      if (isNexusUser && lockedSchoolId) {
+        setSelectedSchoolId(lockedSchoolId);
+      } else {
+        const savedSchoolId = localStorage.getItem(SELECTED_SCHOOL_KEY);
+        if (savedSchoolId) {
+          const schoolExists = schools.some(
+            (school) => school.id === savedSchoolId
+          );
+          if (schoolExists) {
+            setSelectedSchoolId(savedSchoolId);
+          } else {
+            localStorage.removeItem(SELECTED_SCHOOL_KEY);
+          }
         }
       }
     }
-  }, [schools]);
+  }, [schools, isNexusUser, lockedSchoolId]);
 
-  // Salva a unidade selecionada no localStorage sempre que mudar
   const handleSchoolChange = (schoolId) => {
+    if (isNexusUser) {
+      return;
+    }
+    
     setSelectedSchoolId(schoolId);
     if (schoolId) {
       localStorage.setItem(SELECTED_SCHOOL_KEY, schoolId);
     } else {
       localStorage.removeItem(SELECTED_SCHOOL_KEY);
     }
-    // Limpa o termo de busca ao trocar de escola
     setSearchTerm("");
   };
 
@@ -85,7 +90,6 @@ function BoletimPage() {
     setTeacherList(users.filter((user) => rolesPermitidos.includes(user.role)));
   }, [users]);
 
-  // Filtra as turmas normais - VERSÃO MELHORADA
   useEffect(() => {
     if (loadingClasses || !selectedSchoolId) {
       setFilteredClasses([]);
@@ -101,12 +105,10 @@ function BoletimPage() {
     const results = schoolClasses.filter((turma) => {
       const searchTermLower = searchTerm.toLowerCase();
 
-      // Busca pelo nome da turma
       if (turma.name.toLowerCase().includes(searchTermLower)) {
         return true;
       }
 
-      // Busca pelo nome do professor
       if (
         turma.professorName &&
         turma.professorName.toLowerCase().includes(searchTermLower)
@@ -114,20 +116,16 @@ function BoletimPage() {
         return true;
       }
 
-      // Busca por aluno (nome ou código/matrícula)
       if (turma.students && turma.students.length > 0) {
         const studentMatch = turma.students.some((student) => {
-          // Busca pelo nome do aluno
           const nameMatch =
             student.name &&
             student.name.toLowerCase().includes(searchTermLower);
 
-          // Busca pelo código/matrícula do aluno
           const codeMatch =
             student.code &&
             student.code.toString().toLowerCase().includes(searchTermLower);
 
-          // Busca pelo campo matricula (caso ainda exista em alguns registros)
           const matriculaMatch =
             student.matricula &&
             student.matricula
@@ -148,7 +146,6 @@ function BoletimPage() {
     setFilteredClasses(results);
   }, [classes, loadingClasses, selectedSchoolId, searchTerm]);
 
-  // Função de criar turma (já com schoolId)
   const handleCreateClass = async (
     className,
     selectedPackageId,
@@ -182,7 +179,6 @@ function BoletimPage() {
     toast.success(`Turma "${className}" criada com sucesso!`);
   };
 
-  // Função para obter o nome da escola selecionada
   const getSelectedSchoolName = () => {
     const selectedSchool = schools.find(
       (school) => school.id === selectedSchoolId
@@ -192,7 +188,7 @@ function BoletimPage() {
 
   return (
     <div className="p-4 md:p-8">
-      {isUserAdmin && (
+      {isUserAdmin && !isNexusUser && (
         <CreateClassForm
           onClassCreated={handleCreateClass}
           packages={modulePackages}
@@ -200,7 +196,6 @@ function BoletimPage() {
         />
       )}
 
-      {/* Seletor de Escola e Busca */}
       <div className="my-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="w-full md:w-1/3">
           <label
@@ -208,20 +203,31 @@ function BoletimPage() {
             className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2"
           >
             <School size={16} />
-            Selecione a Unidade
+            {isNexusUser ? "Unidade Nexus" : "Selecione a Unidade"}
           </label>
           <select
             id="school-filter"
             value={selectedSchoolId}
             onChange={(e) => handleSchoolChange(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 ${
+              isNexusUser ? "bg-gray-100 cursor-not-allowed" : ""
+            }`}
+            disabled={isNexusUser}
           >
-            <option value="">Escolha uma escola...</option>
-            {schools.map((school) => (
-              <option key={school.id} value={school.id}>
-                {school.name}
+            {isNexusUser ? (
+              <option value={selectedSchoolId}>
+                {getSelectedSchoolName() || "Nexus"}
               </option>
-            ))}
+            ) : (
+              <>
+                <option value="">Escolha uma escola...</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
         </div>
         <div className="w-full md:flex-grow">
@@ -229,7 +235,7 @@ function BoletimPage() {
             htmlFor="search-input"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Buscar na unidade selecionada
+            {isNexusUser ? "Buscar no Nexus" : "Buscar na unidade selecionada"}
             {selectedSchoolId && (
               <span className="text-blue-600 font-semibold ml-1">
                 ({getSelectedSchoolName()})
@@ -248,33 +254,41 @@ function BoletimPage() {
         </div>
       </div>
 
-      {/* Indicador da unidade selecionada */}
       {selectedSchoolId && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className={`mb-6 p-4 border rounded-lg ${
+          isNexusUser 
+            ? "bg-amber-50 border-amber-200" 
+            : "bg-blue-50 border-blue-200"
+        }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <School className="text-blue-600" size={20} />
-              <span className="text-blue-800 font-semibold">
-                Visualizando turmas de: {getSelectedSchoolName()}
+              <School className={isNexusUser ? "text-amber-600" : "text-blue-600"} size={20} />
+              <span className={`font-semibold ${
+                isNexusUser ? "text-amber-800" : "text-blue-800"
+              }`}>
+                {isNexusUser 
+                  ? `Visualizando Nexus: ${getSelectedSchoolName()}` 
+                  : `Visualizando turmas de: ${getSelectedSchoolName()}`
+                }
               </span>
             </div>
-            <button
-              onClick={() => handleSchoolChange("")}
-              className="text-blue-600 hover:text-blue-800 text-sm underline"
-            >
-              Trocar unidade
-            </button>
+            {!isNexusUser && (
+              <button
+                onClick={() => handleSchoolChange("")}
+                className="text-blue-600 hover:text-blue-800 text-sm underline"
+              >
+                Trocar unidade
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Grid de Turmas */}
       {selectedSchoolId && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* CARD RESTAURADO PARA CONCLUDENTES */}
           <Link
             to="/turma/concludentes"
-            state={{ schoolId: selectedSchoolId }} // Passando o ID da escola selecionada
+            state={{ schoolId: selectedSchoolId }}
             className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
@@ -292,7 +306,6 @@ function BoletimPage() {
             </div>
           </Link>
 
-          {/* Turmas normais filtradas */}
           {filteredClasses.map((turma) => (
             <Link key={turma.id} to={`/turma/${turma.id}`}>
               <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer h-full flex flex-col">
@@ -308,7 +321,6 @@ function BoletimPage() {
         </div>
       )}
 
-      {/* Mensagem quando nenhuma turma é encontrada */}
       {selectedSchoolId && filteredClasses.length === 0 && !loadingClasses && (
         <div className="text-center py-12">
           <Users className="mx-auto text-gray-300 mb-4" size={64} />

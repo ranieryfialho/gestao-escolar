@@ -15,7 +15,7 @@ import {
   BookCopy,
   FileText,
   CalendarPlus,
-  BookMarked, // Ícone adicionado para o boletim
+  BookMarked,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -23,7 +23,6 @@ import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
 import "../styles/slider.css";
 
-// Componente StatCard (sem alterações)
 const StatCard = ({
   title,
   value,
@@ -59,7 +58,6 @@ const StatCard = ({
   );
 };
 
-// Funções de data e módulo (sem alterações)
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
   if (typeof dateValue === "string") {
@@ -207,7 +205,11 @@ function HomePage() {
           <div className="h-full">
             <Link
               to="/boletim"
-              state={{ initialFilter: "nexus" }}
+              state={{ 
+                initialFilter: "nexus",
+                isNexusUser: true,
+                lockedSchoolId: "GEYs70ghHbdAm9oeE8hu"
+              }}
               className="h-full block"
             >
               <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
