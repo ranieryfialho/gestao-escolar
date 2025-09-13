@@ -3,7 +3,7 @@ import Slider from 'react-slick';
 import { imagensCursos } from '../assets/cursos';
 import { Presentation, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Componente Lightbox aprimorado com navegação
+// Componente Lightbox com imagem maior
 const ImageLightbox = ({ currentIndex, images, onClose }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(currentIndex);
 
@@ -15,7 +15,6 @@ const ImageLightbox = ({ currentIndex, images, onClose }) => {
     setCurrentImageIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
   }, [images.length]);
 
-  // Efeito para adicionar navegação pelo teclado (setas <- e ->)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowRight') {
@@ -26,22 +25,19 @@ const ImageLightbox = ({ currentIndex, images, onClose }) => {
         onClose();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [goToNext, goToPrev, onClose]);
 
-
   const image = images[currentImageIndex];
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-90 z-50 flex justify-center items-center p-4"
+      className="fixed inset-0 bg-black bg-opacity-90 z-50 flex justify-center items-center p-2 sm:p-4"
       onClick={onClose}
     >
-      {/* Botão de Fechar */}
       <button 
         onClick={onClose}
         className="absolute top-4 right-4 bg-white text-gray-800 rounded-full p-2 shadow-lg hover:bg-gray-200 transition z-50"
@@ -49,7 +45,6 @@ const ImageLightbox = ({ currentIndex, images, onClose }) => {
         <X size={24} />
       </button>
 
-      {/* Botão de Navegação: Anterior */}
       <button
         onClick={(e) => {
             e.stopPropagation();
@@ -60,12 +55,16 @@ const ImageLightbox = ({ currentIndex, images, onClose }) => {
         <ChevronLeft size={32} />
       </button>
 
-      {/* Container da Imagem */}
-      <div className="relative max-w-4xl max-h-full" onClick={e => e.stopPropagation()}>
-        <img src={image.src} alt={image.alt} className="max-w-full max-h-[90vh] object-contain rounded-lg" />
+      {/* AQUI ESTÁ A MUDANÇA PRINCIPAL */}
+      <div className="relative" onClick={e => e.stopPropagation()}>
+        <img 
+          src={image.src} 
+          alt={image.alt} 
+          // Classes alteradas para permitir que a imagem seja maior
+          className="max-w-[95vw] max-h-[95vh] object-contain rounded-lg" 
+        />
       </div>
-
-      {/* Botão de Navegação: Próximo */}
+      
       <button
         onClick={(e) => {
             e.stopPropagation();
@@ -134,7 +133,6 @@ function CursosPage() {
         </div>
       </div>
 
-      {/* Renderiza o Lightbox se estiver aberto */}
       {lightboxData.isOpen && (
         <ImageLightbox 
           currentIndex={lightboxData.index}
