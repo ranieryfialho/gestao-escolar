@@ -29,10 +29,11 @@ const maskPhone = (value) =>
     .replace(/(\d{5})(\d)/, "$1-$2")
     .substring(0, 15);
 
-// --- Função para Gerar Datas (sem alterações) ---
+// ### INÍCIO DA CORREÇÃO DE DATAS ###
 const generateClassDates = (startDate, endDate, dayOfWeek) => {
   const dates = [];
   if (!startDate || !endDate || !dayOfWeek) return dates;
+
   const dayMap = {
     Domingo: 0,
     "Segunda-feira": 1,
@@ -44,21 +45,29 @@ const generateClassDates = (startDate, endDate, dayOfWeek) => {
   };
   const targetDay = dayMap[dayOfWeek];
   if (targetDay === undefined) return dates;
-  let current = new Date(startDate);
-  current.setUTCHours(0, 0, 0, 0);
-  let dayDifference = targetDay - current.getUTCDay();
+
+  // CORREÇÃO: Força a interpretação da data como local, evitando problemas de fuso.
+  const current = new Date(startDate + "T00:00:00");
+  const finalEndDate = new Date(endDate + "T00:00:00");
+
+  // CORREÇÃO: Usa getDay() para o dia da semana local.
+  const startDay = current.getDay();
+  let dayDifference = targetDay - startDay;
   if (dayDifference < 0) {
     dayDifference += 7;
   }
-  current.setUTCDate(current.getUTCDate() + dayDifference);
-  const finalEndDate = new Date(endDate);
-  finalEndDate.setUTCHours(0, 0, 0, 0);
+
+  // CORREÇÃO: Usa setDate() para manipular a data local.
+  current.setDate(current.getDate() + dayDifference);
+
   while (current <= finalEndDate) {
     dates.push(new Date(current));
-    current.setUTCDate(current.getUTCDate() + 7);
+    current.setDate(current.getDate() + 7);
   }
+
   return dates;
 };
+// ### FIM DA CORREÇÃO DE DATAS ###
 
 // --- Componente Principal ---
 const ContractGeneratorPage = () => {
@@ -76,11 +85,12 @@ const ContractGeneratorPage = () => {
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [certificateOption, setCertificateOption] = useState("impresso");
 
-  // ### INÍCIO DA MELHORIA CORRIGIDA ###
+  // Lógica para filtrar e exibir os cursos do mês mais recente
   useEffect(() => {
-    // 1. Filtra todos os cursos que são "Treinamento Básico" e têm data de início.
-    const trainingCourses = classes.filter(c => {
-      const isTraining = (c.modules?.[0]?.id || "").toUpperCase().match(/TB|TREINAMENTO/);
+    const trainingCourses = classes.filter((c) => {
+      const isTraining = (c.modules?.[0]?.id || "")
+        .toUpperCase()
+        .match(/TB|TREINAMENTO/);
       return isTraining && c.dataInicio;
     });
 
@@ -89,13 +99,12 @@ const ContractGeneratorPage = () => {
       return;
     }
 
-    // 2. Encontra a data mais recente entre todos os treinamentos.
-    // Adiciona 'T00:00:00' para garantir que o fuso horário não afete a data.
     const latestTimestamp = Math.max(
-      ...trainingCourses.map(c => new Date(c.dataInicio + 'T00:00:00').getTime())
+      ...trainingCourses.map((c) =>
+        new Date(c.dataInicio + "T00:00:00").getTime()
+      )
     );
 
-    // Validação para o caso de não haver datas válidas
     if (isNaN(latestTimestamp)) {
       setAvailableCourses([]);
       return;
@@ -105,18 +114,20 @@ const ContractGeneratorPage = () => {
     const latestMonth = latestDate.getMonth();
     const latestYear = latestDate.getFullYear();
 
-    // 3. Filtra para mostrar TODOS os cursos que ocorrem no mês e ano mais recente.
-    const mostRecentMonthCourses = trainingCourses.filter(c => {
-      const courseDate = new Date(c.dataInicio + 'T00:00:00');
-      return courseDate.getMonth() === latestMonth && courseDate.getFullYear() === latestYear;
+    const mostRecentMonthCourses = trainingCourses.filter((c) => {
+      const courseDate = new Date(c.dataInicio + "T00:00:00");
+      return (
+        courseDate.getMonth() === latestMonth &&
+        courseDate.getFullYear() === latestYear
+      );
     });
 
-    // 4. Ordena os cursos por data para uma melhor visualização.
-    const sortedCourses = mostRecentMonthCourses.sort((a, b) => new Date(a.dataInicio) - new Date(b.dataInicio));
+    const sortedCourses = mostRecentMonthCourses.sort(
+      (a, b) => new Date(a.dataInicio) - new Date(b.dataInicio)
+    );
 
     setAvailableCourses(sortedCourses);
   }, [classes]);
-  // ### FIM DA MELHORIA CORRIGIDA ###
 
   useEffect(() => {
     if (certificateOption === "impresso" || certificateOption === "pdf") {
@@ -179,11 +190,11 @@ const ContractGeneratorPage = () => {
       doc.text("Contrato (Treinamentos)", 105, startY + 28, {
         align: "center",
       });
-      
+
       let y = startY + 36;
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      
+
       const allPhones = [guardianPhone, guardianPhone2]
         .filter(Boolean)
         .join(" / ");
@@ -191,7 +202,7 @@ const ContractGeneratorPage = () => {
         selectedCourses.length > 1
           ? `${selectedCourses.length} cursos`
           : "1 curso";
-      
+
       let contractText = `O aluno(a) ${studentName}, CPF ${
         studentCpf || "N/A"
       }, junto com o seu responsável de nome ${guardianName}, CPF: ${guardianCpf} e telefone (${allPhones}) junta a este termo de adesão, firma o presente acordo sobre o(s) treinamento(s) ofertado(s). O aluno(a) está se inscrevendo em ${courseCountText}.`;
@@ -203,7 +214,7 @@ const ContractGeneratorPage = () => {
       } else {
         contractText += ` A modalidade escolhida é SEM CERTIFICADO, isentando o aluno(a) da taxa.`;
       }
-      
+
       const textLines = doc.splitTextToSize(contractText, 180);
       doc.text(textLines, 15, y);
       y += textLines.length * 4 + 2;
