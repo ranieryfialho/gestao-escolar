@@ -76,14 +76,47 @@ const ContractGeneratorPage = () => {
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [certificateOption, setCertificateOption] = useState("impresso");
 
+  // ### INÍCIO DA MELHORIA CORRIGIDA ###
   useEffect(() => {
-    const trainingAndTBCourses = classes.filter((c) =>
-      (c.modules?.[0]?.id || "")
-        .toUpperCase()
-        .match(/TB|TREINAMENTO/)
+    // 1. Filtra todos os cursos que são "Treinamento Básico" e têm data de início.
+    const trainingCourses = classes.filter(c => {
+      const isTraining = (c.modules?.[0]?.id || "").toUpperCase().match(/TB|TREINAMENTO/);
+      return isTraining && c.dataInicio;
+    });
+
+    if (trainingCourses.length === 0) {
+      setAvailableCourses([]);
+      return;
+    }
+
+    // 2. Encontra a data mais recente entre todos os treinamentos.
+    // Adiciona 'T00:00:00' para garantir que o fuso horário não afete a data.
+    const latestTimestamp = Math.max(
+      ...trainingCourses.map(c => new Date(c.dataInicio + 'T00:00:00').getTime())
     );
-    setAvailableCourses(trainingAndTBCourses);
+
+    // Validação para o caso de não haver datas válidas
+    if (isNaN(latestTimestamp)) {
+      setAvailableCourses([]);
+      return;
+    }
+
+    const latestDate = new Date(latestTimestamp);
+    const latestMonth = latestDate.getMonth();
+    const latestYear = latestDate.getFullYear();
+
+    // 3. Filtra para mostrar TODOS os cursos que ocorrem no mês e ano mais recente.
+    const mostRecentMonthCourses = trainingCourses.filter(c => {
+      const courseDate = new Date(c.dataInicio + 'T00:00:00');
+      return courseDate.getMonth() === latestMonth && courseDate.getFullYear() === latestYear;
+    });
+
+    // 4. Ordena os cursos por data para uma melhor visualização.
+    const sortedCourses = mostRecentMonthCourses.sort((a, b) => new Date(a.dataInicio) - new Date(b.dataInicio));
+
+    setAvailableCourses(sortedCourses);
   }, [classes]);
+  // ### FIM DA MELHORIA CORRIGIDA ###
 
   useEffect(() => {
     if (certificateOption === "impresso" || certificateOption === "pdf") {
@@ -143,12 +176,10 @@ const ContractGeneratorPage = () => {
 
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      // MUDANÇA: Aumentado o espaçamento para o título
       doc.text("Contrato (Treinamentos)", 105, startY + 28, {
         align: "center",
       });
       
-      // MUDANÇA: Posição Y inicial do texto do contrato ajustada
       let y = startY + 36;
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
@@ -186,7 +217,7 @@ const ContractGeneratorPage = () => {
         const formattedDates = courseDates
           .map((date) => date.toLocaleDateString("pt-BR"))
           .join(", ");
-        y += 8; // MUDANÇA: Aumentado espaçamento entre cursos
+        y += 8;
         doc.setFont("helvetica", "bold");
         doc.text(`Curso ${index + 1}:`, 15, y);
         doc.setFont("helvetica", "normal");
@@ -195,7 +226,7 @@ const ContractGeneratorPage = () => {
           40,
           y
         );
-        y += 5; // MUDANÇA: Aumentado espaçamento entre linha do curso e as datas
+        y += 5;
         doc.setFont("helvetica", "bold");
         doc.text("Datas:", 15, y);
         doc.setFont("helvetica", "normal");
@@ -204,12 +235,11 @@ const ContractGeneratorPage = () => {
         y += dateLines.length * 4;
       });
 
-      // MUDANÇA: Posição das assinaturas ajustada para o final da página
       y = startY + 120;
       doc.line(40, y, 170, y);
       doc.text("ASSINATURA DO RESPONSÁVEL", 105, y + 4, { align: "center" });
 
-      y += 12; // MUDANÇA: Aumentado espaçamento entre assinaturas
+      y += 12;
       doc.line(40, y, 170, y);
       doc.text("SÊNIOR ESCOLA DE PROFISSÕES", 105, y + 4, { align: "center" });
 
