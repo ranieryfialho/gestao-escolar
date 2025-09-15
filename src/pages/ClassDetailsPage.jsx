@@ -14,12 +14,10 @@ import QrCodeModal from "../components/QrCodeModal";
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
-// CORREÇÃO: A função callApi foi removida daqui pois ela força o método POST.
-// A chamada para listGraduates será feita com 'fetch' diretamente.
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
-    method: "POST", // Esta função continua usando POST para as outras operações
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -34,7 +32,6 @@ const callApi = async (functionName, payload, token) => {
   }
   return result.result || result;
 };
-
 
 const showConfirmationToast = (message, onConfirm) => {
   toast(
@@ -186,22 +183,21 @@ function ClassDetailsPage() {
         try {
           if (!firebaseUser) return;
           const token = await firebaseUser.getIdToken();
-          
+
           const { schoolId } = location.state || {};
           if (!schoolId) {
-              toast.error("Escola não selecionada. Voltando...");
-              navigate('/boletim');
-              return;
+            toast.error("Escola não selecionada. Voltando...");
+            navigate("/boletim");
+            return;
           }
 
-          // **** AQUI ESTÁ A CORREÇÃO PRINCIPAL ****
-          // A chamada agora é feita com 'fetch' e o método GET explícito.
-          const functionUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net/listGraduates";
+          const functionUrl =
+            "https://us-central1-boletim-escolar-app.cloudfunctions.net/listGraduates";
           const response = await fetch(functionUrl, {
-              method: "GET", // Especifica o método correto
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           });
 
           const result = await response.json();
@@ -210,7 +206,9 @@ function ClassDetailsPage() {
           }
 
           const allGraduates = result.result.graduates || [];
-          const schoolGraduates = allGraduates.filter(g => g.schoolId === schoolId);
+          const schoolGraduates = allGraduates.filter(
+            (g) => g.schoolId === schoolId
+          );
 
           const virtualClass = {
             id: "concludentes",
@@ -223,7 +221,6 @@ function ClassDetailsPage() {
           setTurma(virtualClass);
           setNewClassName(virtualClass.name);
 
-          // O resto da lógica para filtrar e ordenar os alunos continua igual
           const sortedStudents = sortStudentsByName(virtualClass.students);
           if (studentSearchTerm === "") {
             setFilteredStudents(sortedStudents);
@@ -247,7 +244,6 @@ function ClassDetailsPage() {
         return;
       }
 
-      // Lógica para turmas normais (sem alteração)
       const foundTurma = classes.find((c) => c.id === turmaId);
       if (foundTurma) {
         let modulesToApply = [];
@@ -315,9 +311,32 @@ function ClassDetailsPage() {
     refetchTrigger,
     location.state,
   ]);
-  
-  // O restante do seu arquivo (todas as funções handle...) permanece exatamente igual.
-  // ...
+
+  // ### INÍCIO DA CORREÇÃO ###
+  const handleApiAction = async (functionName, payload, successCallback) => {
+    const toastId = toast.loading("Executando operação...");
+    try {
+      if (!firebaseUser) {
+        throw new Error("Usuário não autenticado.");
+      }
+      const token = await firebaseUser.getIdToken();
+
+      const result = await callApi(functionName, payload, token);
+
+      toast.success(result.message || "Operação concluída com sucesso!", {
+        id: toastId,
+      });
+
+      if (successCallback) {
+        successCallback();
+      }
+    } catch (error) {
+      console.error(`Erro ao executar a função '${functionName}':`, error);
+      toast.error(`Erro: ${error.message}`, { id: toastId });
+    }
+  };
+  // ### FIM DA CORREÇÃO ###
+
   const handleSaveWhatsappLink = async () => {
     await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
     toast.success("Link do WhatsApp salvo com sucesso!");
@@ -575,7 +594,9 @@ function ClassDetailsPage() {
         await handleApiAction(
           "updateGraduatesBatch",
           {
-            updatedStudents: updatedStudents.filter(s => (s.studentId || s.id) === id)
+            updatedStudents: updatedStudents.filter(
+              (s) => (s.studentId || s.id) === id
+            ),
           },
           () => setRefetchTrigger((prev) => prev + 1)
         );
@@ -602,10 +623,14 @@ function ClassDetailsPage() {
         const studentToRemove = turma.students.find(
           (s) => (s.studentId || s.id) === studentId
         );
-        
+
         await handleApiAction(
           "removeStudentFromClass",
-          { classId: turma.id, studentId: studentId, studentData: studentToRemove },
+          {
+            classId: turma.id,
+            studentId: studentId,
+            studentData: studentToRemove,
+          },
           () => setRefetchTrigger((prev) => prev + 1)
         );
       }
@@ -663,7 +688,7 @@ function ClassDetailsPage() {
   };
 
   if (!turma) return <div className="p-8">Carregando turma...</div>;
-  
+
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block">

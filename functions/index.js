@@ -425,6 +425,56 @@ exports.importStudentsBatch = functions.https.onRequest((req, res) => {
   });
 });
 
+exports.removeStudentFromClass = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Método não permitido");
+    }
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!(await isAdmin(idToken))) {
+      return res.status(403).json({ error: "Ação não autorizada." });
+    }
+    const { studentData, classId } = req.body.data;
+    if (!studentData || !classId || !studentData.code) {
+      return res
+        .status(400)
+        .json({ error: "Dados inválidos para remover o aluno." });
+    }
+    const classRef = db.collection("classes").doc(classId);
+    const concludentesRef = db
+      .collection("concludentes")
+      .doc(String(studentData.code));
+    try {
+      await db.runTransaction(async (transaction) => {
+        const classDoc = await transaction.get(classRef);
+        if (!classDoc.exists) {
+          throw new Error("Turma não encontrada.");
+        }
+        const students = classDoc.data().students || [];
+        const updatedStudents = students.filter(
+          (s) => String(s.code) !== String(studentData.code)
+        );
+        transaction.update(classRef, { students: updatedStudents });
+        const graduateData = {
+          code: String(studentData.code),
+          name: studentData.name,
+          grades: studentData.grades || {},
+          observation: studentData.observation || "",
+          graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          certificateStatus: "nao_impresso",
+        };
+        transaction.set(concludentesRef, graduateData);
+      });
+      return res
+        .status(200)
+        .json({ message: "Aluno removido e movido para concludentes!" });
+    } catch (error) {
+      console.error("Erro ao remover aluno:", error);
+      return res.status(500).json({ error: "Erro interno do servidor." });
+    }
+  });
+});
+
 exports.syncUserRole = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
@@ -678,7 +728,7 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
         .doc(date);
       const docSnap = await followUpDocRef.get();
 
-      if (docSnap.exists) {
+      if (docSnap.exists()) {
         return res.status(200).json({ data: docSnap.data() });
       } else {
         return res.status(200).json({ data: {} });
