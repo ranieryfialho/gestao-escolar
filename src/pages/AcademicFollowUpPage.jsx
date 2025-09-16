@@ -24,19 +24,28 @@ import toast from "react-hot-toast";
 
 const callFollowUpApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
-  const response = await fetch(functionUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ data: payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error || "Ocorreu um erro no servidor.");
+  
+  try {
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ data: payload }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Erro ${response.status}`);
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error(`Erro na chamada da API ${functionName}:`, error);
+    throw error;
   }
-  return result;
 };
 
 function AcademicFollowUpPage() {
@@ -103,11 +112,11 @@ function AcademicFollowUpPage() {
         { classId: selectedClassId, date: selectedDate },
         token
       );
+      
       setFollowUpData(result.data || {});
       setSaveStatus("idle");
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
-      toast.error("Não foi possível carregar os dados de acompanhamento.");
       setFollowUpData({});
     } finally {
       setIsLoadingData(false);
@@ -152,7 +161,6 @@ function AcademicFollowUpPage() {
     );
   }, [students, searchTerm]);
 
-
   const handleSave = useCallback(
     async (currentData) => {
       if (Object.keys(currentData).length === 0 || !selectedClassId) {
@@ -173,6 +181,7 @@ function AcademicFollowUpPage() {
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
       } catch (error) {
+        console.error("Erro ao salvar:", error);
         setSaveStatus("idle");
         toast.error("Erro ao salvar acompanhamento.");
       }

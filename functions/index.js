@@ -703,11 +703,13 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   });
 });
 
+// FUNÇÃO PRINCIPAL CORRIGIDA
 exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
       return res.status(405).send("Método não permitido");
     }
+    
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
@@ -726,9 +728,11 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
         .doc(classId)
         .collection("academicFollowUp")
         .doc(date);
+      
       const docSnap = await followUpDocRef.get();
 
-      if (docSnap.exists()) {
+      // CORREÇÃO: Usar a propriedade exists corretamente
+      if (docSnap.exists) {
         return res.status(200).json({ data: docSnap.data() });
       } else {
         return res.status(200).json({ data: {} });
@@ -747,6 +751,7 @@ exports.saveFollowUpForDate = functions.https.onRequest((req, res) => {
     if (req.method !== "POST") {
       return res.status(405).send("Método não permitido");
     }
+
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
