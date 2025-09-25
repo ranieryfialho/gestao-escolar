@@ -50,6 +50,7 @@ const formatDateForDisplay = (dateValue) => {
   if (isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("pt-BR");
 };
+
 const formatDateForInput = (dateValue) => {
   if (!dateValue) return "";
   let date;
@@ -76,6 +77,7 @@ const formatDateForInput = (dateValue) => {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
   if (typeof dateValue === "string") {
@@ -97,56 +99,48 @@ const parseDate = (dateValue) => {
 };
 
 const getDisplayModules = (turma) => {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
+  const ordemModulos = ["ICN", "OFFA", "ADM", "PWB", "TRI", "CMV"];
+  
+  // Se não tem grade definida
   if (!turma.modules || turma.modules.length === 0) {
-    return { moduloAtual: "Sem Módulos", proximoModulo: "-" };
+    return { moduloAtual: "Sem Grade Definida", proximoModulo: "-" };
   }
 
-  let currentModuleId;
-
-  if (turma.mapa_modulo_atual_id) {
-    currentModuleId = turma.mapa_modulo_atual_id;
+  // Módulo atual: prioriza o definido manualmente, senão usa lógica automática
+  let moduloAtual;
+  if (turma.mapa_modulo_atual_id && turma.mapa_modulo_atual_id !== "AUTOMATICO") {
+    moduloAtual = turma.mapa_modulo_atual_id;
   } else {
-    const modAtualPorData = turma.modules.find((mod) => {
+    // Lógica automática simplificada - pega o primeiro módulo ou usa data
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const moduloAtivoHoje = turma.modules.find((mod) => {
       const inicio = parseDate(mod.dataInicio || mod.startDate);
       const termino = parseDate(mod.dataTermino || mod.endDate);
       return inicio && termino && hoje >= inicio && hoje <= termino;
     });
 
-    if (modAtualPorData) {
-      currentModuleId = modAtualPorData.id;
+    if (moduloAtivoHoje) {
+      moduloAtual = moduloAtivoHoje.id;
     } else {
-      const modulosPassados = turma.modules
-        .filter((mod) => {
-          const termino = parseDate(mod.dataTermino || mod.endDate);
-          return termino && termino < hoje;
-        })
-        .sort(
-          (a, b) =>
-            parseDate(b.dataTermino || b.endDate) -
-            parseDate(a.dataTermino || a.endDate)
-        );
-
-      if (modulosPassados.length > 0) {
-        currentModuleId = modulosPassados[0].id;
-      } else {
-        currentModuleId = turma.modules[0].id;
-      }
+      moduloAtual = turma.modules[0]?.id || "ICN";
     }
   }
 
-  const currentIndex = turma.modules.findIndex(
-    (mod) => mod.id === currentModuleId
-  );
-
-  if (currentIndex === -1) {
-    return { moduloAtual: currentModuleId, proximoModulo: "N/A" };
+  // Próximo módulo: usa o definido manualmente, senão calcula automaticamente
+  let proximoModulo;
+  if (turma.mapa_proximo_modulo_id) {
+    proximoModulo = turma.mapa_proximo_modulo_id;
+  } else {
+    // Lógica automática para próximo módulo
+    const indiceAtual = ordemModulos.findIndex(mod => mod === moduloAtual);
+    if (indiceAtual !== -1 && indiceAtual < ordemModulos.length - 1) {
+      proximoModulo = ordemModulos[indiceAtual + 1];
+    } else {
+      proximoModulo = "Finalizado";
+    }
   }
-
-  const moduloAtual = turma.modules[currentIndex].id;
-  const proximoModulo = turma.modules[currentIndex + 1]?.id || "Finalizado";
 
   return { moduloAtual, proximoModulo };
 };
@@ -322,6 +316,7 @@ function MapaTurmasPage() {
   ];
 
   const handleStartEdit = (turma) => {
+    const { proximoModulo } = getDisplayModules(turma);
     setEditingRowId(turma.id);
     setEditedData({
       data_inicio: formatDateForInput(turma.dataInicio),
@@ -331,6 +326,7 @@ function MapaTurmasPage() {
       horario: turma.horario || "",
       dia_semana: turma.dia_semana || "",
       modulo_atual: turma.mapa_modulo_atual_id || "AUTOMATICO",
+      proximo_modulo: turma.mapa_proximo_modulo_id || proximoModulo,
     });
   };
 
@@ -338,6 +334,7 @@ function MapaTurmasPage() {
     setEditingRowId(null);
     setEditedData({});
   };
+
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditedData((prev) => ({ ...prev, [name]: value }));
@@ -353,6 +350,7 @@ function MapaTurmasPage() {
       dia_semana: editedData.dia_semana,
       mapa_modulo_atual_id:
         editedData.modulo_atual === "AUTOMATICO" ? "" : editedData.modulo_atual,
+      mapa_proximo_modulo_id: editedData.proximo_modulo || "",
     };
 
     const classDocRef = doc(db, "classes", turmaId);
@@ -544,13 +542,6 @@ function MapaTurmasPage() {
             {filteredClasses.map((turma) => {
               const isEditing = editingRowId === turma.id;
               const { moduloAtual, proximoModulo } = getDisplayModules(turma);
-              const displayProximoModulo = isEditing
-                ? turma.modules[
-                    turma.modules.findIndex(
-                      (m) => m.id === editedData.modulo_atual
-                    ) + 1
-                  ]?.id || "Finalizado"
-                : proximoModulo;
 
               return (
                 <tr
@@ -626,7 +617,24 @@ function MapaTurmasPage() {
                       <span>{moduloAtual}</span>
                     )}
                   </td>
-                  <td className="px-4 py-2">{displayProximoModulo}</td>
+                  <td className="p-1">
+                    {isEditing ? (
+                      <select
+                        name="proximo_modulo"
+                        value={editedData.proximo_modulo}
+                        onChange={handleEditChange}
+                        className="w-full p-2 border rounded-md"
+                      >
+                        {[...moduleOptions, "Finalizado"].map((modId) => (
+                          <option key={modId} value={modId}>
+                            {modId}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span>{proximoModulo}</span>
+                    )}
+                  </td>
                   <td className="p-1">
                     {isEditing ? (
                       <input
