@@ -3,7 +3,7 @@ import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
 import ChatPopup from "./ChatPopup";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, CalendarPlus } from "lucide-react";
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
@@ -22,7 +22,6 @@ const MainLayout = () => {
 
   const isUserSecretaria = userProfile && userProfile.role === "secretaria";
 
-  // *** NOVA LÓGICA DE PERMISSÃO ***
   const canAccessCursosPage =
     userProfile &&
     ["coordenador", "diretor", "comercial", "admin"].includes(userProfile.role);
@@ -93,67 +92,6 @@ const MainLayout = () => {
                 <div className="ml-10 flex items-baseline space-x-4">
                   {isUserComercial || isUserSecretaria ? (
                     <>
-                      {/* Menu para Comercial e Secretaria */}
-                      <div className="relative" ref={operationalMenuRef}>
-                        <button
-                          onClick={() => {
-                            setOperationalMenuOpen(!operationalMenuOpen);
-                            setAcademicMenuOpen(false);
-                          }}
-                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
-                        >
-                          <span>Operacional</span>
-                          <ChevronDown
-                            size={16}
-                            className={`ml-1 transition-transform ${
-                              operationalMenuOpen ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-                        {operationalMenuOpen && (
-                          <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                            <div className="py-1">
-                              {/* NOVO LINK AQUI (PARA COMERCIAL) */}
-                              {canAccessCursosPage && (
-                                <NavLink
-                                  to="/cursos"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setOperationalMenuOpen(false)}
-                                >
-                                  Cursos e Ementas
-                                </NavLink>
-                              )}
-                              {isUserSecretaria && (
-                                <NavLink
-                                  to="/mapa-turmas"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setOperationalMenuOpen(false)}
-                                >
-                                  Mapa de Turmas
-                                </NavLink>
-                              )}
-                              {canAccessContractPage && (
-                                <NavLink
-                                  to="/gerar-contrato"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setOperationalMenuOpen(false)}
-                                >
-                                  Gerar Contrato de Curso
-                                </NavLink>
-                              )}
-                              {isUserComercial && (
-                                <NavLink
-                                  to="/laboratorio"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setOperationalMenuOpen(false)}
-                                >
-                                  Laboratório de Apoio
-                                </NavLink>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </>
                   ) : (
                     <>
@@ -216,7 +154,7 @@ const MainLayout = () => {
                         )}
                       </div>
 
-                      {/* --- GRUPO OPERACIONAL --- */}
+                      {/* --- GRUPO OPERACIONAL--- */}
                       <div className="relative" ref={operationalMenuRef}>
                         <button
                           onClick={() => {
@@ -236,7 +174,13 @@ const MainLayout = () => {
                         {operationalMenuOpen && (
                           <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1">
-                              {/* NOVO LINK AQUI (PARA COORD/DIRETOR) */}
+                              <NavLink
+                                to="/eventos"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Gestão de Eventos
+                              </NavLink>
                               {canAccessCursosPage && (
                                 <NavLink
                                   to="/cursos"
@@ -323,7 +267,7 @@ const MainLayout = () => {
         </div>
       </header>
 
-      {/* --- MENU MOBILE --- */}
+      {/* --- MENU MOBILE  --- */}
       <div
         className={`fixed inset-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -342,53 +286,23 @@ const MainLayout = () => {
           </button>
           <nav className="mt-16 space-y-4">
             {isUserComercial || isUserSecretaria ? (
-              <>
-                {/* Menu móvel para Comercial e Secretaria */}
-              </>
+              <></>
             ) : (
               <>
                 <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
                   Acadêmico
                 </h4>
-                {canAccessNexusAttendance && (
-                  <NavLink
-                    to="/frequencia-nexus"
-                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Frequência Nexus
-                  </NavLink>
-                )}
-                <NavLink
-                  to="/boletim"
-                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Boletim Escolar
-                </NavLink>
-                {canAccessAttendance && (
-                  <NavLink
-                    to="/frequencia"
-                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    TBs e Curso Extra
-                  </NavLink>
-                )}
-                {canAccessFollowUp && (
-                  <NavLink
-                    to="/acompanhamento"
-                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Acompanhamento
-                  </NavLink>
-                )}
 
                 <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
                   Operacional
                 </h4>
-                {/* NOVO LINK AQUI (MOBILE) */}
+                <NavLink
+                  to="/eventos"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Gestão de Eventos
+                </NavLink>
                 {canAccessCursosPage && (
                   <NavLink
                     to="/cursos"

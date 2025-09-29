@@ -822,3 +822,61 @@ exports.saveAttendance = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+/**
+ * Processa o check-in de um aluno em um evento.
+ * Valida o evento, o aluno e registra a presença.
+ *
+ * @param {object} data
+ * @param {object} context
+ * @returns {Promise<{message: string}>}
+ * @throws {HttpsError}
+ */
+exports.processCheckIn = functions.https.onCall(async (data, context) => {
+  const { eventId, studentCode } = data;
+
+  if (!eventId || !studentCode) {
+    throw new functions.https.HttpsError(
+        'invalid-argument',
+        'O ID do evento e a matrícula do aluno são obrigatórios.'
+    );
+  }
+
+  const db = admin.firestore();
+
+  const eventRef = db.collection('events').doc(eventId);
+  const eventDoc = await eventRef.get();
+
+  if (!eventDoc.exists || !eventDoc.data().isActive) {
+    throw new functions.https.HttpsError(
+        'not-found',
+        'Evento não encontrado ou o check-in está encerrado.'
+    );
+  }
+
+  const studentRef = db.collection('students').where('code', '==', studentCode);
+  const studentSnapshot = await studentRef.get();
+
+  if (studentSnapshot.empty) {
+    throw new functions.https.HttpsError('not-found', 'Matrícula de aluno não encontrada.');
+  }
+  const studentData = studentSnapshot.docs[0].data();
+
+  const attendeeRef = eventRef.collection('attendees').doc(String(studentCode));
+  const attendeeDoc = await attendeeRef.get();
+
+  if (attendeeDoc.exists) {
+    throw new functions.https.HttpsError(
+        'already-exists',
+        `Olá, ${studentData.name.split(' ')[0]}! Seu check-in para este evento já foi realizado.`
+    );
+  }
+
+  await attendeeRef.set({
+    studentCode: studentCode,
+    studentName: studentData.name,
+    checkinTimestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { message: `Presença confirmada, ${studentData.name.split(' ')[0]}! Tenha um ótimo evento.` };
+});

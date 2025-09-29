@@ -1,13 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import MainLayout from './components/MainLayout';
+
 import ProtectedRoute from './routes/ProtectedRoute';
+
 import MapaTurmasPage from './pages/MapaTurmasPage';
 import LabSupportPage from "./pages/LabSupportPage";
 import CalculatorPage from "./pages/CalculatorPage";
 import KanbanPage from './pages/KanbanPage';
-
-// Páginas
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import BoletimPage from './pages/BoletimPage';
@@ -21,6 +21,7 @@ import LowGradesPage from './pages/LowGradesPage';
 import ContractGeneratorPage from './pages/ContractGeneratorPage';
 import NexusAttendancePage from './pages/NexusAttendancePage';
 import CursosPage from './pages/CursosPage';
+import EventosPage from './pages/EventosPage';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
           <Route path="gerar-contrato" element={<ContractGeneratorPage />} />
           <Route path="frequencia-nexus" element={<NexusAttendancePage />} />
           <Route path="cursos" element={<CursosPage />} />
+          <Route path="/eventos" element={<EventosPage />} />
           
         </Route>
       </Route>
