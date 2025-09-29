@@ -5,6 +5,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 const db = admin.firestore();
+
 const auth = admin.auth();
 
 const isAdmin = async (idToken) => {
@@ -703,7 +704,6 @@ exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   });
 });
 
-// FUNÇÃO PRINCIPAL CORRIGIDA
 exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
@@ -731,7 +731,6 @@ exports.getFollowUpForDate = functions.https.onRequest((req, res) => {
       
       const docSnap = await followUpDocRef.get();
 
-      // CORREÇÃO: Usar a propriedade exists corretamente
       if (docSnap.exists) {
         return res.status(200).json({ data: docSnap.data() });
       } else {
@@ -823,15 +822,6 @@ exports.saveAttendance = functions.https.onRequest((req, res) => {
   });
 });
 
-/**
- * Processa o check-in de um aluno em um evento.
- * Valida o evento, o aluno e registra a presença.
- *
- * @param {object} data
- * @param {object} context
- * @returns {Promise<{message: string}>}
- * @throws {HttpsError}
- */
 exports.processCheckIn = functions.https.onCall(async (data, context) => {
   const { eventId, studentCode } = data;
 
@@ -841,8 +831,6 @@ exports.processCheckIn = functions.https.onCall(async (data, context) => {
         'O ID do evento e a matrícula do aluno são obrigatórios.'
     );
   }
-
-  const db = admin.firestore();
 
   const eventRef = db.collection('events').doc(eventId);
   const eventDoc = await eventRef.get();
@@ -882,15 +870,15 @@ exports.processCheckIn = functions.https.onCall(async (data, context) => {
 });
 
 exports.listActiveEvents = functions.https.onCall(async (data, context) => {
-  const eventsRef = db.collection('events');
-  const q = query(eventsRef, where('isActive', '==', true));
-  
   try {
-    const querySnapshot = await q.get();
+    const eventsRef = db.collection('events');
+    const querySnapshot = await eventsRef.where('isActive', '==', true).get();
+    
     const eventsList = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+    
     return { events: eventsList };
   } catch (error) {
     console.error("Erro ao listar eventos ativos:", error);

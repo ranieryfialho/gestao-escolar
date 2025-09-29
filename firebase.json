@@ -1,6 +1,7 @@
 {
   "functions": {
-    "source": "functions"
+    "source": "functions",
+    "region": "us-central1"
   },
   "hosting": {
     "public": "dist",

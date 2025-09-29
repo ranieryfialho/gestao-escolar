@@ -64,7 +64,7 @@ const EventosPage = () => {
     // Abre o modal de QR Code
     const openQrCode = (eventId) => {
         // A URL deve apontar para o site onde a página de check-in será hospedada
-        const checkinUrl = `https://SEU_PROJETO_FIREBASE.web.app/checkin?eventoId=${eventId}`;
+        const checkinUrl = 'checkin-evento.web.app';
         setSelectedEvent({ id: eventId, url: checkinUrl });
         setIsQrModalOpen(true);
     };
