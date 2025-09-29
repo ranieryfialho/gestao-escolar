@@ -880,3 +880,20 @@ exports.processCheckIn = functions.https.onCall(async (data, context) => {
 
   return { message: `Presença confirmada, ${studentData.name.split(' ')[0]}! Tenha um ótimo evento.` };
 });
+
+exports.listActiveEvents = functions.https.onCall(async (data, context) => {
+  const eventsRef = db.collection('events');
+  const q = query(eventsRef, where('isActive', '==', true));
+  
+  try {
+    const querySnapshot = await q.get();
+    const eventsList = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { events: eventsList };
+  } catch (error) {
+    console.error("Erro ao listar eventos ativos:", error);
+    throw new functions.https.HttpsError('internal', 'Não foi possível buscar os eventos.');
+  }
+});
