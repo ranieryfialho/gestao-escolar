@@ -1,8 +1,12 @@
+// src/pages/EventosPage.jsx (VERSÃO CORRIGIDA E FINAL)
+
 import React, { useState, useEffect } from 'react';
+// 1. IMPORTAR O 'Link' PARA NAVEGAÇÃO E O ÍCONE 'Users'
+import { Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, onSnapshot, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
 import EventModal from '../components/EventModal';
-import { Plus, Edit, Trash2, Calendar, Clock, MapPin, User, Image as ImageIcon, Search, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, Clock, MapPin, User, Search, Filter, Users } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 
 const EventosPage = () => {
@@ -12,7 +16,7 @@ const EventosPage = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all'); // all, upcoming, past
+  const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
     const q = query(collection(db, 'events'), orderBy('date', 'desc'));
@@ -36,7 +40,6 @@ const EventosPage = () => {
   useEffect(() => {
     let filtered = events;
 
-    // Filtrar por busca
     if (searchTerm) {
       filtered = filtered.filter(event => 
         event.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -45,14 +48,13 @@ const EventosPage = () => {
       );
     }
 
-    // Filtrar por tipo (todos, futuros, passados)
     if (filterType !== 'all') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       filtered = filtered.filter(event => {
         if (!event.date) return false;
-        const eventDate = new Date(event.date);
+        const eventDate = new Date(event.date + 'T00:00:00');
         eventDate.setHours(0, 0, 0, 0);
 
         if (filterType === 'upcoming') {
@@ -78,7 +80,8 @@ const EventosPage = () => {
   };
 
   const handleSave = () => {
-    // O toast já é exibido no EventModal
+    // Apenas para fechar o modal
+    handleCloseModal();
   };
 
   const handleDelete = async (event) => {
@@ -87,7 +90,6 @@ const EventosPage = () => {
         await deleteDoc(doc(db, 'events', event.id));
         toast.success('Evento excluído com sucesso!');
       } catch (error) {
-        console.error('Erro ao excluir evento:', error);
         toast.error('Erro ao excluir evento');
       }
     }
@@ -95,223 +97,96 @@ const EventosPage = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Data não definida';
-    try {
-      return new Date(dateString).toLocaleDateString('pt-BR', { 
-        weekday: 'long',
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    } catch (error) {
-      return 'Data inválida';
-    }
+    return new Date(dateString).toLocaleDateString('pt-BR', { 
+      timeZone: 'UTC',
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
   };
 
   const formatTime = (startTime, endTime) => {
     if (!startTime) return 'Horário não definido';
-    
-    let timeString = startTime;
-    if (endTime) {
-      timeString += ` - ${endTime}`;
-    }
-    return timeString;
+    return endTime ? `${startTime} - ${endTime}` : startTime;
   };
 
   const isEventUpcoming = (dateString) => {
     if (!dateString) return false;
-    const eventDate = new Date(dateString);
+    const eventDate = new Date(dateString + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
     return eventDate >= today;
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-lg text-gray-600">Carregando eventos...</span>
-        </div>
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Toaster position="top-right" reverseOrder={false} />
-      
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Calendar className="w-8 h-8 text-blue-600" />
-                </div>
-                Gestão de Eventos
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {events.length} evento{events.length !== 1 ? 's' : ''} cadastrado{events.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              <Plus className="mr-2 w-5 h-5" />
-              Novo Evento
-            </button>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+      <Toaster position="top-right" />
+      <div className="container mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">Gestão de Eventos</h1>
+            <p className="text-gray-600 mt-1">{events.length} evento(s) cadastrado(s)</p>
           </div>
+          <button onClick={() => handleOpenModal()} className="flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+            <Plus className="mr-2 w-5 h-5" />
+            Novo Evento
+          </button>
         </div>
-      </div>
 
-      {/* Filtros e Busca */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Busca */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome, responsável ou laboratório..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input type="text" placeholder="Buscar por nome, responsável ou laboratório..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg"/>
               </div>
-            </div>
-
-            {/* Filtro */}
-            <div className="lg:w-64">
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
-                >
+              <div className="relative lg:w-64">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none bg-white">
                   <option value="all">Todos os eventos</option>
                   <option value="upcoming">Próximos eventos</option>
                   <option value="past">Eventos passados</option>
                 </select>
               </div>
             </div>
-          </div>
         </div>
 
-        {/* Lista de Eventos */}
         {filteredEvents.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">
-              {searchTerm || filterType !== 'all' ? 'Nenhum evento encontrado' : 'Nenhum evento cadastrado'}
-            </h3>
-            <p className="text-gray-500 mb-6">
-              {searchTerm || filterType !== 'all' 
-                ? 'Tente ajustar os filtros de busca' 
-                : 'Comece criando seu primeiro evento'
-              }
-            </p>
-            {!searchTerm && filterType === 'all' && (
-              <button
-                onClick={() => handleOpenModal()}
-                className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="mr-2 w-5 h-5" />
-                Criar Primeiro Evento
-              </button>
-            )}
-          </div>
+          <div className="text-center p-12 bg-white rounded-lg shadow-sm"><p>Nenhum evento encontrado.</p></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredEvents.map((event) => (
-              <div 
-                key={event.id} 
-                className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border-l-4 ${
-                  isEventUpcoming(event.date) 
-                    ? 'border-green-500' 
-                    : 'border-gray-300'
-                }`}
-              >
-                {/* Imagem */}
+              <div key={event.id} className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden border-l-4 ${isEventUpcoming(event.date) ? 'border-green-500' : 'border-gray-300'}`}>
                 {event.imageUrl && (
-                  <div className="relative h-48 overflow-hidden">
-                    <img 
-                      src={event.imageUrl} 
-                      alt={event.name} 
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute top-3 right-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        isEventUpcoming(event.date)
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {isEventUpcoming(event.date) ? 'Próximo' : 'Realizado'}
-                      </span>
-                    </div>
-                  </div>
+                  <div className="relative h-48"><img src={event.imageUrl} alt={event.name} className="w-full h-full object-cover"/></div>
                 )}
-
-                {/* Conteúdo */}
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">
-                    {event.name}
-                  </h3>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-gray-600">
-                      <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="text-sm">{formatDate(event.date)}</span>
-                    </div>
-
-                    <div className="flex items-center text-gray-600">
-                      <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="text-sm">{formatTime(event.startTime || event.time, event.endTime)}</span>
-                    </div>
-
-                    {event.lab && (
-                      <div className="flex items-center text-gray-600">
-                        <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="text-sm">{event.lab}</span>
-                      </div>
-                    )}
-
-                    {event.responsible && (
-                      <div className="flex items-center text-gray-600">
-                        <User className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="text-sm">{event.responsible}</span>
-                      </div>
-                    )}
+                <div className="p-6 flex flex-col">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">{event.name}</h3>
+                  <div className="space-y-2 text-gray-600 text-sm mb-4 flex-grow">
+                    <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /><span>{formatDate(event.date)}</span></div>
+                    <div className="flex items-center gap-2"><Clock className="w-4 h-4" /><span>{formatTime(event.startTime, event.endTime)}</span></div>
+                    {event.lab && <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>{event.lab}</span></div>}
+                    {event.responsible && <div className="flex items-center gap-2"><User className="w-4 h-4" /><span>{event.responsible}</span></div>}
                   </div>
-
-                  {event.observations && (
-                    <p className="text-gray-500 text-sm mb-4 line-clamp-2">
-                      "{event.observations}"
-                    </p>
-                  )}
-
-                  {/* Ações */}
-                  <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
-                    <button 
-                      onClick={() => handleOpenModal(event)} 
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Editar evento"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(event)} 
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Excluir evento"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                   {event.observations && <p className="text-sm text-gray-500 italic mb-4 line-clamp-2">"{event.observations}"</p>}
+                  
+                   {/* ### 2. MUDANÇA PRINCIPAL AQUI ### */}
+                   <div className="flex justify-end items-center gap-2 pt-4 border-t border-gray-100">
+                      <Link to={`/eventos/${event.id}/inscritos`} className="flex-grow flex items-center justify-center gap-2 text-sm bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                        <Users className="w-4 h-4" />
+                        Inscritos
+                      </Link>
+                      <button onClick={() => handleOpenModal(event)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(event)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                   </div>
                 </div>
               </div>
             ))}
@@ -319,7 +194,6 @@ const EventosPage = () => {
         )}
       </div>
 
-      {/* Modal */}
       <EventModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
