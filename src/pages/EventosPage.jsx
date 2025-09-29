@@ -1,139 +1,333 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { Calendar, Users, QrCode, ToggleLeft, ToggleRight, ListChecks } from 'lucide-react';
-import QrCodeModal from '../components/QrCodeModal';
+import { collection, onSnapshot, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
+import EventModal from '../components/EventModal';
+import { Plus, Edit, Trash2, Calendar, Clock, MapPin, User, Image as ImageIcon, Search, Filter } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
 
 const EventosPage = () => {
-    const [events, setEvents] = useState([]);
-    const [eventName, setEventName] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [selectedEvent, setSelectedEvent] = useState(null);
-    const [attendees, setAttendees] = useState([]);
-    const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all'); // all, upcoming, past
 
-    useEffect(() => {
-        const q = collection(db, 'events');
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const eventsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setEvents(eventsData);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    const handleCreateEvent = async (e) => {
-        e.preventDefault();
-        if (!eventName.trim()) return;
-        setIsLoading(true);
-        try {
-            await addDoc(collection(db, 'events'), {
-                eventName,
-                eventDate: new Date(),
-                isActive: true,
-                createdAt: new Date(),
-            });
-            setEventName('');
-        } catch (error) {
-            console.error("Erro ao criar evento: ", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const toggleEventStatus = async (event) => {
-        const eventRef = doc(db, 'events', event.id);
-        await updateDoc(eventRef, {
-            isActive: !event.isActive
-        });
-    };
+  useEffect(() => {
+    const q = query(collection(db, 'events'), orderBy('date', 'desc'));
     
-    const viewAttendees = async (eventId) => {
-        if (selectedEvent?.id === eventId) {
-            setSelectedEvent(null);
-            setAttendees([]);
-            return;
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const eventsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setEvents(eventsData);
+      setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar eventos:', error);
+      toast.error('Erro ao carregar eventos');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let filtered = events;
+
+    // Filtrar por busca
+    if (searchTerm) {
+      filtered = filtered.filter(event => 
+        event.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.responsible?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.lab?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filtrar por tipo (todos, futuros, passados)
+    if (filterType !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      filtered = filtered.filter(event => {
+        if (!event.date) return false;
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+
+        if (filterType === 'upcoming') {
+          return eventDate >= today;
+        } else if (filterType === 'past') {
+          return eventDate < today;
         }
-        const attendeesCol = collection(db, 'events', eventId, 'attendees');
-        const snapshot = await getDocs(attendeesCol);
-        const attendeesList = snapshot.docs.map(doc => doc.data());
-        attendeesList.sort((a, b) => a.studentName.localeCompare(b.studentName));
-        setAttendees(attendeesList);
-        setSelectedEvent({ id: eventId });
-    };
+        return true;
+      });
+    }
 
-    // Abre o modal de QR Code
-    const openQrCode = (eventId) => {
-        // A URL deve apontar para o site onde a página de check-in será hospedada
-        const checkinUrl = 'checkin-evento.web.app';
-        setSelectedEvent({ id: eventId, url: checkinUrl });
-        setIsQrModalOpen(true);
-    };
+    setFilteredEvents(filtered);
+  }, [events, searchTerm, filterType]);
 
+  const handleOpenModal = (event = null) => {
+    setSelectedEvent(event);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedEvent(null);
+    setIsModalOpen(false);
+  };
+
+  const handleSave = () => {
+    // O toast já é exibido no EventModal
+  };
+
+  const handleDelete = async (event) => {
+    if (window.confirm(`Tem certeza que deseja excluir o evento "${event.name}"?`)) {
+      try {
+        await deleteDoc(doc(db, 'events', event.id));
+        toast.success('Evento excluído com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir evento:', error);
+        toast.error('Erro ao excluir evento');
+      }
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Data não definida';
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', { 
+        weekday: 'long',
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (error) {
+      return 'Data inválida';
+    }
+  };
+
+  const formatTime = (startTime, endTime) => {
+    if (!startTime) return 'Horário não definido';
+    
+    let timeString = startTime;
+    if (endTime) {
+      timeString += ` - ${endTime}`;
+    }
+    return timeString;
+  };
+
+  const isEventUpcoming = (dateString) => {
+    if (!dateString) return false;
+    const eventDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate >= today;
+  };
+
+  if (loading) {
     return (
-        <div className="container mx-auto p-6">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">Gestão de Eventos</h1>
-
-            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                <h2 className="text-xl font-semibold mb-4">Criar Novo Evento</h2>
-                <form onSubmit={handleCreateEvent} className="flex gap-4">
-                    <input
-                        type="text"
-                        value={eventName}
-                        onChange={(e) => setEventName(e.target.value)}
-                        placeholder="Nome do Evento"
-                        className="flex-grow p-2 border rounded-md"
-                        required
-                    />
-                    <button type="submit" disabled={isLoading} className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
-                        {isLoading ? 'A Criar...' : 'Criar'}
-                    </button>
-                </form>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Eventos Criados</h2>
-                <ul className="space-y-4">
-                    {events.map(event => (
-                        <li key={event.id} className="border p-4 rounded-md">
-                            <div className="flex flex-wrap justify-between items-center">
-                                <span className="font-semibold text-lg">{event.eventName}</span>
-                                <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                                    <button onClick={() => toggleEventStatus(event)} className="flex items-center gap-2 text-sm">
-                                        {event.isActive ? <ToggleRight className="text-green-500" size={24}/> : <ToggleLeft className="text-gray-400" size={24}/>}
-                                        {event.isActive ? 'Ativo' : 'Inativo'}
-                                    </button>
-                                    <button onClick={() => openQrCode(event.id)} className="flex items-center gap-1 text-sm p-2 bg-gray-100 rounded-md hover:bg-gray-200">
-                                        <QrCode size={16} /> QR Code
-                                    </button>
-                                    <button onClick={() => viewAttendees(event.id)} className="flex items-center gap-1 text-sm p-2 bg-gray-100 rounded-md hover:bg-gray-200">
-                                        <ListChecks size={16} /> Presenças
-                                    </button>
-                                </div>
-                            </div>
-                            {/* Lista de Presenças */}
-                            {selectedEvent?.id === event.id && (
-                                <div className="mt-4 pt-4 border-t">
-                                    <h3 className="font-semibold mb-2">Participantes ({attendees.length})</h3>
-                                    {attendees.length > 0 ? (
-                                        <ul className="list-decimal list-inside text-sm">
-                                            {attendees.map(att => <li key={att.studentCode}>{att.studentName}</li>)}
-                                        </ul>
-                                    ) : <p className="text-sm text-gray-500">Nenhum aluno fez check-in ainda.</p>}
-                                </div>
-                            )}
-                        </li>
-                    ))}
-                </ul>
-            </div>
-            
-            {isQrModalOpen && selectedEvent && (
-                <QrCodeModal 
-                    value={selectedEvent.url} 
-                    onClose={() => setIsQrModalOpen(false)} 
-                />
-            )}
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-lg text-gray-600">Carregando eventos...</span>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Toaster position="top-right" reverseOrder={false} />
+      
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Calendar className="w-8 h-8 text-blue-600" />
+                </div>
+                Gestão de Eventos
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {events.length} evento{events.length !== 1 ? 's' : ''} cadastrado{events.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <button
+              onClick={() => handleOpenModal()}
+              className="flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              <Plus className="mr-2 w-5 h-5" />
+              Novo Evento
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtros e Busca */}
+      <div className="container mx-auto px-4 py-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Busca */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nome, responsável ou laboratório..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Filtro */}
+            <div className="lg:w-64">
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
+                >
+                  <option value="all">Todos os eventos</option>
+                  <option value="upcoming">Próximos eventos</option>
+                  <option value="past">Eventos passados</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de Eventos */}
+        {filteredEvents.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">
+              {searchTerm || filterType !== 'all' ? 'Nenhum evento encontrado' : 'Nenhum evento cadastrado'}
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {searchTerm || filterType !== 'all' 
+                ? 'Tente ajustar os filtros de busca' 
+                : 'Comece criando seu primeiro evento'
+              }
+            </p>
+            {!searchTerm && filterType === 'all' && (
+              <button
+                onClick={() => handleOpenModal()}
+                className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="mr-2 w-5 h-5" />
+                Criar Primeiro Evento
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredEvents.map((event) => (
+              <div 
+                key={event.id} 
+                className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border-l-4 ${
+                  isEventUpcoming(event.date) 
+                    ? 'border-green-500' 
+                    : 'border-gray-300'
+                }`}
+              >
+                {/* Imagem */}
+                {event.imageUrl && (
+                  <div className="relative h-48 overflow-hidden">
+                    <img 
+                      src={event.imageUrl} 
+                      alt={event.name} 
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute top-3 right-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        isEventUpcoming(event.date)
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {isEventUpcoming(event.date) ? 'Próximo' : 'Realizado'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Conteúdo */}
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">
+                    {event.name}
+                  </h3>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-gray-600">
+                      <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span className="text-sm">{formatDate(event.date)}</span>
+                    </div>
+
+                    <div className="flex items-center text-gray-600">
+                      <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+                      <span className="text-sm">{formatTime(event.startTime || event.time, event.endTime)}</span>
+                    </div>
+
+                    {event.lab && (
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="text-sm">{event.lab}</span>
+                      </div>
+                    )}
+
+                    {event.responsible && (
+                      <div className="flex items-center text-gray-600">
+                        <User className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="text-sm">{event.responsible}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {event.observations && (
+                    <p className="text-gray-500 text-sm mb-4 line-clamp-2">
+                      "{event.observations}"
+                    </p>
+                  )}
+
+                  {/* Ações */}
+                  <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                    <button 
+                      onClick={() => handleOpenModal(event)} 
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar evento"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(event)} 
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Excluir evento"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      <EventModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        event={selectedEvent}
+        onSave={handleSave}
+      />
+    </div>
+  );
 };
 
 export default EventosPage;
