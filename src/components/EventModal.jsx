@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage } from '../firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -6,8 +6,8 @@ import { X, Upload, Calendar, Clock, MapPin, User, FileText, Image, ChevronDown 
 import { useUsers } from '../contexts/UserContext';
 import toast from 'react-hot-toast';
 
-const EventModal = ({ isOpen, onClose, event, onSave }) => {
-  const { users } = useUsers(); // Hook para buscar usuários do contexto
+const EventModal = ({ isOpen, onClose, event }) => {
+  const { users } = useUsers();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -23,16 +23,27 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Estados para o campo responsável híbrido
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [responsibleInput, setResponsibleInput] = useState('');
-  const [filteredUsers, setFilteredUsers] = useState([]);
 
-  // Filtrar usuários que podem ser professores/responsáveis
-  const teacherUsers = users.filter(user => 
-    ['professor', 'coordenador', 'diretor', 'auxiliar_coordenacao'].includes(user.role)
-  );
+  // ✅ CORREÇÃO: Usar useMemo para evitar recriação desnecessária
+  const teacherUsers = useMemo(() => {
+    return users.filter(user => 
+      ['professor', 'coordenador', 'diretor', 'auxiliar_coordenacao'].includes(user.role)
+    );
+  }, [users]);
+
+  // ✅ CORREÇÃO: Usar useMemo para filtrar usuários
+  const filteredUsers = useMemo(() => {
+    if (responsibleInput) {
+      const filtered = teacherUsers.filter(user =>
+        user.name.toLowerCase().includes(responsibleInput.toLowerCase()) ||
+        user.email.toLowerCase().includes(responsibleInput.toLowerCase())
+      );
+      return filtered.slice(0, 5);
+    }
+    return teacherUsers.slice(0, 5);
+  }, [responsibleInput, teacherUsers]);
 
   useEffect(() => {
     if (event) {
@@ -54,19 +65,6 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
       resetForm();
     }
   }, [event, isOpen]);
-
-  // Filtrar usuários baseado no input
-  useEffect(() => {
-    if (responsibleInput) {
-      const filtered = teacherUsers.filter(user =>
-        user.name.toLowerCase().includes(responsibleInput.toLowerCase()) ||
-        user.email.toLowerCase().includes(responsibleInput.toLowerCase())
-      );
-      setFilteredUsers(filtered.slice(0, 5)); // Limitar a 5 resultados
-    } else {
-      setFilteredUsers(teacherUsers.slice(0, 5));
-    }
-  }, [responsibleInput, teacherUsers]);
 
   const resetForm = () => {
     setFormData({
@@ -93,35 +91,25 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
   const handleResponsibleChange = (e) => {
     const value = e.target.value;
     setResponsibleInput(value);
-    setFormData(prev => ({ ...prev, responsible: value }));
-    setShowUserDropdown(true);
+    setFormData((prev) => ({ ...prev, responsible: value }));
   };
 
   const handleUserSelect = (user) => {
     setResponsibleInput(user.name);
-    setFormData(prev => ({ ...prev, responsible: user.name }));
+    setFormData((prev) => ({ ...prev, responsible: user.name }));
     setShowUserDropdown(false);
   };
 
-  const handleFileChange = (e) => {
+  const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        toast.error('Arquivo muito grande. Máximo 5MB.');
+        toast.error('A imagem deve ter no máximo 5MB');
         return;
       }
-      
-      if (!file.type.startsWith('image/')) {
-        toast.error('Por favor, selecione apenas arquivos de imagem.');
-        return;
-      }
-
       setImageFile(file);
-      
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onload = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
     }
   };
@@ -179,7 +167,6 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
       await setDoc(doc(db, 'events', eventId), eventData, { merge: true });
 
       toast.success(event ? 'Evento atualizado com sucesso!' : 'Evento criado com sucesso!');
-      onSave();
       onClose();
       resetForm();
     } catch (error) {
@@ -347,13 +334,6 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
                           </div>
                         </div>
                       ))}
-                      
-                      {/* Opção para entrada manual */}
-                      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                        <p className="text-sm text-gray-600">
-                          💡 <strong>Dica:</strong> Digite qualquer nome para adicionar manualmente
-                        </p>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -369,33 +349,45 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
                   Imagem do Evento
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    accept="image/*"
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label htmlFor="image-upload" className="cursor-pointer">
-                    {imagePreview ? (
-                      <div className="space-y-3">
-                        <img 
-                          src={imagePreview} 
-                          alt="Preview" 
-                          className="w-full h-48 object-cover rounded-lg"
+                  {imagePreview ? (
+                    <div className="space-y-4">
+                      <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        className="w-full h-48 object-cover rounded-lg mx-auto"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setImageFile(null);
+                          setFormData(prev => ({ ...prev, imageUrl: '' }));
+                        }}
+                        className="text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Remover imagem
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <Upload className="w-12 h-12 text-gray-400 mx-auto" />
+                      <div>
+                        <label htmlFor="imageUpload" className="cursor-pointer">
+                          <span className="text-blue-600 hover:text-blue-700 font-medium">
+                            Clique para fazer upload
+                          </span>
+                          <p className="text-gray-500 text-sm mt-1">PNG, JPG até 5MB</p>
+                        </label>
+                        <input
+                          id="imageUpload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="hidden"
                         />
-                        <p className="text-sm text-gray-600">Clique para alterar a imagem</p>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto" />
-                        <div>
-                          <p className="text-gray-600">Clique para fazer upload</p>
-                          <p className="text-sm text-gray-400">PNG, JPG até 5MB</p>
-                        </div>
-                      </div>
-                    )}
-                  </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -409,7 +401,7 @@ const EventModal = ({ isOpen, onClose, event, onSave }) => {
                   name="observations"
                   value={formData.observations}
                   onChange={handleChange}
-                  rows="6"
+                  rows={6}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
                   placeholder="Adicione observações sobre o evento..."
                 />
