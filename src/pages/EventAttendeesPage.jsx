@@ -1,45 +1,68 @@
-// src/pages/EventAttendeesPage.jsx (CORRIGIDO)
+// gestao-escolar/src/pages/EventAttendeesPage.jsx (VERSÃO CORRIGIDA)
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../firebase';
+import { db, functions } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Users, CheckCircle, Loader } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Loader, QrCode } from 'lucide-react';
+import QrCodeModal from '../components/QrCodeModal';
 
 const EventAttendeesPage = () => {
   const { eventId } = useParams();
-  const [eventDetails, setEventDetails] = useState(null);
+  const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrCodeValue, setQrCodeValue] = useState('');
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
+
   useEffect(() => {
     const fetchEventData = async () => {
-      if (!eventId) return;
+      if (!eventId) {
+        toast.error('ID do evento não encontrado na URL.');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
+      console.log('Buscando evento com ID:', eventId);
 
       try {
-        // 1. Buscar detalhes do evento primeiro
+        // Buscar detalhes do evento
         const eventRef = doc(db, 'events', eventId);
         const eventSnap = await getDoc(eventRef);
 
         if (eventSnap.exists()) {
-          setEventDetails({ id: eventSnap.id, ...eventSnap.data() });
+          const eventData = { id: eventSnap.id, ...eventSnap.data() };
+          console.log('Dados do evento carregados:', eventData);
+          setEvent(eventData);
         } else {
+          console.error('Evento não encontrado para ID:', eventId);
           toast.error('Evento não encontrado.');
           setLoading(false);
           return;
         }
 
-        // 2. Buscar inscritos no evento
-        const attendeesQuery = query(collection(db, 'event_registrations'), where('eventId', '==', eventId));
+        // Buscar inscritos no evento
+        console.log('Buscando inscritos para o evento ID:', eventId);
+        const attendeesQuery = query(
+          collection(db, 'event_registrations'), 
+          where('eventId', '==', eventId)
+        );
         const querySnapshot = await getDocs(attendeesQuery);
-        const attendeesList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const attendeesList = querySnapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        }));
         attendeesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        console.log('Inscritos carregados:', attendeesList.length);
         setAttendees(attendeesList);
 
       } catch (error) {
-        console.error("Erro ao buscar dados do evento: ", error);
+        console.error("Erro ao buscar dados do evento:", error);
         toast.error('Não foi possível carregar os dados.');
       } finally {
         setLoading(false);
@@ -64,7 +87,45 @@ const EventAttendeesPage = () => {
       );
       toast.success('Presença registrada!');
     } catch (error) {
+      console.error('Erro ao registrar presença:', error);
       toast.error('Erro ao registrar presença.');
+    }
+  };
+  
+  const handleGenerateQrCode = async () => {
+    // ### CORREÇÃO PRINCIPAL: Verificar se eventId existe antes de gerar o QR Code ###
+    if (!eventId) {
+      toast.error("Erro: ID do evento não foi encontrado na URL.");
+      return;
+    }
+
+    console.log('Iniciando geração do QR Code para evento ID:', eventId);
+    setIsGeneratingQr(true);
+    
+    try {
+      const generateToken = httpsCallable(functions, 'generateEventToken');
+      
+      // ### CORREÇÃO: Usar eventId diretamente da URL em vez de event.id ###
+      console.log('Enviando eventId para a função:', eventId);
+      const result = await generateToken({ eventId: eventId }); 
+      const { token } = result.data;
+      
+      console.log('Token gerado com sucesso:', token);
+      const checkinUrl = `https://portal-aluno-senior.web.app/checkin?token=${token}`;
+      setQrCodeValue(checkinUrl);
+      setIsQrModalOpen(true);
+
+    } catch (error) {
+      console.error("Erro detalhado ao gerar QR Code:", error);
+      if (error.code === 'functions/invalid-argument') {
+        toast.error("O ID do evento é obrigatório.");
+      } else if (error.code === 'functions/not-found') {
+        toast.error("Evento não encontrado.");
+      } else {
+        toast.error(error.message || "Não foi possível gerar o QR Code.");
+      }
+    } finally {
+      setIsGeneratingQr(false);
     }
   };
 
@@ -86,9 +147,22 @@ const EventAttendeesPage = () => {
         Voltar para Eventos
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">{eventDetails?.name || 'Lista de Inscritos'}</h1>
-        <p className="text-gray-500 mt-1">Total de {attendees.length} inscrito(s)</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+            <h1 className="text-3xl font-bold text-gray-800">{event?.name || 'Lista de Inscritos'}</h1>
+            <p className="text-gray-500 mt-1">Total de {attendees.length} inscrito(s)</p>
+            {event?.date && (
+              <p className="text-gray-500 text-sm">Data do evento: {event.date}</p>
+            )}
+        </div>
+        <button
+          onClick={handleGenerateQrCode}
+          disabled={isGeneratingQr || !eventId}
+          className="flex items-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition disabled:bg-gray-400"
+        >
+          {isGeneratingQr ? <Loader className="animate-spin" size={20}/> : <QrCode size={20} />}
+          {isGeneratingQr ? 'Gerando...' : 'Gerar QR Code de Check-in'}
+        </button>
       </div>
 
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md overflow-x-auto">
@@ -99,6 +173,7 @@ const EventAttendeesPage = () => {
                 <th className="p-3 font-semibold text-left">Nome</th>
                 <th className="p-3 font-semibold text-left">Contato</th>
                 <th className="p-3 font-semibold text-left">Curso</th>
+                <th className="p-3 font-semibold text-center">Status</th>
                 <th className="p-3 font-semibold text-center">Ação</th>
               </tr>
             </thead>
@@ -107,8 +182,8 @@ const EventAttendeesPage = () => {
                 <tr key={attendee.id} className="border-b hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-900">{attendee.name}</td>
                   <td className="p-3">
-                    <div>{attendee.email}</div>
-                    <div className="text-gray-600">{attendee.phone}</div>
+                    <div>{attendee.email || 'Email não informado'}</div>
+                    <div className="text-gray-600">{attendee.phone || 'Telefone não informado'}</div>
                   </td>
                   <td className="p-3">{attendee.course || '-'}</td>
                   <td className="p-3 text-center">
@@ -116,6 +191,17 @@ const EventAttendeesPage = () => {
                       <span className="inline-flex items-center bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">
                         <CheckCircle className="w-4 h-4 mr-1.5" />
                         Presente
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                        ⏳ Pendente
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center">
+                    {attendee.checkedIn ? (
+                      <span className="text-green-600 text-sm font-medium">
+                        ✅ Confirmado
                       </span>
                     ) : (
                       <button
@@ -137,6 +223,16 @@ const EventAttendeesPage = () => {
           </div>
         )}
       </div>
+      
+      {isQrModalOpen && (
+        <QrCodeModal
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+          value={qrCodeValue}
+          title="QR Code para Check-in"
+          subtitle="Peça para os alunos escanearem este código para confirmar a presença. Este código expira em 5 minutos."
+        />
+      )}
     </div>
   );
 };

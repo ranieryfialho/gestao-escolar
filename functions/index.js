@@ -556,76 +556,6 @@ exports.listAllClasses = functions.https.onRequest((req, res) => {
   });
 });
 
-exports.createTaskOnModuleEnd = onSchedule("every day 01:00", async (event) => {
-  process.env.TZ = "America/Sao_Paulo";
-
-  console.log("Iniciando verificação diária de fim de módulo.");
-  const db = admin.firestore();
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  try {
-    const classesSnapshot = await db.collection("classes").get();
-
-    if (classesSnapshot.empty) {
-      console.log("Nenhuma turma encontrada.");
-      return null;
-    }
-
-    for (const classDoc of classesSnapshot.docs) {
-      const classData = classDoc.data();
-      const classId = classDoc.id;
-
-      if (
-        !classData.professorId ||
-        !classData.modules ||
-        classData.modules.length === 0
-      ) {
-        continue;
-      }
-
-      for (const mod of classData.modules) {
-        if (!mod.dataTermino || !mod.dataTermino.toDate) continue;
-
-        const dataTermino = mod.dataTermino.toDate();
-        dataTermino.setHours(0, 0, 0, 0);
-
-        if (dataTermino.getTime() === today.getTime()) {
-          console.log(
-            `Módulo "${mod.id}" da turma "${classData.name}" terminou hoje. Criando tarefa...`
-          );
-
-          const taskData = {
-            title: `Entregar notas do módulo "${mod.id}" (Turma ${classData.name})`,
-            description: `O módulo ${mod.id} foi concluído. Por favor, lance as notas dos alunos.`,
-            status: "todo",
-            assigneeId: classData.professorId,
-            assigneeName: classData.professorName || "Professor não definido",
-            relatedClassId: classId,
-            relatedModuleId: mod.id,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            dueDate: admin.firestore.Timestamp.fromDate(
-              new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-            ),
-          };
-
-          await db.collection("tasks").add(taskData);
-          console.log(
-            `Tarefa criada com sucesso para ${classData.professorName}.`
-          );
-        }
-      }
-    }
-
-    console.log("Verificação diária concluída.");
-    return null;
-  } catch (error) {
-    console.error("Erro ao executar a função de criar tarefas:", error);
-    return null;
-  }
-});
-
 exports.listGraduates = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "GET") {
@@ -822,53 +752,6 @@ exports.saveAttendance = functions.https.onRequest((req, res) => {
   });
 });
 
-exports.processCheckIn = functions.https.onCall(async (data, context) => {
-  const { eventId, studentCode } = data;
-
-  if (!eventId || !studentCode) {
-    throw new functions.https.HttpsError(
-        'invalid-argument',
-        'O ID do evento e a matrícula do aluno são obrigatórios.'
-    );
-  }
-
-  const eventRef = db.collection('events').doc(eventId);
-  const eventDoc = await eventRef.get();
-
-  if (!eventDoc.exists || !eventDoc.data().isActive) {
-    throw new functions.https.HttpsError(
-        'not-found',
-        'Evento não encontrado ou o check-in está encerrado.'
-    );
-  }
-
-  const studentRef = db.collection('students').where('code', '==', studentCode);
-  const studentSnapshot = await studentRef.get();
-
-  if (studentSnapshot.empty) {
-    throw new functions.https.HttpsError('not-found', 'Matrícula de aluno não encontrada.');
-  }
-  const studentData = studentSnapshot.docs[0].data();
-
-  const attendeeRef = eventRef.collection('attendees').doc(String(studentCode));
-  const attendeeDoc = await attendeeRef.get();
-
-  if (attendeeDoc.exists) {
-    throw new functions.https.HttpsError(
-        'already-exists',
-        `Olá, ${studentData.name.split(' ')[0]}! Seu check-in para este evento já foi realizado.`
-    );
-  }
-
-  await attendeeRef.set({
-    studentCode: studentCode,
-    studentName: studentData.name,
-    checkinTimestamp: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  return { message: `Presença confirmada, ${studentData.name.split(' ')[0]}! Tenha um ótimo evento.` };
-});
-
 exports.listActiveEvents = functions.https.onCall(async (data, context) => {
   try {
     const eventsRef = db.collection('events');
@@ -883,5 +766,112 @@ exports.listActiveEvents = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error("Erro ao listar eventos ativos:", error);
     throw new functions.https.HttpsError('internal', 'Não foi possível buscar os eventos.');
+  }
+});
+
+exports.generateEventToken = functions.https.onCall(async (data, context) => {
+  const { eventId } = data;
+  
+  if (!eventId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument", 
+      "O ID do evento é obrigatório."
+    );
+  }
+
+  try {
+    const eventRef = db.collection("events").doc(eventId);
+    const eventDoc = await eventRef.get();
+    
+    if (!eventDoc.exists) {
+      throw new functions.https.HttpsError(
+        "not-found", 
+        "Evento não encontrado."
+      );
+    }
+  } catch (error) {
+    console.error("Erro ao verificar evento:", error);
+    throw new functions.https.HttpsError(
+      "internal", 
+      "Erro ao verificar evento."
+    );
+  }
+
+  const token = Math.random().toString(36).substring(2, 12).toUpperCase();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+
+  try {
+    const tokenRef = db.collection("attendanceTokens").doc(token);
+    await tokenRef.set({
+      eventId: eventId,
+      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      used: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp() // Adicione timestamp de criação
+    });
+    
+    console.log(`Token ${token} gerado para evento ${eventId}`); // Log para debug
+    return { token };
+  } catch (error) {
+    console.error("Erro ao gerar token:", error);
+    throw new functions.https.HttpsError(
+      "internal", 
+      "Não foi possível gerar o token de check-in."
+    );
+  }
+});
+
+exports.processCheckin = functions.https.onCall(async (data, context) => {
+  const { token, studentName } = data;
+
+  if (!token || !studentName) {
+    throw new functions.https.HttpsError(
+      "invalid-argument", 
+      "O token e o nome do aluno são obrigatórios."
+    );
+  }
+
+  const db = admin.firestore();
+  const tokenRef = db.collection("attendanceTokens").doc(token);
+
+  try {
+    const tokenDoc = await tokenRef.get();
+
+    if (!tokenDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "QR Code inválido ou expirado.");
+    }
+
+    const tokenData = tokenDoc.data();
+    if (tokenData.used) {
+      throw new functions.https.HttpsError("already-exists", "Este QR Code já foi utilizado.");
+    }
+
+    if (tokenData.expiresAt.toDate() < new Date()) {
+      throw new functions.https.HttpsError("deadline-exceeded", "Este QR Code expirou.");
+    }
+    
+    const registrationQuery = db.collection("event_registrations")
+      .where("eventId", "==", tokenData.eventId)
+      .where("name", "==", studentName)
+      .limit(1);
+      
+    const registrationSnapshot = await registrationQuery.get();
+    
+    if (registrationSnapshot.empty) {
+      throw new functions.https.HttpsError("not-found", "Inscrição não encontrada para este aluno. Verifique se o nome digitado está exatamente igual ao da inscrição.");
+    }
+    
+    const registrationDoc = registrationSnapshot.docs[0];
+    await registrationDoc.ref.update({ checkedIn: true });
+
+    await tokenRef.update({ used: true });
+
+    return { success: true, message: "Check-in realizado com sucesso!" };
+
+  } catch (error) {
+    console.error("Erro ao processar check-in:", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError("internal", "Erro ao processar check-in.");
   }
 });
