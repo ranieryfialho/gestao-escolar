@@ -11,6 +11,7 @@ import {
   doc,
   updateDoc,
   getDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import {
@@ -18,101 +19,40 @@ import {
   Users,
   CheckCircle,
   Loader,
-  QrCode,
-  X,
+  Trash2,
+  Check,
 } from "lucide-react";
 
-// --- Componente do Modal QR Code ---
-const QRCodeModal = ({ isOpen, onClose, eventId, eventName }) => {
-  if (!isOpen) return null;
-
-  // URL que os alunos vão acessar para fazer check-in
-  const checkInUrl = `${window.location.origin}/check-in/${eventId}`;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 relative">
-        {/* Botão de fechar */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          <X size={24} />
-        </button>
-
-        {/* Conteúdo do modal */}
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-gray-800 mb-2">
-            Check-in via QR Code
-          </h2>
-          <p className="text-gray-600 mb-6">
-            {eventName || "Evento"}
-          </p>
-
-          {/* Container do QR Code */}
-          <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block mb-4">
-            {/* Usando uma biblioteca online para gerar QR Code */}
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkInUrl)}`}
-              alt="QR Code para Check-in"
-              className="w-48 h-48"
-            />
-          </div>
-
-          <p className="text-sm text-gray-500 mb-4">
-            Escaneie o QR Code para fazer check-in rapidamente
-          </p>
-
-          {/* URL para copiar */}
-          <div className="bg-gray-50 p-3 rounded border text-xs break-all">
-            {checkInUrl}
-          </div>
-
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(checkInUrl);
-              toast.success("Link copiado!");
-            }}
-            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-          >
-            Copiar Link
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Página Principal ---
 const EventAttendeesPage = () => {
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showQRModal, setShowQRModal] = useState(false);
+
+  const formatDateToBR = (dateString) => {
+    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return 'Data inválida';
+    }
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+  };
 
   useEffect(() => {
     const fetchEventData = async () => {
       if (!eventId) {
-        toast.error("ID do evento não encontrado na URL.");
         setLoading(false);
         return;
       }
-
       setLoading(true);
       try {
         const eventRef = doc(db, "events", eventId);
         const eventSnap = await getDoc(eventRef);
-
         if (eventSnap.exists()) {
-          const eventData = { id: eventSnap.id, ...eventSnap.data() };
-          setEvent(eventData);
+          setEvent({ id: eventSnap.id, ...eventSnap.data() });
         } else {
-          toast.error("Evento não encontrado.");
           setLoading(false);
           return;
         }
-
         const attendeesQuery = query(
           collection(db, "event_registrations"),
           where("eventId", "==", eventId)
@@ -133,7 +73,6 @@ const EventAttendeesPage = () => {
         setLoading(false);
       }
     };
-
     fetchEventData();
   }, [eventId]);
 
@@ -144,7 +83,6 @@ const EventAttendeesPage = () => {
         checkedIn: true,
         checkInTimestamp: new Date(),
       });
-
       setAttendees((prev) =>
         prev.map((attendee) =>
           attendee.id === registrationId
@@ -156,6 +94,19 @@ const EventAttendeesPage = () => {
     } catch (error) {
       console.error("Erro ao registrar presença:", error);
       toast.error("Erro ao registrar presença.");
+    }
+  };
+  
+  const handleRemoveAttendee = async (registrationId, attendeeName) => {
+    if (window.confirm(`Tem certeza que deseja remover ${attendeeName} da lista?`)) {
+      try {
+        await deleteDoc(doc(db, "event_registrations", registrationId));
+        setAttendees(prevAttendees => prevAttendees.filter(attendee => attendee.id !== registrationId));
+        toast.success(`${attendeeName} foi removido(a) com sucesso!`);
+      } catch (error) {
+        console.error("Erro ao remover inscrição:", error);
+        toast.error("Não foi possível remover o aluno.");
+      }
     }
   };
 
@@ -190,52 +141,32 @@ const EventAttendeesPage = () => {
           </p>
           {event?.date && (
             <p className="text-gray-500 text-sm">
-              Data do evento: {event.date}
+              Data do evento: {formatDateToBR(event.date)}
             </p>
           )}
         </div>
-        
-        {/* Botão para mostrar QR Code */}
-        <button
-          onClick={() => setShowQRModal(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition"
-        >
-          <QrCode size={20} />
-          Gerar QR Code de Check-in
-        </button>
       </div>
-
-      {/* Modal do QR Code */}
-      <QRCodeModal
-        isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
-        eventId={eventId}
-        eventName={event?.name}
-      />
 
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md overflow-x-auto">
         {attendees.length > 0 ? (
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="border-b">
+                <th className="p-3 font-semibold text-left">Código do Aluno</th>
                 <th className="p-3 font-semibold text-left">Nome</th>
-                <th className="p-3 font-semibold text-left">Contato</th>
-                <th className="p-3 font-semibold text-left">Curso</th>
+                <th className="p-3 font-semibold text-left">Turma</th>
                 <th className="p-3 font-semibold text-center">Status</th>
-                <th className="p-3 font-semibold text-center">Ação</th>
+                <th className="p-3 font-semibold text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
               {attendees.map((attendee) => (
                 <tr key={attendee.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3 font-mono text-gray-600">
+                    {attendee.studentCode || "N/A"}
+                  </td>
                   <td className="p-3 font-medium text-gray-900">
                     {attendee.name}
-                  </td>
-                  <td className="p-3">
-                    <div>{attendee.email || "Email não informado"}</div>
-                    <div className="text-gray-600">
-                      {attendee.phone || "Telefone não informado"}
-                    </div>
                   </td>
                   <td className="p-3">{attendee.course || "-"}</td>
                   <td className="p-3 text-center">
@@ -250,19 +181,32 @@ const EventAttendeesPage = () => {
                       </span>
                     )}
                   </td>
-                  <td className="p-3 text-center">
-                    {attendee.checkedIn ? (
-                      <span className="text-green-600 text-sm font-medium">
-                        ✅ Confirmado
-                      </span>
-                    ) : (
+                  {/* --- AÇÕES ATUALIZADAS --- */}
+                  <td className="p-3">
+                    <div className="flex items-center justify-center gap-2">
+                      {attendee.checkedIn ? (
+                        <span className="font-semibold text-green-600 text-sm flex items-center gap-1.5">
+                          <CheckCircle size={16} />
+                          Confirmado
+                        </span>
+                      ) : (
+                        // BOTÃO DE PRESENÇA ALTERADO
+                        <button
+                          onClick={() => handleCheckIn(attendee.id)}
+                          className="flex items-center justify-center w-9 h-9 bg-blue-600 text-white hover:bg-blue-700 rounded-full transition-colors shadow-sm"
+                          title="Marcar Presença"
+                        >
+                          <Check size={18} />
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleCheckIn(attendee.id)}
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-300"
+                        onClick={() => handleRemoveAttendee(attendee.id, attendee.name)}
+                        className="flex items-center justify-center w-9 h-9 bg-gray-200 text-gray-500 hover:bg-red-500 hover:text-white rounded-full transition-colors"
+                        title="Remover inscrição"
                       >
-                        Marcar Presença
+                        <Trash2 size={16} />
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
