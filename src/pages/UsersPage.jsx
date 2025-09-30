@@ -3,34 +3,26 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 import { useUsers } from "../contexts/UserContext.jsx";
 import Modal from "../components/Modal.jsx";
 import { useNavigate } from "react-router-dom";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase"; // Importe a instância de functions
+import toast from "react-hot-toast";
+import { Plus, Edit, Trash2 } from "lucide-react";
 
-// Função auxiliar para chamar a API (mantida como no seu arquivo original)
-const callUserApi = async (functionName, payload, token) => {
-  const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
-  const response = await fetch(functionUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ data: payload }),
-  });
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error || "Ocorreu um erro no servidor.");
-  }
-  return result;
-};
+// Apontamos para o nosso roteador 'users' que está no index.js das functions
+const usersApi = httpsCallable(functions, "users");
 
 function UsersPage() {
-  const { userProfile, firebaseUser } = useAuth();
+  const { userProfile } = useAuth();
   const { users, loadingUsers, fetchUsers } = useUsers();
   const navigate = useNavigate();
 
+  // State para criar novo usuário
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("professor");
   const [isCreating, setIsCreating] = useState(false);
+
+  // State para editar usuário
   const [editingUser, setEditingUser] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -38,79 +30,89 @@ function UsersPage() {
     if (userProfile) {
       const authorizedRoles = ["diretor", "coordenador", "admin"];
       if (!authorizedRoles.includes(userProfile.role)) {
+        toast.error("Você não tem permissão para acessar esta página.");
         navigate("/dashboard");
       }
     }
   }, [userProfile, navigate]);
 
-  const handleApiAction = async (action, payload, successCallback) => {
+  // Função centralizada para chamar a API
+  const handleApiAction = async (
+    action,
+    payload,
+    loadingSetter,
+    successCallback
+  ) => {
+    loadingSetter(true);
+    const toastId = toast.loading("Executando operação...");
     try {
-      if (!firebaseUser) throw new Error("Usuário não autenticado.");
-      const token = await firebaseUser.getIdToken();
-      const result = await callUserApi(action, payload, token);
-      alert(result.message || "Operação bem-sucedida!");
-      if (successCallback) successCallback();
+      // Chama a função 'users' com a ação e os dados corretos
+      const result = await usersApi({ action, data: payload });
+      toast.success(result.data.message || "Operação bem-sucedida!", {
+        id: toastId,
+      });
+      if (successCallback) {
+        successCallback();
+      }
     } catch (error) {
-      console.error(`Erro ao executar ${action}:`, error);
-      alert(`Erro: ${error.message}`);
+      console.error(`Erro ao executar a ação '${action}':`, error);
+      toast.error(`Erro: ${error.message}`, { id: toastId });
+    } finally {
+      loadingSetter(false);
     }
   };
 
-  const handleCreateUser = async (e) => {
+  const handleCreateUser = (e) => {
     e.preventDefault();
-    setIsCreating(true);
-    await handleApiAction(
-      "createNewUserAccount",
+    handleApiAction(
+      "create",
       { name: userName, email: userEmail, role: userRole },
+      setIsCreating,
       () => {
         setUserName("");
         setUserEmail("");
         setUserRole("professor");
-        fetchUsers();
+        fetchUsers(); // Atualiza a lista de usuários
       }
     );
-    setIsCreating(false);
   };
 
-  const handleUpdateUser = async (e) => {
+  const handleUpdateUser = (e) => {
     e.preventDefault();
     if (!editingUser) return;
-    setIsUpdating(true);
-    await handleApiAction(
-      "updateUserProfile",
+    handleApiAction(
+      "updateProfile",
       { uid: editingUser.id, name: editingUser.name, role: editingUser.role },
+      setIsUpdating,
       () => {
-        setEditingUser(null);
-        fetchUsers();
+        setEditingUser(null); // Fecha o modal
+        fetchUsers(); // Atualiza a lista de usuários
       }
     );
-    setIsUpdating(false);
   };
 
-  const handleDeleteUser = async (userToDelete) => {
+  const handleDeleteUser = (userToDelete) => {
     if (
       window.confirm(
-        `Tem a certeza que deseja apagar o usuário ${userToDelete.name}?`
+        `Tem certeza que deseja apagar o usuário ${userToDelete.name}? Esta ação é irreversível.`
       )
     ) {
-      await handleApiAction(
-        "deleteUserAccount",
-        { uid: userToDelete.id },
-        () => {
-          fetchUsers();
-        }
-      );
+      handleApiAction("delete", { uid: userToDelete.id }, () => {}, fetchUsers);
     }
   };
 
-  const handleOpenEditModal = (user) => setEditingUser(user);
-  const handleCloseEditModal = () => setEditingUser(null);
+  const handleOpenEditModal = (user) => {
+    setEditingUser({ ...user });
+  };
 
-  if (!userProfile) {
-    return <div className="p-8 text-center">A verificar permissões...</div>;
+  const handleCloseEditModal = () => {
+    setEditingUser(null);
+  };
+
+  if (loadingUsers && !users.length) {
+    return <div className="p-8 text-center">Carregando usuários...</div>;
   }
 
-  // --- MUDANÇA AQUI: Lista de cargos alinhada com seu sistema ---
   const rolesOptions = [
     { value: "professor", label: "Professor" },
     { value: "professor_nexus", label: "Professor Nexus" },
@@ -125,17 +127,15 @@ function UsersPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">
-        Gestão de Usuários
-      </h1>
+      <h1 className="text-3xl font-bold mb-6">Gestão de Usuários</h1>
 
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h3 className="text-xl font-bold mb-4">Cadastrar Novo Usuário</h3>
+        <h2 className="text-xl font-semibold mb-4">Criar Novo Usuário</h2>
         <form
           onSubmit={handleCreateUser}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
         >
-          <div>
+          <div className="col-span-1">
             <label
               htmlFor="userName"
               className="block text-sm font-medium text-gray-700"
@@ -147,11 +147,11 @@ function UsersPage() {
               id="userName"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
               required
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
             />
           </div>
-          <div>
+          <div className="col-span-1">
             <label
               htmlFor="userEmail"
               className="block text-sm font-medium text-gray-700"
@@ -163,22 +163,22 @@ function UsersPage() {
               id="userEmail"
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
               required
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
             />
           </div>
-          <div>
+          <div className="col-span-1">
             <label
               htmlFor="userRole"
               className="block text-sm font-medium text-gray-700"
             >
-              Perfil
+              Função
             </label>
             <select
               id="userRole"
               value={userRole}
               onChange={(e) => setUserRole(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
             >
               {rolesOptions.map((role) => (
                 <option key={role.value} value={role.value}>
@@ -187,73 +187,72 @@ function UsersPage() {
               ))}
             </select>
           </div>
-          <div className="md:col-span-3">
+          <div className="col-span-1">
             <button
               type="submit"
               disabled={isCreating}
-              className="w-full bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition disabled:bg-gray-400"
+              className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
             >
-              {isCreating ? "A cadastrar..." : "Cadastrar Usuário"}
+              <Plus size={18} />
+              {isCreating ? "Criando..." : "Criar Usuário"}
             </button>
           </div>
         </form>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md mt-8">
-        <h3 className="text-xl font-bold mb-4 px-2">Usuários Cadastrados</h3>
-        <div className="overflow-x-auto">
-          {loadingUsers ? (
-            <p>Carregando usuários...</p>
-          ) : (
-            <table className="w-full text-left">
-              <thead className="border-b-2">
-                <tr>
-                  <th className="p-2">Nome</th>
-                  <th className="p-2">Email</th>
-                  <th className="p-2">Perfil</th>
-                  <th className="p-2 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b">
-                    <td className="p-2">{user.name}</td>
-                    <td className="p-2 text-gray-600">{user.email}</td>
-                    <td className="p-2">
-                      <span className="px-2 py-1 text-xs font-semibold text-white bg-blue-500 rounded-full capitalize">
-                        {(user.role || "").replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="p-2 text-right space-x-4">
-                      <button
-                        onClick={() => handleOpenEditModal(user)}
-                        className="text-blue-600 hover:underline font-semibold"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user)}
-                        className="text-red-600 hover:underline font-semibold"
-                      >
-                        Apagar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+      <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+        <h2 className="text-xl font-semibold mb-4">Usuários Cadastrados</h2>
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Nome
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Email
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Função
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                Ações
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {users.map((user) => (
+              <tr key={user.id}>
+                <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{user.role}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                  <button
+                    onClick={() => handleOpenEditModal(user)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                  >
+                    <Edit size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(user)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      <Modal
-        isOpen={!!editingUser}
-        onClose={handleCloseEditModal}
-        title="Editar Perfil do Usuário"
-      >
-        {editingUser && (
-          <form onSubmit={handleUpdateUser} className="space-y-4">
-            <div>
+      {editingUser && (
+        <Modal
+          isOpen={!!editingUser}
+          onClose={handleCloseEditModal}
+          title="Editar Usuário"
+        >
+          <form onSubmit={handleUpdateUser}>
+            <div className="mb-4">
               <label
                 htmlFor="editName"
                 className="block text-sm font-medium text-gray-700"
@@ -261,32 +260,22 @@ function UsersPage() {
                 Nome
               </label>
               <input
-                id="editName"
                 type="text"
+                id="editName"
                 value={editingUser.name}
                 onChange={(e) =>
                   setEditingUser({ ...editingUser, name: e.target.value })
                 }
-                className="mt-1 w-full px-3 py-2 border rounded-md"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                required
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Email (não pode ser alterado)
-              </label>
-              <input
-                type="email"
-                value={editingUser.email}
-                disabled
-                className="mt-1 w-full px-3 py-2 border rounded-md bg-gray-100"
-              />
-            </div>
-            <div>
+            <div className="mb-4">
               <label
                 htmlFor="editRole"
                 className="block text-sm font-medium text-gray-700"
               >
-                Perfil
+                Função
               </label>
               <select
                 id="editRole"
@@ -294,7 +283,7 @@ function UsersPage() {
                 onChange={(e) =>
                   setEditingUser({ ...editingUser, role: e.target.value })
                 }
-                className="mt-1 w-full px-3 py-2 border rounded-md"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
               >
                 {rolesOptions.map((role) => (
                   <option key={role.value} value={role.value}>
@@ -303,25 +292,25 @@ function UsersPage() {
                 ))}
               </select>
             </div>
-            <div className="flex justify-end gap-4 pt-4">
+            <div className="flex justify-end gap-4 mt-6">
               <button
                 type="button"
                 onClick={handleCloseEditModal}
-                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300"
+                className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isUpdating}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-green-300"
               >
-                {isUpdating ? "A salvar..." : "Salvar Alterações"}
+                {isUpdating ? "Salvando..." : "Salvar Alterações"}
               </button>
             </div>
           </form>
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

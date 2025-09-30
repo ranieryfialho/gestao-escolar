@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getFunctions } from "firebase/functions";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions"; // 1. Importe o connectFunctionsEmulator
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -19,3 +19,11 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app, 'us-central1');
 export const storage = getStorage(app);
+
+// 2. Adicione este bloco de código
+// Ele verifica se a aplicação está rodando em modo de desenvolvimento
+// e, em caso afirmativo, conecta ao emulador local.
+if (import.meta.env.DEV) {
+  console.log("Modo de desenvolvimento detectado. Conectando ao emulador de Funções...");
+  connectFunctionsEmulator(functions, "localhost", 5001);
+}
