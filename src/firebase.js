@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions"; // 1. Importe o connectFunctionsEmulator
+import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
+
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,17 +14,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Inicializa a aplicação Firebase
 const app = initializeApp(firebaseConfig);
 
+// Criamos e exportamos os serviços que os outros ficheiros vão usar.
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+// Especificamos a região para garantir uma conexão estável com as funções
 export const functions = getFunctions(app, 'us-central1');
 export const storage = getStorage(app);
-
-// 2. Adicione este bloco de código
-// Ele verifica se a aplicação está rodando em modo de desenvolvimento
-// e, em caso afirmativo, conecta ao emulador local.
-if (import.meta.env.DEV) {
-  console.log("Modo de desenvolvimento detectado. Conectando ao emulador de Funções...");
-  connectFunctionsEmulator(functions, "localhost", 5001);
-}
