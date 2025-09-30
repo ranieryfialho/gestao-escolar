@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { db, functions } from "../firebase";
-import { httpsCallable } from "firebase/functions";
+import { db } from "../firebase";
 import {
   collection,
   query,
@@ -19,47 +18,67 @@ import {
   Users,
   CheckCircle,
   Loader,
-  RefreshCw,
-  Clock,
+  QrCode,
+  X,
 } from "lucide-react";
 
-// --- Componente do Contador Regressivo ---
-const CountdownTimer = ({ expiryTimestamp, onExpire }) => {
-  const calculateTimeLeft = () => {
-    const difference = +new Date(expiryTimestamp) - +new Date();
-    if (difference > 0) {
-      return {
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      };
-    }
-    return null;
-  };
+// --- Componente do Modal QR Code ---
+const QRCodeModal = ({ isOpen, onClose, eventId, eventName }) => {
+  if (!isOpen) return null;
 
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
-  useEffect(() => {
-    if (!timeLeft) {
-      onExpire();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [timeLeft, onExpire]);
-
-  if (!timeLeft) {
-    return <span className="text-red-500 font-bold">Expirado!</span>;
-  }
+  // URL que os alunos vão acessar para fazer check-in
+  const checkInUrl = `${window.location.origin}/check-in/${eventId}`;
 
   return (
-    <div className="font-mono text-xl">
-      <span>{String(timeLeft.minutes).padStart(2, "0")}</span>
-      <span>:</span>
-      <span>{String(timeLeft.seconds).padStart(2, "0")}</span>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6 relative">
+        {/* Botão de fechar */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        >
+          <X size={24} />
+        </button>
+
+        {/* Conteúdo do modal */}
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            Check-in via QR Code
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {eventName || "Evento"}
+          </p>
+
+          {/* Container do QR Code */}
+          <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block mb-4">
+            {/* Usando uma biblioteca online para gerar QR Code */}
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkInUrl)}`}
+              alt="QR Code para Check-in"
+              className="w-48 h-48"
+            />
+          </div>
+
+          <p className="text-sm text-gray-500 mb-4">
+            Escaneie o QR Code para fazer check-in rapidamente
+          </p>
+
+          {/* URL para copiar */}
+          <div className="bg-gray-50 p-3 rounded border text-xs break-all">
+            {checkInUrl}
+          </div>
+
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(checkInUrl);
+              toast.success("Link copiado!");
+            }}
+            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+          >
+            Copiar Link
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -70,10 +89,7 @@ const EventAttendeesPage = () => {
   const [event, setEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [generatedToken, setGeneratedToken] = useState(null);
-  const [tokenExpiresAt, setTokenExpiresAt] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -143,34 +159,6 @@ const EventAttendeesPage = () => {
     }
   };
 
-  const handleGenerateToken = async () => {
-    if (!eventId) {
-      toast.error("Erro: ID do evento não foi encontrado na URL.");
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const generateTokenFunc = httpsCallable(
-        functions,
-        "generateAndAssignEventToken"
-      );
-
-      const result = await generateTokenFunc({ eventId: eventId });
-
-      const { token, expiresAt } = result.data;
-
-      setGeneratedToken(token);
-      setTokenExpiresAt(expiresAt);
-      toast.success("Token gerado com sucesso!");
-    } catch (error) {
-      console.error("Erro ao gerar token:", error);
-      toast.error(error.message || "Falha ao gerar o token.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -206,42 +194,24 @@ const EventAttendeesPage = () => {
             </p>
           )}
         </div>
+        
+        {/* Botão para mostrar QR Code */}
         <button
-          onClick={handleGenerateToken}
-          disabled={isGenerating || !eventId}
-          className="flex items-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition disabled:bg-gray-400"
+          onClick={() => setShowQRModal(true)}
+          className="flex items-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition"
         >
-          {isGenerating ? (
-            <Loader className="animate-spin" size={20} />
-          ) : (
-            <RefreshCw size={20} />
-          )}
-          {isGenerating ? "Gerando..." : "Gerar Token de Check-in"}
+          <QrCode size={20} />
+          Gerar QR Code de Check-in
         </button>
       </div>
 
-      {generatedToken && tokenExpiresAt && (
-        <div className="mb-6 bg-gray-800 text-white p-6 rounded-xl shadow-lg text-center animate-fade-in">
-          <h2 className="text-lg font-semibold uppercase tracking-wider text-gray-300 mb-2">
-            Token de Check-in
-          </h2>
-          <p className="text-6xl font-bold tracking-widest my-4">
-            {generatedToken}
-          </p>
-          <div className="flex items-center justify-center gap-3 text-gray-400">
-            <Clock size={20} />
-            <span>Expira em:</span>
-            <CountdownTimer
-              expiryTimestamp={tokenExpiresAt}
-              onExpire={() => {
-                setGeneratedToken(null);
-                setTokenExpiresAt(null);
-                toast.error("Token expirado!");
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Modal do QR Code */}
+      <QRCodeModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+        eventId={eventId}
+        eventName={event?.name}
+      />
 
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md overflow-x-auto">
         {attendees.length > 0 ? (
