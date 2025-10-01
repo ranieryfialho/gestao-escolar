@@ -111,15 +111,18 @@ exports.listAllUsers = functions.https.onRequest((req, res) => {
 
 exports.createNewUserAccount = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== "POST")
+    if (req.method !== "POST") {
       return res.status(405).send("Método não permitido");
+    }
     const idToken = req.headers.authorization?.split("Bearer ")[1];
-    if (!(await isAdmin(idToken)))
+    if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
+    }
 
     const { name, email, role } = req.body.data;
-    if (!name || !email || !role)
+    if (!name || !email || !role) {
       return res.status(400).json({ error: "Dados em falta." });
+    }
 
     try {
       const userRecord = await auth.createUser({ email, displayName: name });
@@ -140,17 +143,22 @@ exports.createNewUserAccount = functions.https.onRequest((req, res) => {
   });
 });
 
+// E substitua esta também
 exports.updateUserProfile = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== "POST")
+    if (req.method !== "POST") {
       return res.status(405).send("Método não permitido");
+    }
+
     const idToken = req.headers.authorization?.split("Bearer ")[1];
-    if (!(await isAdmin(idToken)))
+    if (!(await isAdmin(idToken))) {
       return res.status(403).json({ error: "Ação não autorizada." });
+    }
 
     const { uid, name, role } = req.body.data;
-    if (!uid || !name || !role)
+    if (!uid || !name || !role) {
       return res.status(400).json({ error: "Dados em falta." });
+    }
 
     try {
       await db.collection("users").doc(uid).update({ name, role });

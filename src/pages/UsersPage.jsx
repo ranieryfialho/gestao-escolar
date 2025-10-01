@@ -3,16 +3,11 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 import { useUsers } from "../contexts/UserContext.jsx";
 import Modal from "../components/Modal.jsx";
 import { useNavigate } from "react-router-dom";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "../firebase"; // Importe a instância de functions
 import toast from "react-hot-toast";
 import { Plus, Edit, Trash2 } from "lucide-react";
 
-// Apontamos para o nosso roteador 'users' que está no index.js das functions
-const usersApi = httpsCallable(functions, "users");
-
 function UsersPage() {
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
   const { users, loadingUsers, fetchUsers } = useUsers();
   const navigate = useNavigate();
 
@@ -36,68 +31,117 @@ function UsersPage() {
     }
   }, [userProfile, navigate]);
 
-  // Função centralizada para chamar a API
-  const handleApiAction = async (
-    action,
-    payload,
-    loadingSetter,
-    successCallback
-  ) => {
-    loadingSetter(true);
-    const toastId = toast.loading("Executando operação...");
-    try {
-      // Chama a função 'users' com a ação e os dados corretos
-      const result = await usersApi({ action, data: payload });
-      toast.success(result.data.message || "Operação bem-sucedida!", {
-        id: toastId,
-      });
-      if (successCallback) {
-        successCallback();
+  // Função para fazer chamadas HTTP diretas para as Cloud Functions
+  const makeHttpRequest = async (endpoint, method = 'POST', data = null) => {
+    if (!firebaseUser) {
+      throw new Error("Usuário não autenticado");
+    }
+
+    const token = await firebaseUser.getIdToken();
+    const baseUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net";
+    
+    const config = {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       }
+    };
+
+    if (data && method !== 'GET') {
+      config.body = JSON.stringify({ data });
+    }
+
+    const response = await fetch(`${baseUrl}/${endpoint}`, config);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Erro na requisição');
+    }
+
+    return response.json();
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setIsCreating(true);
+    const toastId = toast.loading("Criando usuário...");
+    
+    try {
+      const result = await makeHttpRequest('createNewUserAccount', 'POST', {
+        name: userName,
+        email: userEmail,
+        role: userRole
+      });
+
+      toast.success(result.message || "Usuário criado com sucesso!", { id: toastId });
+      
+      // Limpar formulário
+      setUserName("");
+      setUserEmail("");
+      setUserRole("professor");
+      
+      // Atualizar lista de usuários
+      fetchUsers();
+      
     } catch (error) {
-      console.error(`Erro ao executar a ação '${action}':`, error);
+      console.error("Erro ao criar usuário:", error);
       toast.error(`Erro: ${error.message}`, { id: toastId });
     } finally {
-      loadingSetter(false);
+      setIsCreating(false);
     }
   };
 
-  const handleCreateUser = (e) => {
-    e.preventDefault();
-    handleApiAction(
-      "create",
-      { name: userName, email: userEmail, role: userRole },
-      setIsCreating,
-      () => {
-        setUserName("");
-        setUserEmail("");
-        setUserRole("professor");
-        fetchUsers(); // Atualiza a lista de usuários
-      }
-    );
-  };
-
-  const handleUpdateUser = (e) => {
+  const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
-    handleApiAction(
-      "updateProfile",
-      { uid: editingUser.id, name: editingUser.name, role: editingUser.role },
-      setIsUpdating,
-      () => {
-        setEditingUser(null); // Fecha o modal
-        fetchUsers(); // Atualiza a lista de usuários
-      }
-    );
+    
+    setIsUpdating(true);
+    const toastId = toast.loading("Atualizando usuário...");
+    
+    try {
+      const result = await makeHttpRequest('updateUserProfile', 'POST', {
+        uid: editingUser.id,
+        name: editingUser.name,
+        role: editingUser.role
+      });
+
+      toast.success(result.message || "Usuário atualizado com sucesso!", { id: toastId });
+      
+      // Fechar modal e atualizar lista
+      setEditingUser(null);
+      fetchUsers();
+      
+    } catch (error) {
+      console.error("Erro ao atualizar usuário:", error);
+      toast.error(`Erro: ${error.message}`, { id: toastId });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleDeleteUser = (userToDelete) => {
-    if (
-      window.confirm(
-        `Tem certeza que deseja apagar o usuário ${userToDelete.name}? Esta ação é irreversível.`
-      )
-    ) {
-      handleApiAction("delete", { uid: userToDelete.id }, () => {}, fetchUsers);
+  const handleDeleteUser = async (userToDelete) => {
+    if (!window.confirm(
+      `Tem certeza que deseja apagar o usuário ${userToDelete.name}? Esta ação é irreversível.`
+    )) {
+      return;
+    }
+
+    const toastId = toast.loading("Excluindo usuário...");
+    
+    try {
+      const result = await makeHttpRequest('deleteUserAccount', 'POST', {
+        uid: userToDelete.id
+      });
+
+      toast.success(result.message || "Usuário excluído com sucesso!", { id: toastId });
+      
+      // Atualizar lista
+      fetchUsers();
+      
+    } catch (error) {
+      console.error("Erro ao excluir usuário:", error);
+      toast.error(`Erro: ${error.message}`, { id: toastId });
     }
   };
 
@@ -202,47 +246,55 @@ function UsersPage() {
 
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
         <h2 className="text-xl font-semibold mb-4">Usuários Cadastrados</h2>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Nome
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Função
-              </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                Ações
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{user.role}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                  <button
-                    onClick={() => handleOpenEditModal(user)}
-                    className="text-indigo-600 hover:text-indigo-900 mr-4"
-                  >
-                    <Edit size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUser(user)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </td>
+        {users.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">Nenhum usuário encontrado.</p>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Nome
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Função
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Ações
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {rolesOptions.find(role => role.value === user.role)?.label || user.role}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <button
+                      onClick={() => handleOpenEditModal(user)}
+                      className="text-indigo-600 hover:text-indigo-900 mr-4"
+                      title="Editar usuário"
+                    >
+                      <Edit size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      className="text-red-600 hover:text-red-900"
+                      title="Excluir usuário"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {editingUser && (
@@ -272,6 +324,22 @@ function UsersPage() {
             </div>
             <div className="mb-4">
               <label
+                htmlFor="editEmail"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                id="editEmail"
+                value={editingUser.email}
+                readOnly
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-gray-100"
+                title="O email não pode ser alterado"
+              />
+            </div>
+            <div className="mb-4">
+              <label
                 htmlFor="editRole"
                 className="block text-sm font-medium text-gray-700"
               >
@@ -296,7 +364,7 @@ function UsersPage() {
               <button
                 type="button"
                 onClick={handleCloseEditModal}
-                className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md"
+                className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300"
               >
                 Cancelar
               </button>
