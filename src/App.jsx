@@ -16,7 +16,6 @@ import UsersPage from './pages/UsersPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AttendancePage from './pages/AttendancePage';
 import AttendanceDetailPage from './pages/AttendanceDetailPage';
-import AcademicFollowUpPage from './pages/AcademicFollowUpPage';
 import LowGradesPage from './pages/LowGradesPage';
 import ContractGeneratorPage from './pages/ContractGeneratorPage';
 import NexusAttendancePage from './pages/NexusAttendancePage';
@@ -42,7 +41,6 @@ function App() {
           <Route path="kanban" element={<KanbanPage />} />
           <Route path="frequencia" element={<AttendancePage />} />
           <Route path="frequencia/:classId" element={<AttendanceDetailPage />} />
-          <Route path="acompanhamento" element={<AcademicFollowUpPage />} />
           <Route path="alunos-nota-baixa" element={<LowGradesPage />} />
           <Route path="gerar-contrato" element={<ContractGeneratorPage />} />
           <Route path="frequencia-nexus" element={<NexusAttendancePage />} />

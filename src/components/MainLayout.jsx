@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
-import ChatPopup from "./ChatPopup";
 import { Menu, X, ChevronDown, CalendarPlus } from "lucide-react";
 
 const MainLayout = () => {
@@ -138,15 +137,6 @@ const MainLayout = () => {
                                   onClick={() => setAcademicMenuOpen(false)}
                                 >
                                   TBs e Curso Extra
-                                </NavLink>
-                              )}
-                              {canAccessFollowUp && (
-                                <NavLink
-                                  to="/acompanhamento"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setAcademicMenuOpen(false)}
-                                >
-                                  Acompanhamento
                                 </NavLink>
                               )}
                             </div>
@@ -381,8 +371,6 @@ const MainLayout = () => {
       <main className="flex-grow">
         <Outlet />
       </main>
-
-      <ChatPopup />
       <Footer />
     </div>
   );
