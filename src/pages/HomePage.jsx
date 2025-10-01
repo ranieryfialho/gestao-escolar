@@ -16,7 +16,7 @@ import {
   FileText,
   CalendarPlus,
   BookMarked,
-  BookImage, // <-- ÍCONE IMPORTADO
+  BookImage,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Slider from "react-slick";
@@ -229,7 +229,6 @@ function HomePage() {
     );
   }
 
-
   const activeClasses = classes.filter(
     (c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly
   );
@@ -426,12 +425,15 @@ function HomePage() {
 
     let cards = [];
 
-    // LÓGICA DE PERMISSÃO PARA O NOVO CARD
     const canAccessCursosPage =
       userProfile &&
-      ["coordenador", "diretor", "comercial", "admin"].includes(
-        userProfile.role
-      );
+      [
+        "coordenador",
+        "diretor",
+        "comercial",
+        "admin",
+        "professor_apoio",
+      ].includes(userProfile.role);
 
     const canSeeNexusCards = [
       "auxiliar_coordenacao",

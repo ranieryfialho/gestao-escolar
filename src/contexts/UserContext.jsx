@@ -1,20 +1,18 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-// Importa a instância 'functions' do nosso arquivo centralizado
-import { functions } from '../firebase'; 
-import { httpsCallable } from 'firebase/functions';
 
 const UserContext = createContext(null);
 
+// NOME CORRIGIDO AQUI: de UserProvider para UsersProvider
 export const UsersProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { userProfile } = useAuth();
+  const { userProfile, firebaseUser } = useAuth();
 
   const fetchUsers = useCallback(async () => {
-    // Apenas usuários autorizados podem buscar a lista
-    const authorizedRoles = ['diretor', 'coordenador', 'admin', 'auxiliar_coordenacao', 'professor', 'professor_apoio'];
-    if (!userProfile || !authorizedRoles.includes(userProfile.role)) {
+    const authorizedRoles = ["diretor", "coordenador", "admin", "auxiliar_coordenacao", "professor_apoio", "financeiro", "professor"];
+    
+    if (!userProfile || !firebaseUser || !authorizedRoles.includes(userProfile.role)) {
       setUsers([]);
       setLoading(false);
       return;
@@ -22,30 +20,37 @@ export const UsersProvider = ({ children }) => {
     
     setLoading(true);
     try {
-      // Aponta para o roteador 'users'
-      const usersApi = httpsCallable(functions, 'users');
-      // Chama a ação 'listAll'
-      const result = await usersApi({
-        action: 'listAll',
-        data: {} // Nenhum dado extra é necessário para listar
+      const token = await firebaseUser.getIdToken();
+      const functionUrl = "https://us-central1-boletim-escolar-app.cloudfunctions.net/listAllUsers";
+
+      const response = await fetch(functionUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao buscar usuários.');
+      }
       
-      setUsers(result.data.users);
+      const result = await response.json();
+      setUsers(result.users);
 
     } catch (error) {
-      console.error("Erro ao carregar usuários via Cloud Function:", error);
+      console.error("Erro ao carregar usuários:", error);
       setUsers([]); 
     } finally {
       setLoading(false);
     }
-  }, [userProfile]);
+  }, [userProfile, firebaseUser]);
 
   useEffect(() => {
-    // Garante que só busca usuários depois que o perfil já foi carregado
-    if(userProfile) {
+    if (firebaseUser) {
       fetchUsers();
     }
-  }, [userProfile, fetchUsers]);
+  }, [fetchUsers, firebaseUser]);
 
   const value = { users, loadingUsers: loading, fetchUsers };
 
