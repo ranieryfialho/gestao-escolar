@@ -216,6 +216,7 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
       });
     }
 
+    // CASO 1: O ALUNO ESTÁ SENDO MOVIDO PARA CONCLUDENTES
     if (targetClassId === "concludentes") {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const concludentesRef = db
@@ -228,6 +229,9 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           if (!sourceDoc.exists)
             throw new Error("Turma de origem não encontrada.");
 
+          // ✅ INCLUIR O schoolId DA TURMA DE ORIGEM
+          const sourceClass = sourceDoc.data();
+          
           const graduateData = {
             code: String(studentData.code),
             name: studentData.name,
@@ -235,8 +239,10 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
             observation: studentData.observation || "",
             graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
             certificateStatus: "nao_impresso",
+            schoolId: sourceClass.schoolId,
           };
 
+          // Remove o aluno da lista de estudantes da turma de origem
           const sourceStudents = sourceDoc.data().students || [];
           const updatedSourceStudents = sourceStudents.filter(
             (s) => String(s.code) !== String(studentData.code)
@@ -246,6 +252,7 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
             students: updatedSourceStudents,
           });
 
+          // Cria o documento na coleção concludentes
           transaction.set(concludentesRef, graduateData);
         });
         return res
@@ -257,7 +264,10 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           .status(500)
           .json({ error: `Erro ao graduar aluno: ${error.message}` });
       }
-    } else {
+    }
+
+    // CASO 2: TRANSFERÊNCIA NORMAL ENTRE DUAS TURMAS
+    else {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const targetClassRef = db.collection("classes").doc(targetClassId);
       try {
