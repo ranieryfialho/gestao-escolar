@@ -440,6 +440,7 @@ function HomePage() {
       "coordenador",
       "diretor",
       "admin",
+      "financeiro",
     ].includes(userProfile.role);
 
     // NOVO CARD

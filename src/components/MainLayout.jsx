@@ -27,7 +27,7 @@ const MainLayout = () => {
 
   const canAccessNexusAttendance =
     userProfile &&
-    ["coordenador", "admin", "diretor"].includes(userProfile.role);
+    ["coordenador", "admin", "diretor", "financeiro"].includes(userProfile.role);
 
   const canAccessContractPage =
     userProfile &&
