@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
-import { Menu, X, ChevronDown, CalendarPlus } from "lucide-react";
+import { Menu, X, ChevronDown, CalendarPlus, ListChecks } from "lucide-react";
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
@@ -131,13 +131,22 @@ const MainLayout = () => {
                                 Boletim Escolar
                               </NavLink>
                               {canAccessAttendance && (
-                                <NavLink
-                                  to="/frequencia"
-                                  className={getDropdownNavLinkClass}
-                                  onClick={() => setAcademicMenuOpen(false)}
-                                >
-                                  TBs e Curso Extra
-                                </NavLink>
+                                <>
+                                  <NavLink
+                                    to="/frequencia"
+                                    className={getDropdownNavLinkClass}
+                                    onClick={() => setAcademicMenuOpen(false)}
+                                  >
+                                    TBs e Curso Extra
+                                  </NavLink>
+                                  <NavLink
+                                    to="/retuf"
+                                    className={getDropdownNavLinkClass}
+                                    onClick={() => setAcademicMenuOpen(false)}
+                                  >
+                                    RETUF
+                                  </NavLink>
+                                </>
                               )}
                             </div>
                           </div>
@@ -282,6 +291,40 @@ const MainLayout = () => {
                 <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
                   Acadêmico
                 </h4>
+                {canAccessNexusAttendance && (
+                  <NavLink
+                    to="/frequencia-nexus"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Frequência Nexus
+                  </NavLink>
+                )}
+                <NavLink
+                  to="/boletim"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Boletim Escolar
+                </NavLink>
+                {canAccessAttendance && (
+                  <>
+                    <NavLink
+                      to="/frequencia"
+                      className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      TBs e Curso Extra
+                    </NavLink>
+                    <NavLink
+                      to="/retuf"
+                      className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      RETUF
+                    </NavLink>
+                  </>
+                )}
 
                 <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
                   Operacional

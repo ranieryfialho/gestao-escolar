@@ -30,7 +30,7 @@ const callApi = async (functionName, payload, token) => {
   return result;
 };
 
-const ClassContext = createContext(null);
+export const ClassContext = createContext(null);
 
 export const ClassesProvider = ({ children }) => {
   const [classes, setClasses] = useState([]);
