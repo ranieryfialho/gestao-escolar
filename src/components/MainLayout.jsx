@@ -38,6 +38,11 @@ const MainLayout = () => {
   const canAccessAttendance = isUserAdmin || isUserProfessor;
   const canAccessFollowUp = isUserAdmin || isUserProfessor;
 
+  // Nova permissão específica para RETUF (incluindo admin)
+  const canAccessRetuf =
+    userProfile &&
+    ["coordenador", "diretor", "auxiliar_coordenacao", "admin"].includes(userProfile.role);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [academicMenuOpen, setAcademicMenuOpen] = useState(false);
   const [operationalMenuOpen, setOperationalMenuOpen] = useState(false);
@@ -131,23 +136,44 @@ const MainLayout = () => {
                                 Boletim Escolar
                               </NavLink>
                               {canAccessAttendance && (
-                                <>
-                                  <NavLink
-                                    to="/frequencia"
-                                    className={getDropdownNavLinkClass}
-                                    onClick={() => setAcademicMenuOpen(false)}
-                                  >
-                                    TBs e Curso Extra
-                                  </NavLink>
-                                  <NavLink
-                                    to="/retuf"
-                                    className={getDropdownNavLinkClass}
-                                    onClick={() => setAcademicMenuOpen(false)}
-                                  >
-                                    RETUF
-                                  </NavLink>
-                                </>
+                                <NavLink
+                                  to="/frequencia"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setAcademicMenuOpen(false)}
+                                >
+                                  TBs e Curso Extra
+                                </NavLink>
                               )}
+                              {canAccessRetuf && (
+                                <NavLink
+                                  to="/retuf"
+                                  className={getDropdownNavLinkClass}
+                                  onClick={() => setAcademicMenuOpen(false)}
+                                >
+                                  RETUF
+                                </NavLink>
+                              )}
+                              <NavLink
+                                to="/mapa-turmas"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setAcademicMenuOpen(false)}
+                              >
+                                Mapa de Turmas
+                              </NavLink>
+                              <NavLink
+                                to="/laboratorio"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setAcademicMenuOpen(false)}
+                              >
+                                Laboratório de Apoio
+                              </NavLink>
+                              <NavLink
+                                to="/kanban"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setAcademicMenuOpen(false)}
+                              >
+                                Tarefas
+                              </NavLink>
                             </div>
                           </div>
                         )}
@@ -189,13 +215,6 @@ const MainLayout = () => {
                                   Cursos e Ementas
                                 </NavLink>
                               )}
-                              <NavLink
-                                to="/mapa-turmas"
-                                className={getDropdownNavLinkClass}
-                                onClick={() => setOperationalMenuOpen(false)}
-                              >
-                                Mapa de Turmas
-                              </NavLink>
                               {canAccessContractPage && (
                                 <NavLink
                                   to="/gerar-contrato"
@@ -205,20 +224,6 @@ const MainLayout = () => {
                                   Gerar Contrato de Curso
                                 </NavLink>
                               )}
-                              <NavLink
-                                to="/laboratorio"
-                                className={getDropdownNavLinkClass}
-                                onClick={() => setOperationalMenuOpen(false)}
-                              >
-                                Laboratório de Apoio
-                              </NavLink>
-                              <NavLink
-                                to="/kanban"
-                                className={getDropdownNavLinkClass}
-                                onClick={() => setOperationalMenuOpen(false)}
-                              >
-                                Tarefas
-                              </NavLink>
                               <NavLink
                                 to="/calculadora"
                                 className={getDropdownNavLinkClass}
@@ -308,23 +313,44 @@ const MainLayout = () => {
                   Boletim Escolar
                 </NavLink>
                 {canAccessAttendance && (
-                  <>
-                    <NavLink
-                      to="/frequencia"
-                      className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      TBs e Curso Extra
-                    </NavLink>
-                    <NavLink
-                      to="/retuf"
-                      className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      RETUF
-                    </NavLink>
-                  </>
+                  <NavLink
+                    to="/frequencia"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    TBs e Curso Extra
+                  </NavLink>
                 )}
+                {canAccessRetuf && (
+                  <NavLink
+                    to="/retuf"
+                    className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    RETUF
+                  </NavLink>
+                )}
+                <NavLink
+                  to="/mapa-turmas"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Mapa de Turmas
+                </NavLink>
+                <NavLink
+                  to="/laboratorio"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Laboratório de Apoio
+                </NavLink>
+                <NavLink
+                  to="/kanban"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Tarefas
+                </NavLink>
 
                 <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
                   Operacional
@@ -345,13 +371,6 @@ const MainLayout = () => {
                     Cursos e Ementas
                   </NavLink>
                 )}
-                <NavLink
-                  to="/mapa-turmas"
-                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Mapa de Turmas
-                </NavLink>
                 {canAccessContractPage && (
                   <NavLink
                     to="/gerar-contrato"
@@ -361,20 +380,6 @@ const MainLayout = () => {
                     Gerar Contrato de Curso
                   </NavLink>
                 )}
-                <NavLink
-                  to="/laboratorio"
-                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Laboratório de Apoio
-                </NavLink>
-                <NavLink
-                  to="/kanban"
-                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Tarefas
-                </NavLink>
                 <NavLink
                   to="/calculadora"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"

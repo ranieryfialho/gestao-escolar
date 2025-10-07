@@ -1,14 +1,17 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ClassContext } from '../contexts/ClassContext';
+import { useAuth } from '../contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ListChecks, Loader2, TrendingUp, Info, Users, Save, ChevronDown, ChevronUp, BookOpen, Calendar, User, Clock, CalendarDays, Filter, X, BarChart3 } from 'lucide-react';
+import { ListChecks, Loader2, TrendingUp, Info, Users, ChevronDown, ChevronUp, BookOpen, Calendar, User, Clock, CalendarDays, Filter, X, BarChart3, CheckCircle2, Cloud, ShieldAlert } from 'lucide-react';
 
 const RetufPage = () => {
   const { classes } = useContext(ClassContext);
+  const { userProfile } = useAuth();
   const [frequenciaData, setFrequenciaData] = useState({});
-  const [loadingStates, setLoadingStates] = useState({});
+  const [savingStates, setSavingStates] = useState({});
   const [expandedCards, setExpandedCards] = useState({});
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -22,6 +25,31 @@ const RetufPage = () => {
     dataTermino: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+
+  // Refs para debounce
+  const saveTimeouts = useRef({});
+
+  // Verificação de permissão
+  const canAccessRetuf = userProfile && 
+    ['coordenador', 'diretor', 'auxiliar_coordenacao', 'admin'].includes(userProfile.role);
+
+  // Se não tiver permissão, redireciona para dashboard
+  if (userProfile && !canAccessRetuf) {
+    toast.error('Você não tem permissão para acessar esta página.');
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Se ainda estiver carregando o perfil
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const fetchFrequenciaData = async () => {
@@ -49,17 +77,6 @@ const RetufPage = () => {
     fetchFrequenciaData();
   }, [mes, ano]);
 
-  const handlePresentesChange = (turmaId, semana, valor) => {
-    const cleanValue = valor === '' ? '' : Math.max(0, Number(valor));
-    setFrequenciaData(prevData => ({
-      ...prevData,
-      [turmaId]: {
-        ...prevData[turmaId],
-        [semana]: cleanValue,
-      },
-    }));
-  };
-  
   const monthlyAverages = useMemo(() => {
     const averages = {};
     for (const turma of (classes || [])) {
@@ -101,10 +118,18 @@ const RetufPage = () => {
     }
   };
 
-  const handleSave = async (turmaId, turma) => {
-    setLoadingStates(prev => ({ ...prev, [turmaId]: true }));
+  const saveToFirebase = async (turmaId, turmaName, currentFrequenciaData, currentMonthlyAverages) => {
+    console.log('Salvando para turma:', turmaId);
+    
+    const turma = classes.find(t => t.id === turmaId);
+    if (!turma) {
+      console.error('Turma não encontrada');
+      setSavingStates(prev => ({ ...prev, [turmaId]: 'error' }));
+      return;
+    }
+
     const matriculados = (turma.students || []).length;
-    const semanasData = frequenciaData[turma.id] || {};
+    const semanasData = currentFrequenciaData[turmaId] || {};
     const semanas = Object.entries(semanasData)
       .filter(([, presentes]) => presentes !== '' && presentes !== null)
       .map(([semana, presentes]) => ({
@@ -114,34 +139,119 @@ const RetufPage = () => {
       }));
 
     if (semanas.length === 0) {
-      toast.error('Nenhum dado de frequência preenchido para esta turma.');
-      setLoadingStates(prev => ({ ...prev, [turmaId]: false }));
+      console.log('Nenhuma semana com dados para salvar');
+      setSavingStates(prev => ({ ...prev, [turmaId]: 'idle' }));
       return;
     }
 
-    const frequenciaGeral = monthlyAverages[turma.id] || 0;
+    const frequenciaGeral = currentMonthlyAverages[turmaId] || 0;
+
+    console.log('Dados a serem salvos:', {
+      turmaId,
+      turmaName,
+      semanas,
+      frequenciaGeral,
+      mes: Number(mes),
+      ano: Number(ano)
+    });
 
     try {
-      const retufQuery = query(collection(db, 'retuf'), where('turmaId', '==', turmaId), where('ano', '==', Number(ano)), where('mes', '==', Number(mes)));
+      const retufQuery = query(
+        collection(db, 'retuf'), 
+        where('turmaId', '==', turmaId), 
+        where('ano', '==', Number(ano)), 
+        where('mes', '==', Number(mes))
+      );
+
       const querySnapshot = await getDocs(retufQuery);
 
       if (querySnapshot.empty) {
-        await addDoc(collection(db, 'retuf'), { turmaId, turmaName: turma.name, mes: Number(mes), ano: Number(ano), semanas, frequenciaGeral, lastUpdated: serverTimestamp() });
-        toast.success(`Frequência da turma ${turma.name} salva!`);
+        console.log('Criando novo documento');
+        await addDoc(collection(db, 'retuf'), { 
+          turmaId, 
+          turmaName, 
+          mes: Number(mes), 
+          ano: Number(ano), 
+          semanas, 
+          frequenciaGeral, 
+          lastUpdated: serverTimestamp() 
+        });
+        toast.success(`Frequência de ${turmaName} salva!`, { duration: 2000 });
       } else {
+        console.log('Atualizando documento existente');
         const docId = querySnapshot.docs[0].id;
-        await updateDoc(doc(db, 'retuf', docId), { semanas, frequenciaGeral, lastUpdated: serverTimestamp() });
-        toast.success(`Frequência da turma ${turma.name} atualizada!`);
+        await updateDoc(doc(db, 'retuf', docId), { 
+          semanas, 
+          frequenciaGeral, 
+          lastUpdated: serverTimestamp() 
+        });
+        toast.success(`Frequência de ${turmaName} atualizada!`, { duration: 2000 });
       }
+      
+      setSavingStates(prev => ({ ...prev, [turmaId]: 'saved' }));
+      
+      setTimeout(() => {
+        setSavingStates(prev => ({ ...prev, [turmaId]: 'idle' }));
+      }, 2000);
     } catch (error) {
       console.error("Erro ao salvar frequência: ", error);
-      toast.error("Ocorreu um erro ao salvar os dados.");
-    } finally {
-      setLoadingStates(prev => ({ ...prev, [turmaId]: false }));
+      toast.error(`Erro ao salvar ${turmaName}`);
+      setSavingStates(prev => ({ ...prev, [turmaId]: 'error' }));
     }
   };
+
+  const handlePresentesChange = (turmaId, semana, valor, turmaName) => {
+    const cleanValue = valor === '' ? '' : Math.max(0, Number(valor));
+    
+    setFrequenciaData(prevData => {
+      const newData = {
+        ...prevData,
+        [turmaId]: {
+          ...prevData[turmaId],
+          [semana]: cleanValue,
+        },
+      };
+
+      if (saveTimeouts.current[turmaId]) {
+        clearTimeout(saveTimeouts.current[turmaId]);
+      }
+
+      setSavingStates(prev => ({ ...prev, [turmaId]: 'saving' }));
+
+      const turma = classes.find(t => t.id === turmaId);
+      if (!turma) return newData;
+
+      const matriculados = (turma.students || []).length;
+      const semanasData = newData[turmaId] || {};
+      const validWeeks = Object.entries(semanasData).filter(([, presentes]) => presentes !== '' && presentes !== null);
+      
+      let novaMedia = 0;
+      if (validWeeks.length > 0 && matriculados > 0) {
+        const totalPresentes = validWeeks.reduce((sum, [, presentes]) => sum + Number(presentes), 0);
+        const totalPossivel = validWeeks.length * matriculados;
+        novaMedia = (totalPresentes / totalPossivel) * 100;
+      }
+
+      const newAverages = {
+        ...monthlyAverages,
+        [turmaId]: novaMedia
+      };
+
+      saveTimeouts.current[turmaId] = setTimeout(() => {
+        console.log('Timeout executado, salvando...');
+        saveToFirebase(turmaId, turmaName, newData, newAverages);
+      }, 500);
+
+      return newData;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimeouts.current).forEach(timeout => clearTimeout(timeout));
+    };
+  }, []);
   
-  // Listas únicas para os filtros
   const uniqueProfessores = useMemo(() => {
     const professores = new Set();
     classes.forEach(turma => {
@@ -183,28 +293,21 @@ const RetufPage = () => {
   const turmasFiltradas = useMemo(() => {
     return (classes || [])
       .filter(turma => {
-        // Filtros básicos
         if (turma.isMapaOnly === true) return false;
         const nomeLowerCase = turma.name?.toLowerCase() || '';
         if (nomeLowerCase.includes('nexus')) return false;
 
-        // Filtro por professor
         if (filters.professor && turma.professorName !== filters.professor) return false;
 
-        // Filtro por módulo
         if (filters.modulo) {
           const modulo = getModuloAtual(turma);
           const moduloNome = modulo ? (modulo.name || modulo.id) : null;
           if (moduloNome !== filters.modulo) return false;
         }
 
-        // Filtro por dia da semana
         if (filters.diaSemana && turma.dia_semana !== filters.diaSemana) return false;
-
-        // Filtro por horário
         if (filters.horario && turma.horario !== filters.horario) return false;
 
-        // Filtro por data de término
         if (filters.dataTermino) {
           const dataTermino = turma.dataTermino;
           if (!dataTermino || dataTermino !== filters.dataTermino) return false;
@@ -215,7 +318,6 @@ const RetufPage = () => {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [classes, filters]);
 
-  // Calcular estatísticas das turmas filtradas
   const filteredStats = useMemo(() => {
     const turmasComFrequencia = turmasFiltradas.filter(turma => {
       const freq = monthlyAverages[turma.id];
@@ -285,6 +387,39 @@ const RetufPage = () => {
   };
 
   const hasActiveFilters = Object.values(filters).some(value => value !== '');
+
+  const SavingStatus = ({ status }) => {
+    if (status === 'saving') {
+      return (
+        <div className="flex items-center gap-2 text-blue-600 text-sm font-medium">
+          <Loader2 className="animate-spin" size={16} />
+          <span>Salvando...</span>
+        </div>
+      );
+    }
+    if (status === 'saved') {
+      return (
+        <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
+          <CheckCircle2 size={16} />
+          <span>Salvo</span>
+        </div>
+      );
+    }
+    if (status === 'error') {
+      return (
+        <div className="flex items-center gap-2 text-red-600 text-sm font-medium">
+          <X size={16} />
+          <span>Erro ao salvar</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 text-gray-400 text-sm font-medium">
+        <Cloud size={16} />
+        <span>Salvamento automático</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
@@ -369,7 +504,6 @@ const RetufPage = () => {
           {showFilters && (
             <div className="mt-4 p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Filtro Professor */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <User size={16} className="inline mr-1" />
@@ -387,7 +521,6 @@ const RetufPage = () => {
                   </select>
                 </div>
 
-                {/* Filtro Módulo */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <BookOpen size={16} className="inline mr-1" />
@@ -405,7 +538,6 @@ const RetufPage = () => {
                   </select>
                 </div>
 
-                {/* Filtro Dia da Semana */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <CalendarDays size={16} className="inline mr-1" />
@@ -423,7 +555,6 @@ const RetufPage = () => {
                   </select>
                 </div>
 
-                {/* Filtro Horário */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Clock size={16} className="inline mr-1" />
@@ -441,7 +572,6 @@ const RetufPage = () => {
                   </select>
                 </div>
 
-                {/* Filtro Data de Término */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Calendar size={16} className="inline mr-1" />
@@ -470,26 +600,22 @@ const RetufPage = () => {
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {/* Média Geral */}
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                 <p className="text-sm opacity-90 mb-1">Frequência Média</p>
                 <p className="text-3xl font-bold">{filteredStats.mediaGeral.toFixed(1)}%</p>
               </div>
 
-              {/* Total de Turmas */}
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                 <p className="text-sm opacity-90 mb-1">Turmas Filtradas</p>
                 <p className="text-3xl font-bold">{filteredStats.totalTurmas}</p>
                 <p className="text-xs opacity-75">{filteredStats.turmasComDados} com dados</p>
               </div>
 
-              {/* Total de Alunos */}
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                 <p className="text-sm opacity-90 mb-1">Total de Alunos</p>
                 <p className="text-3xl font-bold">{filteredStats.totalAlunos}</p>
               </div>
 
-              {/* Melhor/Pior Frequência */}
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                 <p className="text-sm opacity-90 mb-1">Melhor / Pior</p>
                 <p className="text-2xl font-bold">
@@ -513,16 +639,15 @@ const RetufPage = () => {
             const professorName = turma.professorName || 'Não definido';
             const diaSemana = formatDiaSemana(turma.dia_semana);
             const horario = turma.horario;
+            const savingStatus = savingStates[turma.id] || 'idle';
 
             return(
               <div key={turma.id} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-transparent hover:border-blue-200">
-                {/* Header do Card - Sempre visível */}
                 <div 
                   className="p-6 cursor-pointer bg-gradient-to-r from-white to-blue-50"
                   onClick={() => toggleCard(turma.id)}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4">
-                    {/* Info da Turma */}
                     <div className="flex items-center gap-4">
                       <div className="p-3 bg-blue-100 rounded-lg">
                         <Users className="text-blue-600" size={24} />
@@ -577,9 +702,7 @@ const RetufPage = () => {
                       </div>
                     </div>
 
-                    {/* Média e Ações */}
                     <div className="flex items-center gap-4">
-                      {/* Badge de Frequência */}
                       <div className={`px-4 py-3 rounded-xl ${
                         mediaMensal >= 75 ? 'bg-green-100' : 
                         mediaMensal >= 50 ? 'bg-yellow-100' : 
@@ -604,7 +727,6 @@ const RetufPage = () => {
                         </div>
                       </div>
 
-                      {/* Botão Expandir */}
                       <button
                         className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
                         onClick={(e) => {
@@ -618,10 +740,8 @@ const RetufPage = () => {
                   </div>
                 </div>
 
-                {/* Conteúdo Expansível */}
                 {isExpanded && (
                   <div className="p-6 bg-gray-50 border-t-2 border-blue-100">
-                    {/* Grid de Semanas */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                       {[1, 2, 3, 4, 5].map(semana => {
                         const presentes = frequenciaData[turma.id]?.[semana];
@@ -645,7 +765,7 @@ const RetufPage = () => {
                               type="number"
                               placeholder="Nº presentes"
                               value={presentes || ''}
-                              onChange={(e) => handlePresentesChange(turma.id, semana, e.target.value)}
+                              onChange={(e) => handlePresentesChange(turma.id, semana, e.target.value, turma.name)}
                               className="w-full px-3 py-2 bg-gray-50 border-2 border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-800 transition-all"
                               onClick={(e) => e.stopPropagation()}
                             />
@@ -654,28 +774,8 @@ const RetufPage = () => {
                       })}
                     </div>
 
-                    {/* Botão Salvar */}
                     <div className="flex justify-end">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSave(turma.id, turma);
-                        }}
-                        disabled={loadingStates[turma.id]}
-                        className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:bg-blue-300 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-                      >
-                        {loadingStates[turma.id] ? (
-                          <>
-                            <Loader2 className="animate-spin" size={20} />
-                            <span>Salvando...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save size={20} />
-                            <span>Salvar Frequência</span>
-                          </>
-                        )}
-                      </button>
+                      <SavingStatus status={savingStatus} />
                     </div>
                   </div>
                 )}
