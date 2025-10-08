@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
@@ -8,21 +8,22 @@ import {
   GraduationCap,
   School,
   ClipboardList,
-  Loader,
-  ClipboardCheck,
-  CalendarClock,
-  BookOpenCheck,
-  BookCopy,
   FileText,
   CalendarPlus,
   BookMarked,
+  UserX,
+  FileSpreadsheet,
+  Beaker,
+  Ticket,
   BookImage,
+  Calculator,
+  BookCopy,
+  BookOpenCheck,
+  CalendarClock, // ### ÍCONE CORRIGIDO E ADICIONADO DE VOLTA ###
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import Slider from "react-slick";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
-import "../styles/slider.css";
 
 const StatCard = ({
   title,
@@ -46,16 +47,12 @@ const StatCard = ({
     </div>
   );
 
-  return (
-    <div className="p-2 h-full">
-      {to ? (
-        <Link to={to} state={state} className="h-full block">
-          {content}
-        </Link>
-      ) : (
-        content
-      )}
-    </div>
+  return to ? (
+    <Link to={to} state={state} className="h-full block">
+      {content}
+    </Link>
+  ) : (
+    <div className="h-full">{content}</div>
   );
 };
 
@@ -120,27 +117,35 @@ const getDisplayModules = (turma) => {
   return { moduloAtual: currentModuleId };
 };
 
-// Componente Principal HomePage
 function HomePage() {
-  const { classes, graduates, loadingClasses } = useClasses();
+  const { classes, loadingClasses } = useClasses();
   const { userProfile } = useAuth();
   const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
+  const [inactiveStudentsCount, setInactiveStudentsCount] = useState(0);
+
   const navigate = useNavigate();
   const barChartRef = useRef();
   const doughnutChartRef = useRef();
 
-  const isSecretaria = userProfile?.role === "secretaria";
-  const isComercial = userProfile?.role === "comercial";
-  const isProfessorNexus = userProfile?.role === "professor_nexus";
-  const hasRestrictedAccess = isSecretaria || isComercial;
+  const userRole = userProfile?.role;
+  const isProfessorNexus = userRole === "professor_nexus";
 
   useEffect(() => {
-    if (!hasRestrictedAccess && !isProfessorNexus) {
+    let unsubscribeTasks = () => {};
+    let unsubscribeInactive = () => {};
+
+    const canSeeTasks = ![
+      "comercial",
+      "financeiro",
+      "secretaria",
+      "professor_nexus",
+    ].includes(userRole);
+    if (canSeeTasks) {
       const tasksQuery = query(
         collection(db, "tasks"),
         where("status", "in", ["todo", "inprogress"])
       );
-      const unsubscribe = onSnapshot(tasksQuery, (querySnapshot) => {
+      unsubscribeTasks = onSnapshot(tasksQuery, (querySnapshot) => {
         const counts = { todo: 0, inprogress: 0 };
         querySnapshot.forEach((doc) => {
           const task = doc.data();
@@ -149,22 +154,25 @@ function HomePage() {
         });
         setTaskCounts(counts);
       });
-      return () => unsubscribe();
     }
-  }, [hasRestrictedAccess, isProfessorNexus]);
 
-  const sliderSettings = {
-    dots: true,
-    infinite: false,
-    speed: 500,
-    slidesToShow: 4,
-    slidesToScroll: 1,
-    responsive: [
-      { breakpoint: 1280, settings: { slidesToShow: 3 } },
-      { breakpoint: 1024, settings: { slidesToShow: 2 } },
-      { breakpoint: 640, settings: { slidesToShow: 1 } },
-    ],
-  };
+    const canSeeInactive = [
+      "coordenador",
+      "auxiliar_coordenacao",
+      "diretor",
+    ].includes(userRole);
+    if (canSeeInactive) {
+      const inactiveQuery = query(collection(db, "inativos"));
+      unsubscribeInactive = onSnapshot(inactiveQuery, (snapshot) => {
+        setInactiveStudentsCount(snapshot.size);
+      });
+    }
+
+    return () => {
+      unsubscribeTasks();
+      unsubscribeInactive();
+    };
+  }, [userRole]);
 
   if (loadingClasses) {
     return (
@@ -173,6 +181,7 @@ function HomePage() {
   }
 
   if (isProfessorNexus) {
+    const professorCards = getVisibleCardsData();
     return (
       <div className="p-4 md:p-8">
         <div className="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -182,48 +191,43 @@ function HomePage() {
           <p className="text-md text-gray-600">
             O seu perfil de acesso é:{" "}
             <span className="font-semibold text-blue-600 capitalize">
-              {userProfile?.role?.replace(/_/g, " ") || "Carregando..."}
+              {userRole?.replace(/_/g, " ") || "Carregando..."}
             </span>
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div className="h-full">
-            <Link to="/frequencia-nexus" className="h-full block">
-              <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
-                <div className="bg-cyan-100 p-3 rounded-full mb-3">
-                  <CalendarPlus className="h-7 w-7 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-gray-800">Acessar</p>
-                  <h3 className="text-sm font-medium text-gray-500 mt-1">
-                    Frequência Nexus
-                  </h3>
-                </div>
+          {professorCards.map((card) => (
+            <StatCard
+              key={card.key}
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              to={card.to}
+              state={card.state}
+              bgColor={card.bgColor}
+              textColor={card.textColor}
+            />
+          ))}
+          <Link
+            to="/boletim"
+            state={{
+              isNexusUser: true,
+              lockedSchoolId: "GEYs70ghHbdAm9oeE8hu",
+            }}
+            className="h-full block"
+          >
+            <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
+              <div className="bg-amber-100 p-3 rounded-full mb-3">
+                <BookMarked className="h-7 w-7 text-amber-600" />
               </div>
-            </Link>
-          </div>
-          <div className="h-full">
-            <Link
-              to="/boletim"
-              state={{
-                isNexusUser: true,
-                lockedSchoolId: "GEYs70ghHbdAm9oeE8hu",
-              }}
-              className="h-full block"
-            >
-              <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow flex flex-col items-center text-center h-full justify-center">
-                <div className="bg-amber-100 p-3 rounded-full mb-3">
-                  <BookMarked className="h-7 w-7 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-gray-800">Consultar</p>
-                  <h3 className="text-sm font-medium text-gray-500 mt-1">
-                    Boletim Nexus
-                  </h3>
-                </div>
+              <div>
+                <p className="text-3xl font-bold text-gray-800">Consultar</p>
+                <h3 className="text-sm font-medium text-gray-500 mt-1">
+                  Boletim Nexus
+                </h3>
               </div>
-            </Link>
-          </div>
+            </div>
+          </Link>
         </div>
       </div>
     );
@@ -236,22 +240,15 @@ function HomePage() {
     (sum, c) => sum + (c.students?.length || 0),
     0
   );
-
-  const certificatesReady = graduates.filter(
-    (g) =>
-      g.certificateStatus === "impresso" || g.certificateStatus === "entregue"
-  ).length;
   const tbClassesCount = classes.filter(
     (c) => (c.modules?.[0]?.id || "").toUpperCase() === "TB"
   ).length;
   const extraCoursesCount = classes.filter(
     (c) => (c.modules?.[0]?.id || "").toUpperCase() === "CURSO EXTRA"
   ).length;
-
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-
   const classesWithModulesEndingThisMonth = activeClasses.filter((turma) => {
     if (!turma.modules || turma.modules.length === 0) {
       const termDate = parseDate(turma.dataTermino);
@@ -261,7 +258,6 @@ function HomePage() {
         termDate.getFullYear() === currentYear
       );
     }
-
     return turma.modules.some((mod) => {
       const termDate = parseDate(
         mod.endDate || mod.dataTermino || turma.dataTermino
@@ -274,21 +270,17 @@ function HomePage() {
     });
   });
   const modulesEndingCount = classesWithModulesEndingThisMonth.length;
-
   const classesEndingCourseThisMonth = activeClasses.filter((turma) => {
     const { moduloAtual } = getDisplayModules(turma);
     const isLastModule = moduloAtual === "CMV";
-
     const termDate = parseDate(turma.dataTermino);
     const isEndingThisMonth =
       termDate &&
       termDate.getMonth() === currentMonth &&
       termDate.getFullYear() === currentYear;
-
     return isLastModule && isEndingThisMonth;
   });
   const courseEndingCount = classesEndingCourseThisMonth.length;
-
   const moduleOrder = ["ICN", "OFFA", "ADM", "PWB", "TRI", "CMV"];
   const moduleCounts = activeClasses.reduce((acc, turma) => {
     const { moduloAtual } = getDisplayModules(turma);
@@ -299,14 +291,11 @@ function HomePage() {
   const sortedLabels = moduleOrder.filter((mod) =>
     allModulesInChart.includes(mod)
   );
-
   const remainingLabels = allModulesInChart.filter(
     (mod) => !moduleOrder.includes(mod) && mod !== "Sem Módulos"
   );
-
   const finalLabels = [...sortedLabels, ...remainingLabels];
   const finalData = finalLabels.map((label) => moduleCounts[label]);
-
   const moduleChartData = {
     labels: finalLabels,
     datasets: [
@@ -319,23 +308,21 @@ function HomePage() {
       },
     ],
   };
-
   const handleBarChartClick = (event, elements) => {
     if (!elements || elements.length === 0) return;
     const { index } = elements[0];
-    const moduleName = moduleChartData.labels[index];
     navigate("/mapa-turmas", {
-      state: { filter: "module", moduleName: moduleName },
+      state: { filter: "module", moduleName: moduleChartData.labels[index] },
     });
   };
-
   const moduleChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     onClick: handleBarChartClick,
     onHover: (event, chartElement) => {
-      const target = event.native ? event.native.target : event.target;
-      target.style.cursor = chartElement[0] ? "pointer" : "default";
+      event.native.target.style.cursor = chartElement[0]
+        ? "pointer"
+        : "default";
     },
     plugins: {
       legend: { display: false },
@@ -343,261 +330,234 @@ function HomePage() {
     },
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
-
-  let studentsWithLowGrades = [];
-  let gradeStatusCounts = { green: 0, red: 0 };
-  let doughnutChartData = null;
-  let doughnutChartOptions = null;
-  let handleDoughnutChartClick = null;
-
-  if (!hasRestrictedAccess) {
-    gradeStatusCounts = activeClasses.reduce(
-      (acc, turma) => {
-        turma.students?.forEach((student) => {
-          if (student.grades) {
-            Object.entries(student.grades).forEach(([moduleId, gradeInfo]) => {
-              const grade = parseFloat(
-                typeof gradeInfo === "object" ? gradeInfo.finalGrade : gradeInfo
-              );
-              if (!isNaN(grade)) {
-                if (grade < 7) {
-                  acc.red++;
-                  studentsWithLowGrades.push({
-                    studentName: student.name,
-                    studentCode: student.code,
-                    className: turma.name,
-                    professorName: turma.professorName || "A definir",
-                    module: moduleId,
-                    grade: grade.toFixed(1),
-                  });
-                } else {
-                  acc.green++;
-                }
-              }
-            });
-          }
-        });
-        return acc;
+  const gradeStatusCounts = activeClasses.reduce(
+    (acc, turma) => {
+      turma.students?.forEach((student) => {
+        if (student.grades) {
+          Object.values(student.grades).forEach((gradeInfo) => {
+            const grade = parseFloat(
+              typeof gradeInfo === "object" ? gradeInfo.finalGrade : gradeInfo
+            );
+            if (!isNaN(grade)) grade < 7 ? acc.red++ : acc.green++;
+          });
+        }
+      });
+      return acc;
+    },
+    { green: 0, red: 0 }
+  );
+  const doughnutChartData = {
+    labels: ["Notas Acima da Média", "Notas Abaixo da Média"],
+    datasets: [
+      {
+        data: [gradeStatusCounts.green, gradeStatusCounts.red],
+        backgroundColor: ["#4CAF50", "#F44336"],
+        hoverBackgroundColor: ["#66BB6A", "#EF5350"],
+        borderColor: "#fff",
+        borderWidth: 2,
       },
-      { green: 0, red: 0 }
-    );
+    ],
+  };
+  const doughnutChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "bottom" },
+      title: { display: true, text: "Desempenho Geral de Notas" },
+    },
+  };
 
-    doughnutChartData = {
-      labels: ["Notas Acima da Média", "Notas Abaixo da Média"],
-      datasets: [
+  const getVisibleCardsData = () => {
+    if (!userRole) return [];
+
+    const allCards = [];
+
+    if (userRole !== "professor_nexus") {
+      allCards.push(
         {
-          data: [gradeStatusCounts.green, gradeStatusCounts.red],
-          backgroundColor: ["#4CAF50", "#F44336"],
-          hoverBackgroundColor: ["#66BB6A", "#EF5350"],
-          borderColor: "#fff",
-          borderWidth: 2,
+          key: "students",
+          title: "Alunos Ativos",
+          value: totalStudents,
+          icon: Users,
+          to: "/boletim",
         },
-      ],
-    };
+        {
+          key: "classes",
+          title: "Turmas Ativas",
+          value: activeClasses.length,
+          icon: School,
+          to: "/boletim",
+        },
+        {
+          key: "tb-classes",
+          title: "Treinamentos Básicos",
+          value: tbClassesCount,
+          icon: BookOpenCheck,
+          to: "/frequencia",
+          bgColor: "bg-indigo-100",
+          textColor: "text-indigo-600",
+        },
+        {
+          key: "extra-courses",
+          title: "Cursos Extras",
+          value: extraCoursesCount,
+          icon: BookCopy,
+          to: "/frequencia",
+          bgColor: "bg-purple-100",
+          textColor: "text-purple-600",
+        },
+        {
+          key: "lab-support",
+          title: "Laboratório de Apoio",
+          value: "Acessar",
+          icon: Beaker,
+          to: "/laboratorio",
+          bgColor: "bg-lime-100",
+          textColor: "text-lime-600",
+        },
+        {
+          key: "events-management",
+          title: "Gestão de Eventos",
+          value: "Gerenciar",
+          icon: Ticket,
+          to: "/eventos",
+          bgColor: "bg-rose-100",
+          textColor: "text-rose-600",
+        },
+        {
+          key: "courses-syllabi",
+          title: "Cursos e Ementas",
+          value: "Visualizar",
+          icon: BookImage,
+          to: "/cursos",
+          bgColor: "bg-pink-100",
+          textColor: "text-pink-600",
+        },
+        {
+          key: "replacement-calculator",
+          title: "Calculadora de Reposição",
+          value: "Calcular",
+          icon: Calculator,
+          to: "/calculadora",
+          bgColor: "bg-sky-100",
+          textColor: "text-sky-600",
+        }
+      );
+    }
 
-    handleDoughnutChartClick = (event, elements) => {
-      if (!elements || elements.length === 0) return;
-      const { index } = elements[0];
-      if (index === 1) {
-        navigate("/alunos-nota-baixa", {
-          state: { students: studentsWithLowGrades },
-        });
-      }
-    };
+    if (["coordenador", "auxiliar_coordenacao", "diretor"].includes(userRole)) {
+      allCards.push({
+        key: "inactive-students",
+        title: "Alunos Inativos",
+        value: inactiveStudentsCount,
+        icon: UserX,
+        to: "/alunos-inativos",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-600",
+      });
+    }
 
-    doughnutChartOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      onClick: handleDoughnutChartClick,
-      onHover: (event, chartElement) => {
-        const target = event.native ? event.native.target : event.target;
-        target.style.cursor = chartElement[0] ? "pointer" : "default";
-      },
-      plugins: {
-        legend: { position: "bottom" },
-        title: { display: true, text: "Desempenho Geral de Notas" },
-      },
-    };
-  }
+    if (userRole !== "comercial" && userRole !== "professor_nexus") {
+      allCards.push(
+        {
+          key: "course-ending",
+          title: "Turmas Finalizando",
+          value: courseEndingCount,
+          icon: GraduationCap,
+          to: "/mapa-turmas",
+          state: { filter: "endingCourseThisMonth" },
+          bgColor: "bg-orange-100",
+          textColor: "text-orange-600",
+        },
+        {
+          key: "modules-ending",
+          title: "Módulos Finalizando",
+          value: modulesEndingCount,
+          icon: CalendarClock,
+          to: "/mapa-turmas",
+          state: { filter: "endingThisMonth" },
+          bgColor: "bg-teal-100",
+          textColor: "text-teal-600",
+        }
+      );
+    }
 
-  const getVisibleCards = () => {
-    if (!userProfile) return [];
+    if (
+      [
+        "coordenador",
+        "auxiliar_coordenacao",
+        "diretor",
+        "financeiro",
+        "professor_nexus",
+      ].includes(userRole)
+    ) {
+      allCards.push({
+        key: "frequencia-nexus",
+        title: "Frequência Nexus",
+        value: "Acessar",
+        icon: CalendarPlus,
+        to: "/frequencia-nexus",
+        bgColor: "bg-cyan-100",
+        textColor: "text-cyan-600",
+      });
+    }
 
-    let cards = [];
+    if (["coordenador", "auxiliar_coordenacao", "diretor"].includes(userRole)) {
+      allCards.push({
+        key: "retuf-report",
+        title: "Relatório RETUF",
+        value: "Acessar",
+        icon: FileSpreadsheet,
+        to: "/retuf",
+        bgColor: "bg-blue-100",
+        textColor: "text-blue-600",
+      });
+    }
 
-    const canAccessCursosPage =
-      userProfile &&
+    if (
       [
         "coordenador",
         "diretor",
         "comercial",
-        "admin",
-        "professor_apoio",
-      ].includes(userProfile.role);
-
-    const canSeeNexusCards = [
-      "auxiliar_coordenacao",
-      "coordenador",
-      "diretor",
-      "admin",
-      "financeiro",
-    ].includes(userProfile.role);
-
-    // NOVO CARD
-    if (canAccessCursosPage) {
-      cards.push(
-        <StatCard
-          key="cursos-ementas"
-          title="Cursos e Ementas"
-          value="Visualizar"
-          icon={BookImage}
-          to="/cursos"
-          bgColor="bg-pink-100"
-          textColor="text-pink-600"
-        />
-      );
+        "secretaria",
+        "financeiro",
+      ].includes(userRole)
+    ) {
+      allCards.push({
+        key: "generate-contract",
+        title: "Gerar Contrato",
+        value: "Criar",
+        icon: FileText,
+        to: "/gerar-contrato",
+        bgColor: "bg-violet-100",
+        textColor: "text-violet-600",
+      });
     }
 
-    if (canSeeNexusCards) {
-      cards.push(
-        <StatCard
-          key="frequencia-nexus"
-          title="Frequência Nexus"
-          value="Acessar"
-          icon={CalendarPlus}
-          to="/frequencia-nexus"
-          bgColor="bg-cyan-100"
-          textColor="text-cyan-600"
-        />
-      );
+    if (
+      !["comercial", "financeiro", "secretaria", "professor_nexus"].includes(
+        userRole
+      )
+    ) {
+      allCards.push({
+        key: "pending-tasks",
+        title: "Tarefas Pendentes",
+        value: taskCounts.todo + taskCounts.inprogress,
+        icon: ClipboardList,
+        to: "/kanban",
+        bgColor: "bg-yellow-100",
+        textColor: "text-yellow-600",
+      });
     }
 
-    if (hasRestrictedAccess) {
-      cards.push(
-        <StatCard
-          key="mapa-turmas"
-          title="Mapa de Turmas"
-          value="Visualizar"
-          icon={CalendarClock}
-          to="/mapa-turmas"
-          bgColor="bg-green-100"
-          textColor="text-green-600"
-        />,
-        <StatCard
-          key="gerar-contrato"
-          title="Gerar Contrato - Treinamento Básico"
-          value="Criar"
-          icon={FileText}
-          to="/gerar-contrato"
-          bgColor="bg-purple-100"
-          textColor="text-purple-600"
-        />,
-        <StatCard
-          key="laboratorio-apoio"
-          title="Laboratório de Apoio"
-          value="Acessar"
-          icon={ClipboardCheck}
-          to="/laboratorio"
-          bgColor="bg-orange-100"
-          textColor="text-orange-600"
-        />,
-        <StatCard
-          key="tb-classes"
-          title="Treinamentos Básicos"
-          value={tbClassesCount}
-          icon={BookOpenCheck}
-          to="/frequencia"
-          bgColor="bg-indigo-100"
-          textColor="text-indigo-600"
-        />
-      );
-    } else {
-      cards.push(
-        <StatCard
-          key="students"
-          title="Alunos Ativos"
-          value={totalStudents}
-          icon={Users}
-          to="/boletim"
-        />,
-        <StatCard
-          key="classes"
-          title="Turmas Ativas"
-          value={activeClasses.length}
-          icon={School}
-          to="/boletim"
-        />,
-        <StatCard
-          key="course-ending"
-          title="Turmas Finalizando Este Mês"
-          value={courseEndingCount}
-          icon={GraduationCap}
-          to="/mapa-turmas"
-          state={{ filter: "endingCourseThisMonth" }}
-          bgColor="bg-orange-100"
-          textColor="text-orange-600"
-        />,
-        <StatCard
-          key="modules-ending"
-          title="Módulos Finalizando Este Mês"
-          value={modulesEndingCount}
-          icon={CalendarClock}
-          to="/mapa-turmas"
-          state={{ filter: "endingThisMonth" }}
-          bgColor="bg-teal-100"
-          textColor="text-teal-600"
-        />,
-        <StatCard
-          key="certificates"
-          title="Certificados Prontos"
-          value={certificatesReady}
-          icon={GraduationCap}
-          to="/turma/concludentes"
-          state={{ schoolId: "1SzXUMMWR0MtndKZXIa1" }}
-          bgColor="bg-green-100"
-          textColor="text-green-600"
-        />,
-        <StatCard
-          key="tb-classes"
-          title="Treinamentos Básicos"
-          value={tbClassesCount}
-          icon={BookOpenCheck}
-          to="/frequencia"
-          bgColor="bg-indigo-100"
-          textColor="text-indigo-600"
-        />,
-        <StatCard
-          key="extra-courses"
-          title="Cursos Extras"
-          value={extraCoursesCount}
-          icon={BookCopy}
-          to="/frequencia"
-          bgColor="bg-purple-100"
-          textColor="text-purple-600"
-        />,
-        <StatCard
-          key="todo-tasks"
-          title="Tarefas a Fazer"
-          value={taskCounts.todo}
-          icon={ClipboardList}
-          to="/kanban"
-          bgColor="bg-red-100"
-          textColor="text-red-600"
-        />,
-        <StatCard
-          key="progress-tasks"
-          title="Tarefas em Progresso"
-          value={taskCounts.inprogress}
-          icon={Loader}
-          to="/kanban"
-          bgColor="bg-yellow-100"
-          textColor="text-yellow-600"
-        />
-      );
-    }
-
-    return cards;
+    return allCards;
   };
+
+  const visibleCards = getVisibleCardsData();
+  const rows = [];
+  for (let i = 0; i < visibleCards.length; i += 5) {
+    rows.push(visibleCards.slice(i, i + 5));
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -610,21 +570,36 @@ function HomePage() {
         <p className="text-md text-gray-600">
           O seu perfil de acesso é:{" "}
           <span className="font-semibold text-blue-600 capitalize">
-            {userProfile?.role?.replace(/_/g, " ") || "Carregando..."}
+            {userRole?.replace(/_/g, " ") || "Carregando..."}
           </span>
         </p>
       </div>
 
-      <div className="mb-8">
-        <Slider {...sliderSettings}>{getVisibleCards()}</Slider>
-      </div>
+      {rows.map((row, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6"
+        >
+          {row.map((card) => (
+            <StatCard
+              key={card.key}
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              to={card.to}
+              state={card.state}
+              bgColor={card.bgColor}
+              textColor={card.textColor}
+            />
+          ))}
+        </div>
+      ))}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div
-          className={
-            hasRestrictedAccess
-              ? "lg:col-span-3 h-80 sm:h-96"
-              : "lg:col-span-2 h-80 sm:h-96"
-          }
+          className={`${
+            userRole === "comercial" ? "lg:col-span-3" : "lg:col-span-2"
+          } h-80 sm:h-96`}
         >
           <BarChart
             chartRef={barChartRef}
@@ -632,7 +607,7 @@ function HomePage() {
             chartOptions={moduleChartOptions}
           />
         </div>
-        {!hasRestrictedAccess && (
+        {userRole !== "comercial" && (
           <div className="lg:col-span-1 h-80 sm:h-96">
             <DoughnutChart
               chartRef={doughnutChartRef}

@@ -27,7 +27,9 @@ const MainLayout = () => {
 
   const canAccessNexusAttendance =
     userProfile &&
-    ["coordenador", "admin", "diretor", "financeiro"].includes(userProfile.role);
+    ["coordenador", "admin", "diretor", "financeiro"].includes(
+      userProfile.role
+    );
 
   const canAccessContractPage =
     userProfile &&
@@ -38,10 +40,11 @@ const MainLayout = () => {
   const canAccessAttendance = isUserAdmin || isUserProfessor;
   const canAccessFollowUp = isUserAdmin || isUserProfessor;
 
-  // Nova permissão específica para RETUF (incluindo admin)
   const canAccessRetuf =
     userProfile &&
-    ["coordenador", "diretor", "auxiliar_coordenacao", "admin"].includes(userProfile.role);
+    ["coordenador", "diretor", "auxiliar_coordenacao", "admin"].includes(
+      userProfile.role
+    );
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [academicMenuOpen, setAcademicMenuOpen] = useState(false);
@@ -95,8 +98,7 @@ const MainLayout = () => {
               <div className="hidden md:block">
                 <div className="ml-10 flex items-baseline space-x-4">
                   {isUserComercial || isUserSecretaria ? (
-                    <>
-                    </>
+                    <></>
                   ) : (
                     <>
                       {/* --- GRUPO ACADÊMICO --- */}
@@ -174,6 +176,15 @@ const MainLayout = () => {
                               >
                                 Tarefas
                               </NavLink>
+                              {/* ### INÍCIO DA CORREÇÃO ### */}
+                              <NavLink
+                                to="/alunos-inativos"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setAcademicMenuOpen(false)}
+                              >
+                                Alunos Inativos
+                              </NavLink>
+                              {/* ### FIM DA CORREÇÃO ### */}
                             </div>
                           </div>
                         )}

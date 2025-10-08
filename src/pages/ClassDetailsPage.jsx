@@ -3,6 +3,11 @@ import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
+
+// Adicionado para a nova funcionalidade
+import { db } from "../firebase";
+import { collection, addDoc } from "firebase/firestore";
+
 import StudentImporter from "../components/StudentImporter";
 import Gradebook from "../components/Gradebook";
 import TransferStudentModal from "../components/TransferStudentModal";
@@ -11,6 +16,7 @@ import AddStudentModal from "../components/AddStudentModal";
 import EditStudentModal from "../components/EditStudentModal";
 import ObservationModal from "../components/ObservationModal";
 import QrCodeModal from "../components/QrCodeModal";
+import MoveToInactiveModal from '../components/MoveToInactiveModal'; // Import do novo modal
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -93,6 +99,10 @@ function ClassDetailsPage() {
   const [studentToEdit, setStudentToEdit] = useState(null);
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
   const [studentToObserve, setStudentToObserve] = useState(null);
+
+  // Estados para a nova funcionalidade de inativar aluno
+  const [isMoveToInactiveModalOpen, setIsMoveToInactiveModalOpen] = useState(false);
+  const [studentToMove, setStudentToMove] = useState(null);
 
   const [editingSubGrades, setEditingSubGrades] = useState({});
 
@@ -312,7 +322,6 @@ function ClassDetailsPage() {
     location.state,
   ]);
 
-  // ### INÍCIO DA CORREÇÃO ###
   const handleApiAction = async (functionName, payload, successCallback) => {
     const toastId = toast.loading("Executando operação...");
     try {
@@ -335,7 +344,6 @@ function ClassDetailsPage() {
       toast.error(`Erro: ${error.message}`, { id: toastId });
     }
   };
-  // ### FIM DA CORREÇÃO ###
 
   const handleSaveWhatsappLink = async () => {
     await updateClass(turma.id, { whatsappLink: whatsappLinkInput });
@@ -611,30 +619,59 @@ function ClassDetailsPage() {
     }
   };
 
-  const handleDeleteStudent = async (studentId) => {
+  // ### INÍCIO DA ALTERAÇÃO ###
+  // Esta função agora abre o modal de inativação
+  const handleDeleteStudent = (studentId) => {
     if (!turma || !turma.students) return;
-    const studentNameToDelete =
-      turma.students.find((s) => (s.studentId || s.id) === studentId)?.name ||
-      "este aluno";
 
-    showConfirmationToast(
-      `Remover "${studentNameToDelete}" da turma?`,
-      async () => {
-        const studentToRemove = turma.students.find(
-          (s) => (s.studentId || s.id) === studentId
-        );
+    const student = turma.students.find(s => (s.studentId || s.id) === studentId);
 
-        await handleApiAction(
-          "removeStudentFromClass",
-          {
-            classId: turma.id,
-            studentId: studentId,
-            studentData: studentToRemove,
-          },
-          () => setRefetchTrigger((prev) => prev + 1)
-        );
+    if (student) {
+      setStudentToMove(student);
+      setIsMoveToInactiveModalOpen(true);
+    } else {
+      toast.error("Aluno não encontrado para mover.");
+    }
+  };
+
+ const handleConfirmMoveToInactive = async (reason) => {
+    if (!studentToMove) return;
+
+    const toastId = toast.loading("Movendo aluno para inativos...");
+
+    try {
+      let inactiveReason = 'Inativo';
+      if (reason === 'cancelamento') {
+        inactiveReason = 'Inativo por Cancelamento';
+      } else if (reason === 'spc') {
+        inactiveReason = 'Inativo por SPC';
+      } else if (reason === 'trancamento') {
+        inactiveReason = 'Inativo por Trancamento';
       }
-    );
+
+      await addDoc(collection(db, 'inativos'), {
+        ...studentToMove,
+        inactiveReason,
+        movedAt: new Date(),
+        originalClassId: turma.id,
+        originalClassName: turma.name,
+      });
+
+      const updatedStudents = turma.students.filter(
+        (s) => (s.studentId || s.id) !== (studentToMove.studentId || studentToMove.id)
+      );
+      await updateClass(turma.id, { students: updatedStudents });
+
+      toast.success(`Aluno movido para ${inactiveReason} com sucesso!`, { id: toastId });
+      setRefetchTrigger((p) => p + 1); 
+
+    } catch (error) {
+      console.error("Erro ao mover aluno para inativos: ", error);
+      toast.error("Erro ao mover aluno. Tente novamente.", { id: toastId });
+    } finally {
+      setIsMoveToInactiveModalOpen(false);
+      setStudentToMove(null);
+    }
   };
 
   const handleOpenObservationModal = (student) => {
@@ -937,7 +974,8 @@ function ClassDetailsPage() {
           </div>
         </div>
       )}
-
+      
+      {/* Modais existentes */}
       <QrCodeModal
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
@@ -977,6 +1015,12 @@ function ClassDetailsPage() {
         onClose={handleCloseObservationModal}
         onSave={handleSaveObservation}
         student={studentToObserve}
+      />
+
+      <MoveToInactiveModal
+        isOpen={isMoveToInactiveModalOpen}
+        onClose={() => setIsMoveToInactiveModalOpen(false)}
+        onConfirm={handleConfirmMoveToInactive}
       />
     </div>
   );
