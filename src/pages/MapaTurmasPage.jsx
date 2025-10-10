@@ -22,6 +22,7 @@ import {
   Search,
   FileDown,
   XCircle,
+  FilterX,
 } from "lucide-react";
 import MapaClassModal from "../components/MapaClassModal";
 import InstructorStats from "../components/InstructorStats";
@@ -80,41 +81,36 @@ const formatDateForInput = (dateValue) => {
 
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
-  if (typeof dateValue === "string") {
-    if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      const [year, month, day] = dateValue.split("-");
-      return new Date(
-        Number.parseInt(year),
-        Number.parseInt(month) - 1,
-        Number.parseInt(day)
-      );
-    }
-    return new Date(dateValue);
-  } else if (dateValue.toDate) {
+  if (typeof dateValue === "string" && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return new Date(`${dateValue}T00:00:00`);
+  }
+  if (dateValue.toDate) {
     return dateValue.toDate();
-  } else if (dateValue instanceof Date) {
+  }
+  if (dateValue instanceof Date) {
     return dateValue;
   }
-  return null;
+  const parsed = new Date(dateValue);
+  return !isNaN(parsed) ? parsed : null;
 };
 
 const getDisplayModules = (turma) => {
   const ordemModulos = ["ICN", "OFFA", "ADM", "PWB", "TRI", "CMV"];
-  
-  // Se não tem grade definida
+
   if (!turma.modules || turma.modules.length === 0) {
     return { moduloAtual: "Sem Grade Definida", proximoModulo: "-" };
   }
 
-  // Módulo atual: prioriza o definido manualmente, senão usa lógica automática
   let moduloAtual;
-  if (turma.mapa_modulo_atual_id && turma.mapa_modulo_atual_id !== "AUTOMATICO") {
+  if (
+    turma.mapa_modulo_atual_id &&
+    turma.mapa_modulo_atual_id !== "AUTOMATICO"
+  ) {
     moduloAtual = turma.mapa_modulo_atual_id;
   } else {
-    // Lógica automática simplificada - pega o primeiro módulo ou usa data
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    
+
     const moduloAtivoHoje = turma.modules.find((mod) => {
       const inicio = parseDate(mod.dataInicio || mod.startDate);
       const termino = parseDate(mod.dataTermino || mod.endDate);
@@ -128,13 +124,11 @@ const getDisplayModules = (turma) => {
     }
   }
 
-  // Próximo módulo: usa o definido manualmente, senão calcula automaticamente
   let proximoModulo;
   if (turma.mapa_proximo_modulo_id) {
     proximoModulo = turma.mapa_proximo_modulo_id;
   } else {
-    // Lógica automática para próximo módulo
-    const indiceAtual = ordemModulos.findIndex(mod => mod === moduloAtual);
+    const indiceAtual = ordemModulos.findIndex((mod) => mod === moduloAtual);
     if (indiceAtual !== -1 && indiceAtual < ordemModulos.length - 1) {
       proximoModulo = ordemModulos[indiceAtual + 1];
     } else {
@@ -143,6 +137,22 @@ const getDisplayModules = (turma) => {
   }
 
   return { moduloAtual, proximoModulo };
+};
+
+const getTurmaType = (turma) => {
+  const mainModuleId = (turma.modules?.[0]?.id || "").toUpperCase();
+
+  if (turma.module) {
+    const moduleUpper = turma.module.toUpperCase();
+    if (moduleUpper === "TB" || mainModuleId === "TB") return "TB";
+    if (moduleUpper === "CURSO EXTRA" || mainModuleId === "CURSO EXTRA")
+      return "CURSO EXTRA";
+  }
+
+  if (mainModuleId === "TB") return "TB";
+  if (mainModuleId === "CURSO EXTRA") return "CURSO EXTRA";
+
+  return "FIXA";
 };
 
 function MapaTurmasPage() {
@@ -167,6 +177,11 @@ function MapaTurmasPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState(location.state || null);
 
+  const [classTypeFilter, setClassTypeFilter] = useState("todas"); // <-- VALOR PADRÃO AJUSTADO
+  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedSchedule, setSelectedSchedule] = useState("");
+  const [selectedModule, setSelectedModule] = useState("");
+
   const moduleOptions = Object.keys(masterModuleList);
 
   const sortedClasses = useMemo(() => {
@@ -179,7 +194,12 @@ function MapaTurmasPage() {
       Sábado: 6,
     };
     return classes
-      .filter((turma) => turma.name !== "CONCLUDENTES")
+      .filter((turma) => {
+        const nomeLowerCase = turma.name?.toLowerCase() || "";
+        return (
+          nomeLowerCase !== "concludentes" && !nomeLowerCase.includes("nexus")
+        );
+      })
       .sort((a, b) => {
         const dayA = dayOrder[a.dia_semana] || 99;
         const dayB = dayOrder[b.dia_semana] || 99;
@@ -209,66 +229,24 @@ function MapaTurmasPage() {
 
   const filteredClasses = useMemo(() => {
     let result = sortedClasses;
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
 
-    if (activeFilter?.filter) {
-      switch (activeFilter.filter) {
-        case "endingCourseThisMonth":
-          result = result.filter((turma) => {
-            const { moduloAtual } = getDisplayModules(turma);
-            const isLastModule = moduloAtual === "CMV";
-            const termDate = parseDate(turma.dataTermino);
-            const isEndingThisMonth =
-              termDate &&
-              termDate.getMonth() === currentMonth &&
-              termDate.getFullYear() === currentYear;
-            return isLastModule && isEndingThisMonth;
-          });
-          break;
-        case "endingThisMonth":
-          result = result.filter((turma) => {
-            if (!turma.modules || turma.modules.length === 0) {
-              const termDate = parseDate(turma.dataTermino);
-              return (
-                termDate &&
-                termDate.getMonth() === currentMonth &&
-                termDate.getFullYear() === currentYear
-              );
-            }
-            return turma.modules.some((module) => {
-              const termDate = parseDate(
-                module.dataTermino || module.endDate || turma.dataTermino
-              );
-              return (
-                termDate &&
-                termDate.getMonth() === currentMonth &&
-                termDate.getFullYear() === currentYear
-              );
-            });
-          });
-          break;
-        case "module":
-          if (activeFilter.moduleName) {
-            result = result.filter((turma) =>
-              getDisplayModules(turma).moduloAtual.startsWith(
-                activeFilter.moduleName
-              )
-            );
-          }
-          break;
-        default:
-          break;
+    if (classTypeFilter !== "todas") {
+      if (classTypeFilter === "fixas") {
+        result = result.filter((turma) => getTurmaType(turma) === "FIXA");
+      } else if (classTypeFilter === "tb") {
+        result = result.filter((turma) => getTurmaType(turma) === "TB");
+      } else if (classTypeFilter === "cursoExtra") {
+        result = result.filter(
+          (turma) => getTurmaType(turma) === "CURSO EXTRA"
+        );
       }
     }
 
-    if (selectedInstructor) {
+    if (selectedInstructor)
       result = result.filter(
         (turma) =>
           (turma.professorName || "Não Definido") === selectedInstructor
       );
-    }
     if (searchTerm.trim() !== "") {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       result = result.filter((turma) =>
@@ -285,8 +263,26 @@ function MapaTurmasPage() {
           .includes(lowerCaseSearchTerm)
       );
     }
+    if (selectedDay)
+      result = result.filter((turma) => turma.dia_semana === selectedDay);
+    if (selectedSchedule)
+      result = result.filter((turma) => turma.horario === selectedSchedule);
+    if (selectedModule)
+      result = result.filter(
+        (turma) => getDisplayModules(turma).moduloAtual === selectedModule
+      );
+
     return result;
-  }, [sortedClasses, selectedInstructor, searchTerm, activeFilter]);
+  }, [
+    sortedClasses,
+    selectedInstructor,
+    searchTerm,
+    activeFilter,
+    classTypeFilter,
+    selectedDay,
+    selectedSchedule,
+    selectedModule,
+  ]);
 
   const instructorOptions = users.filter((u) =>
     [
@@ -314,6 +310,17 @@ function MapaTurmasPage() {
     "Sexta-feira",
     "Sábado",
   ];
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedInstructor(null);
+    setClassTypeFilter("todas"); // <-- VALOR PADRÃO AJUSTADO AO LIMPAR
+    setSelectedDay("");
+    setSelectedSchedule("");
+    setSelectedModule("");
+    setActiveFilter(null);
+    navigate(location.pathname, { replace: true, state: {} });
+  };
 
   const handleStartEdit = (turma) => {
     const { proximoModulo } = getDisplayModules(turma);
@@ -459,18 +466,103 @@ function MapaTurmasPage() {
           </button>
         </div>
       </div>
-      <div className="relative mb-4">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-          <Search className="h-5 w-5 text-gray-400" />
-        </span>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar turma, instrutor, sala, módulo..."
-          className="w-full pl-10 pr-4 py-2 border rounded-lg"
-        />
+
+      <div className="bg-white p-4 rounded-lg mb-6 border shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div className="col-span-1 md:col-span-2 lg:col-span-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Busca Rápida
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                <Search className="h-5 w-5 text-gray-400" />
+              </span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nome da turma, instrutor, sala..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tipo de Turma
+            </label>
+            <select
+              value={classTypeFilter}
+              onChange={(e) => setClassTypeFilter(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white font-semibold"
+            >
+              <option value="todas">Todas as Turmas</option>
+              <option value="fixas">Turmas Fixas</option>
+              <option value="tb">Treinamento Básico</option>
+              <option value="cursoExtra">Curso Extra</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Dia da Semana
+            </label>
+            <select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white"
+            >
+              <option value="">Todos</option>
+              {dayOptions.map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Horário
+            </label>
+            <select
+              value={selectedSchedule}
+              onChange={(e) => setSelectedSchedule(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white"
+            >
+              <option value="">Todos</option>
+              {scheduleOptions.map((sch) => (
+                <option key={sch} value={sch}>
+                  {sch}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Módulo Atual
+            </label>
+            <select
+              value={selectedModule}
+              onChange={(e) => setSelectedModule(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-white"
+            >
+              <option value="">Todos</option>
+              {moduleOptions.map((mod) => (
+                <option key={mod} value={mod}>
+                  {mod}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={handleClearFilters}
+            className="flex items-center gap-2 text-sm text-gray-600 hover:text-red-600 font-semibold py-2 px-4 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            <FilterX size={16} /> Limpar Todos os Filtros
+          </button>
+        </div>
       </div>
+
       <InstructorStats
         stats={instructorStats}
         onSelect={(name) =>
@@ -478,24 +570,6 @@ function MapaTurmasPage() {
         }
         selected={selectedInstructor}
       />
-
-      {activeFilter && activeFilter.filter && (
-        <div className="flex justify-between items-center mb-4 p-3 bg-blue-50 border-blue-200 rounded-lg">
-          <span className="text-sm font-semibold text-blue-800">
-            {`Filtro ativo: ${getActiveFilterText()}`}
-          </span>
-          <button
-            onClick={() => {
-              setActiveFilter(null);
-              navigate(location.pathname, { replace: true, state: {} });
-            }}
-            className="flex items-center gap-1 text-sm text-red-600 font-bold"
-          >
-            <XCircle size={16} />
-            Limpar
-          </button>
-        </div>
-      )}
 
       <div className="bg-white rounded-lg shadow-md overflow-x-auto">
         <table
@@ -542,7 +616,6 @@ function MapaTurmasPage() {
             {filteredClasses.map((turma) => {
               const isEditing = editingRowId === turma.id;
               const { moduloAtual, proximoModulo } = getDisplayModules(turma);
-
               return (
                 <tr
                   key={turma.id}
@@ -604,9 +677,7 @@ function MapaTurmasPage() {
                         onChange={handleEditChange}
                         className="w-full p-2 border rounded-md"
                       >
-                        <option value="AUTOMATICO">
-                          -- Automático por Data --
-                        </option>
+                        <option value="AUTOMATICO">-- Automático --</option>
                         {moduleOptions.map((modId) => (
                           <option key={modId} value={modId}>
                             {modId}
@@ -751,7 +822,7 @@ function MapaTurmasPage() {
         </table>
         {filteredClasses.length === 0 && (
           <p className="text-center text-gray-500 py-8">
-            Nenhuma turma encontrada.
+            Nenhuma turma encontrada para os filtros aplicados.
           </p>
         )}
       </div>
