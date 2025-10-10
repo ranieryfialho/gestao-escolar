@@ -1,4 +1,3 @@
-// src/components/EditInactiveReasonModal.jsx
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 
@@ -7,13 +6,14 @@ const EditInactiveReasonModal = ({ isOpen, onClose, onSave, student }) => {
 
   useEffect(() => {
     if (student && student.inactiveReason) {
-      // Converte o texto completo do motivo para o valor do <option>
       if (student.inactiveReason.includes('Cancelamento')) {
         setReason('cancelamento');
       } else if (student.inactiveReason.includes('Trancamento')) {
         setReason('trancamento');
       } else if (student.inactiveReason.includes('SPC')) {
         setReason('spc');
+      } else if (student.inactiveReason.includes('Mudança de Unidade')) {
+        setReason('mudanca_unidade');
       }
     }
   }, [student]);
@@ -41,6 +41,7 @@ const EditInactiveReasonModal = ({ isOpen, onClose, onSave, student }) => {
           <option value="cancelamento">Inativo por Cancelamento</option>
           <option value="trancamento">Inativo por Trancamento</option>
           <option value="spc">Inativo por SPC</option>
+          <option value="mudanca_unidade">Mudança de Unidade</option>
         </select>
         <div className="mt-6 flex justify-end gap-2">
           <button

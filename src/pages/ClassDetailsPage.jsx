@@ -3,11 +3,8 @@ import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
-
-// Adicionado para a nova funcionalidade
 import { db } from "../firebase";
 import { collection, addDoc } from "firebase/firestore";
-
 import StudentImporter from "../components/StudentImporter";
 import Gradebook from "../components/Gradebook";
 import TransferStudentModal from "../components/TransferStudentModal";
@@ -16,7 +13,7 @@ import AddStudentModal from "../components/AddStudentModal";
 import EditStudentModal from "../components/EditStudentModal";
 import ObservationModal from "../components/ObservationModal";
 import QrCodeModal from "../components/QrCodeModal";
-import MoveToInactiveModal from '../components/MoveToInactiveModal'; // Import do novo modal
+import MoveToInactiveModal from "../components/MoveToInactiveModal";
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -82,11 +79,9 @@ function ClassDetailsPage() {
   const [teacherList, setTeacherList] = useState([]);
   const [studentSearchTerm, setStudentSearchTerm] = useState("");
   const [filteredStudents, setFilteredStudents] = useState([]);
-
   const [whatsappLinkInput, setWhatsappLinkInput] = useState("");
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isEditingWhatsappLink, setIsEditingWhatsappLink] = useState(false);
-
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [studentToTransfer, setStudentToTransfer] = useState(null);
   const [isSubGradesModalOpen, setIsSubGradesModalOpen] = useState(false);
@@ -99,13 +94,10 @@ function ClassDetailsPage() {
   const [studentToEdit, setStudentToEdit] = useState(null);
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
   const [studentToObserve, setStudentToObserve] = useState(null);
-
-  // Estados para a nova funcionalidade de inativar aluno
-  const [isMoveToInactiveModalOpen, setIsMoveToInactiveModalOpen] = useState(false);
+  const [isMoveToInactiveModalOpen, setIsMoveToInactiveModalOpen] =
+    useState(false);
   const [studentToMove, setStudentToMove] = useState(null);
-
   const [editingSubGrades, setEditingSubGrades] = useState({});
-
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const isUserProfessor =
@@ -116,10 +108,8 @@ function ClassDetailsPage() {
       userProfile.role
     );
   const isUserFinancial = userProfile && userProfile.role === "financeiro";
-
   const canAddStudents =
     userProfile && !["financeiro", "comercial"].includes(userProfile.role);
-
   const canEditGraduates =
     userProfile &&
     [
@@ -129,7 +119,6 @@ function ClassDetailsPage() {
       "auxiliar_coordenacao",
       "professor_apoio",
     ].includes(userProfile.role);
-
   const isGradebookReadOnly = isUserFinancial;
   const canUserEditClass = isUserAdmin;
 
@@ -160,7 +149,6 @@ function ClassDetailsPage() {
       ],
     },
   ];
-
   const gradeEspecializacao19meses = [
     ...gradeInformatica12meses,
     {
@@ -193,33 +181,26 @@ function ClassDetailsPage() {
         try {
           if (!firebaseUser) return;
           const token = await firebaseUser.getIdToken();
-
           const { schoolId } = location.state || {};
           if (!schoolId) {
             toast.error("Escola não selecionada. Voltando...");
             navigate("/boletim");
             return;
           }
-
           const functionUrl =
             "https://us-central1-boletim-escolar-app.cloudfunctions.net/listGraduates";
           const response = await fetch(functionUrl, {
             method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           });
-
           const result = await response.json();
           if (!response.ok) {
             throw new Error(result.error || "Erro ao buscar concludentes.");
           }
-
           const allGraduates = result.result.graduates || [];
           const schoolGraduates = allGraduates.filter(
             (g) => g.schoolId === schoolId
           );
-
           const virtualClass = {
             id: "concludentes",
             name: "Turma de Concludentes",
@@ -227,10 +208,8 @@ function ClassDetailsPage() {
             modules: gradeEspecializacao19meses,
             isVirtual: true,
           };
-
           setTurma(virtualClass);
           setNewClassName(virtualClass.name);
-
           const sortedStudents = sortStudentsByName(virtualClass.students);
           if (studentSearchTerm === "") {
             setFilteredStudents(sortedStudents);
@@ -253,12 +232,10 @@ function ClassDetailsPage() {
         }
         return;
       }
-
       const foundTurma = classes.find((c) => c.id === turmaId);
       if (foundTurma) {
         let modulesToApply = [];
         const finalTurmaData = { ...foundTurma };
-
         if (finalTurmaData.curriculumId) {
           if (finalTurmaData.curriculumId === "grade_19_meses")
             modulesToApply = gradeEspecializacao19meses;
@@ -273,13 +250,11 @@ function ClassDetailsPage() {
             modulesToApply = gradeInformatica12meses;
           else modulesToApply = finalTurmaData.modules || [];
         }
-
         finalTurmaData.modules = modulesToApply;
         setTurma(finalTurmaData);
         setNewClassName(finalTurmaData.name);
         setSelectedTeacherId(finalTurmaData.professorId || "");
         setWhatsappLinkInput(finalTurmaData.whatsappLink || "");
-
         const sortedStudents = sortStudentsByName(finalTurmaData.students);
         if (studentSearchTerm === "") {
           setFilteredStudents(sortedStudents);
@@ -297,9 +272,7 @@ function ClassDetailsPage() {
         }
       }
     };
-
     loadClassData();
-
     const rolesPermitidos = [
       "professor",
       "professor_apoio",
@@ -329,13 +302,10 @@ function ClassDetailsPage() {
         throw new Error("Usuário não autenticado.");
       }
       const token = await firebaseUser.getIdToken();
-
       const result = await callApi(functionName, payload, token);
-
       toast.success(result.message || "Operação concluída com sucesso!", {
         id: toastId,
       });
-
       if (successCallback) {
         successCallback();
       }
@@ -408,17 +378,13 @@ function ClassDetailsPage() {
     }
     await handleApiAction(
       "importStudentsBatch",
-      {
-        classId: turma.id,
-        studentsToImport: importedStudents,
-      },
+      { classId: turma.id, studentsToImport: importedStudents },
       () => setRefetchTrigger((prev) => prev + 1)
     );
   };
 
   const handleSaveGrades = async (newGrades, newCertificateStatuses) => {
     if (!turma || !turma.students) return;
-
     if (turma.isVirtual) {
       const changedStudents = turma.students
         .map((student) => {
@@ -431,7 +397,6 @@ function ClassDetailsPage() {
             newCertificateStatuses[studentId] &&
             newCertificateStatuses[studentId] !==
               (student.certificateStatus || "nao_impresso");
-
           if (hasGradeChanged || hasCertChanged) {
             return {
               ...student,
@@ -442,15 +407,12 @@ function ClassDetailsPage() {
           return null;
         })
         .filter(Boolean);
-
       if (changedStudents.length === 0) {
         return toast.success("Nenhuma alteração foi feita.");
       }
       await handleApiAction(
         "updateGraduatesBatch",
-        {
-          updatedStudents: changedStudents,
-        },
+        { updatedStudents: changedStudents },
         () => setRefetchTrigger((prev) => prev + 1)
       );
     } else {
@@ -467,12 +429,10 @@ function ClassDetailsPage() {
     setStudentToTransfer(student);
     setIsTransferModalOpen(true);
   };
-
   const handleCloseTransferModal = () => {
     setIsTransferModalOpen(false);
     setStudentToTransfer(null);
   };
-
   const handleConfirmTransfer = async (
     studentData,
     sourceClassId,
@@ -494,13 +454,11 @@ function ClassDetailsPage() {
     setEditingSubGrades(currentGrades?.subGrades || {});
     setIsSubGradesModalOpen(true);
   };
-
   const handleCloseSubGradesModal = () => {
     setIsSubGradesModalOpen(false);
     setSelectedGradeData({ student: null, module: null });
     setEditingSubGrades({});
   };
-
   const handleEditingSubGradeChange = (subGradeName, value) => {
     const sanitizedValue = value.replace(/[^0-9,.]/g, "").replace(",", ".");
     if (Number.parseFloat(sanitizedValue) > 10 || sanitizedValue.length > 4)
@@ -510,13 +468,10 @@ function ClassDetailsPage() {
       [subGradeName]: sanitizedValue,
     }));
   };
-
   const handleSaveSubGrades = async () => {
     const { student, module } = selectedGradeData;
     if (!student || !module) return;
-
     const uniqueStudentId = student.studentId || student.id;
-
     const gradesAsNumbers = Object.values(editingSubGrades)
       .map((g) => Number.parseFloat(String(g).replace(",", ".")))
       .filter((g) => !isNaN(g));
@@ -524,28 +479,23 @@ function ClassDetailsPage() {
       gradesAsNumbers.length > 0
         ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length
         : 0;
-
     const updatedGradeObject = {
       finalGrade: average.toFixed(1),
       subGrades: editingSubGrades,
     };
-
     const currentStudentInClass = turma.students.find(
       (s) => (s.studentId || s.id) === uniqueStudentId
     );
     const currentStudentGrades = currentStudentInClass?.grades || {};
-
     const updatedGradesForStudent = {
       ...currentStudentGrades,
       [module.id]: updatedGradeObject,
     };
-
     const updatedStudents = turma.students.map((s) =>
       (s.studentId || s.id) === uniqueStudentId
         ? { ...s, grades: updatedGradesForStudent }
         : s
     );
-
     if (turma.isVirtual) {
       await handleApiAction("updateGraduatesBatch", { updatedStudents }, () =>
         setRefetchTrigger((prev) => prev + 1)
@@ -553,14 +503,12 @@ function ClassDetailsPage() {
     } else {
       await updateClass(turma.id, { students: updatedStudents });
     }
-
     toast.success("Notas do módulo salvas com sucesso!");
     handleCloseSubGradesModal();
   };
 
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true);
   const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false);
-
   const handleAddStudent = async (newStudentData) => {
     await handleApiAction(
       "addStudentToClass",
@@ -580,23 +528,19 @@ function ClassDetailsPage() {
     setStudentToEdit(student);
     setIsEditStudentModalOpen(true);
   };
-
   const handleCloseEditStudentModal = () => {
     setIsEditStudentModalOpen(false);
     setStudentToEdit(null);
   };
-
   const handleUpdateStudent = async (updatedStudentData) => {
     if (!turma) return;
     const { id, name } = updatedStudentData;
-
     const updatedStudents = turma.students.map((student) => {
       if ((student.studentId || student.id) === id) {
         return { ...student, name: name };
       }
       return student;
     });
-
     try {
       if (turma.isVirtual) {
         await handleApiAction(
@@ -619,13 +563,11 @@ function ClassDetailsPage() {
     }
   };
 
-  // ### INÍCIO DA ALTERAÇÃO ###
-  // Esta função agora abre o modal de inativação
   const handleDeleteStudent = (studentId) => {
     if (!turma || !turma.students) return;
-
-    const student = turma.students.find(s => (s.studentId || s.id) === studentId);
-
+    const student = turma.students.find(
+      (s) => (s.studentId || s.id) === studentId
+    );
     if (student) {
       setStudentToMove(student);
       setIsMoveToInactiveModalOpen(true);
@@ -634,22 +576,20 @@ function ClassDetailsPage() {
     }
   };
 
- const handleConfirmMoveToInactive = async (reason) => {
+  const handleConfirmMoveToInactive = async (reason) => {
     if (!studentToMove) return;
-
     const toastId = toast.loading("Movendo aluno para inativos...");
-
     try {
-      let inactiveReason = 'Inativo';
-      if (reason === 'cancelamento') {
-        inactiveReason = 'Inativo por Cancelamento';
-      } else if (reason === 'spc') {
-        inactiveReason = 'Inativo por SPC';
-      } else if (reason === 'trancamento') {
-        inactiveReason = 'Inativo por Trancamento';
-      }
+      let inactiveReason = "Inativo";
+      if (reason === "cancelamento")
+        inactiveReason = "Inativo por Cancelamento";
+      else if (reason === "spc") inactiveReason = "Inativo por SPC";
+      else if (reason === "trancamento")
+        inactiveReason = "Inativo por Trancamento";
+      else if (reason === "mudanca_unidade")
+        inactiveReason = "Mudança de Unidade";
 
-      await addDoc(collection(db, 'inativos'), {
+      await addDoc(collection(db, "inativos"), {
         ...studentToMove,
         inactiveReason,
         movedAt: new Date(),
@@ -658,13 +598,16 @@ function ClassDetailsPage() {
       });
 
       const updatedStudents = turma.students.filter(
-        (s) => (s.studentId || s.id) !== (studentToMove.studentId || studentToMove.id)
+        (s) =>
+          (s.studentId || s.id) !==
+          (studentToMove.studentId || studentToMove.id)
       );
       await updateClass(turma.id, { students: updatedStudents });
 
-      toast.success(`Aluno movido para ${inactiveReason} com sucesso!`, { id: toastId });
-      setRefetchTrigger((p) => p + 1); 
-
+      toast.success(`Aluno movido para ${inactiveReason} com sucesso!`, {
+        id: toastId,
+      });
+      setRefetchTrigger((p) => p + 1);
     } catch (error) {
       console.error("Erro ao mover aluno para inativos: ", error);
       toast.error("Erro ao mover aluno. Tente novamente.", { id: toastId });
@@ -678,29 +621,20 @@ function ClassDetailsPage() {
     setStudentToObserve(student);
     setIsObservationModalOpen(true);
   };
-
   const handleCloseObservationModal = () => {
     setIsObservationModalOpen(false);
     setStudentToObserve(null);
   };
-
   const handleSaveObservation = async (studentId, observationText) => {
     if (!turma) return;
-
     const studentToUpdate = turma.students.find(
       (s) => (s.studentId || s.id) === studentId
     );
-
     if (!studentToUpdate) {
       toast.error("Aluno não encontrado para salvar a observação.");
       return;
     }
-
-    const studentPayload = {
-      ...studentToUpdate,
-      observation: observationText,
-    };
-
+    const studentPayload = { ...studentToUpdate, observation: observationText };
     try {
       if (turma.isVirtual) {
         await handleApiAction("updateGraduatesBatch", {
@@ -715,7 +649,6 @@ function ClassDetailsPage() {
         await updateClass(turma.id, { students: updatedStudents });
         toast.success("Observação salva com sucesso!");
       }
-
       handleCloseObservationModal();
       setRefetchTrigger((prev) => prev + 1);
     } catch (error) {
@@ -731,7 +664,6 @@ function ClassDetailsPage() {
       <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block">
         &larr; Voltar para o Boletim
       </Link>
-
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         {!isEditingName ? (
           <div className="flex justify-between items-center">
@@ -798,7 +730,6 @@ function ClassDetailsPage() {
             </p>
           )
         )}
-
         {!turma.isVirtual && (
           <div className="mt-6 border-t pt-4">
             <h3 className="text-lg font-semibold text-gray-700 mb-2">
@@ -974,8 +905,7 @@ function ClassDetailsPage() {
           </div>
         </div>
       )}
-      
-      {/* Modais existentes */}
+
       <QrCodeModal
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
@@ -1016,7 +946,6 @@ function ClassDetailsPage() {
         onSave={handleSaveObservation}
         student={studentToObserve}
       />
-
       <MoveToInactiveModal
         isOpen={isMoveToInactiveModalOpen}
         onClose={() => setIsMoveToInactiveModalOpen(false)}

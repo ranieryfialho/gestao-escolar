@@ -1,6 +1,4 @@
-// src/pages/InactiveStudentsPage.jsx
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   getDocs,
@@ -14,12 +12,18 @@ import {
 import { db } from "../firebase";
 import { useClasses } from "../contexts/ClassContext";
 import toast from "react-hot-toast";
-
-// Ícones e Modais
-import { Users, Pencil, ArrowRightLeft, MessageSquareText } from "lucide-react";
-import EditInactiveReasonModal from "../components/EditInactiveReasonModal"; // ### NOVO MODAL
+import { Users, Pencil, ArrowRightLeft, MessageSquareText, Search } from "lucide-react";
+import EditInactiveReasonModal from "../components/EditInactiveReasonModal";
 import TransferStudentModal from "../components/TransferStudentModal";
 import ObservationModal from "../components/ObservationModal";
+
+// Array de opções de motivo para os filtros e modais
+const inactiveReasonOptions = [
+  { value: "cancelamento", text: "Inativo por Cancelamento" },
+  { value: "trancamento", text: "Inativo por Trancamento" },
+  { value: "spc", text: "Inativo por SPC" },
+  { value: "mudanca_unidade", text: "Mudança de Unidade" },
+];
 
 const InactiveStudentsPage = () => {
   const { classes } = useClasses();
@@ -27,7 +31,10 @@ const InactiveStudentsPage = () => {
   const [loading, setLoading] = useState(true);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  // ### ESTADOS ATUALIZADOS ###
+  // Estados para busca e filtro
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterReason, setFilterReason] = useState("todos");
+
   const [isEditReasonModalOpen, setIsEditReasonModalOpen] = useState(false);
   const [studentToEditReason, setStudentToEditReason] = useState(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -57,7 +64,28 @@ const InactiveStudentsPage = () => {
     fetchInactiveStudents();
   }, [refetchTrigger]);
 
-  // ### NOVOS HANDLERS PARA O MODAL DE EDIÇÃO DE MOTIVO ###
+  // Lógica de filtragem com useMemo
+  const filteredStudents = useMemo(() => {
+    return inactiveStudents.filter(student => {
+      const reasonText = inactiveReasonOptions.find(opt => opt.value === filterReason)?.text;
+      
+      if (filterReason !== 'todos' && student.inactiveReason !== reasonText) {
+        return false;
+      }
+      
+      if (searchTerm.trim() !== '') {
+        const term = searchTerm.toLowerCase();
+        const nameMatch = student.name.toLowerCase().includes(term);
+        const codeMatch = (student.code || '').toString().toLowerCase().includes(term);
+        if (!nameMatch && !codeMatch) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [inactiveStudents, searchTerm, filterReason]);
+
   const handleOpenEditReasonModal = (student) => {
     setStudentToEditReason(student);
     setIsEditReasonModalOpen(true);
@@ -79,15 +107,8 @@ const InactiveStudentsPage = () => {
   };
   const handleCloseObservationModal = () => setIsObservationModalOpen(false);
 
-  // ### NOVA FUNÇÃO PARA ATUALIZAR O MOTIVO ###
   const handleUpdateInactiveReason = async (studentId, newReasonValue) => {
-    let newReasonText = "Inativo";
-    if (newReasonValue === "cancelamento")
-      newReasonText = "Inativo por Cancelamento";
-    else if (newReasonValue === "trancamento")
-      newReasonText = "Inativo por Trancamento";
-    else if (newReasonValue === "spc") newReasonText = "Inativo por SPC";
-
+    const newReasonText = inactiveReasonOptions.find(opt => opt.value === newReasonValue)?.text || "Inativo";
     const studentDocRef = doc(db, "inativos", studentId);
     try {
       await updateDoc(studentDocRef, { inactiveReason: newReasonText });
@@ -146,6 +167,13 @@ const InactiveStudentsPage = () => {
     }
   };
 
+  const getReasonStyle = (reason) => {
+    if (reason?.includes("SPC")) return "bg-red-100 text-red-700";
+    if (reason?.includes("Trancamento")) return "bg-blue-100 text-blue-700";
+    if (reason?.includes("Mudança")) return "bg-purple-100 text-purple-700";
+    return "bg-yellow-100 text-yellow-700";
+  };
+  
   if (loading) {
     return (
       <div className="p-8 text-center">
@@ -161,10 +189,42 @@ const InactiveStudentsPage = () => {
           Alunos Inativos
         </h1>
 
-        {inactiveStudents.length > 0 ? (
+        <div className="bg-white p-4 rounded-lg shadow-md mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                    <label htmlFor="search" className="block text-sm font-medium text-gray-700">Buscar por Matrícula ou Nome</label>
+                    <div className="relative mt-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                        <input 
+                            type="text" 
+                            id="search"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 p-2 border rounded-md" 
+                            placeholder="Digite para buscar..."
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label htmlFor="filter" className="block text-sm font-medium text-gray-700">Filtrar por Motivo</label>
+                    <select 
+                        id="filter"
+                        value={filterReason}
+                        onChange={e => setFilterReason(e.target.value)}
+                        className="w-full mt-1 p-2 border rounded-md bg-white"
+                    >
+                        <option value="todos">Todos os Motivos</option>
+                        {inactiveReasonOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.text}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {filteredStudents.length > 0 ? (
           <div className="bg-white shadow-md rounded-lg overflow-x-auto">
             <table className="min-w-full leading-normal">
-              {/* ... thead ... */}
               <thead>
                 <tr>
                   <th className="px-5 py-3 border-b-2 border-gray-200 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -188,7 +248,7 @@ const InactiveStudentsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {inactiveStudents.map((student) => (
+                {filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-gray-50">
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                       <p className="text-gray-600 whitespace-no-wrap font-mono">
@@ -201,16 +261,7 @@ const InactiveStudentsPage = () => {
                       </p>
                     </td>
                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                      <span
-                        className={`px-2 py-1 font-semibold leading-tight rounded-full text-xs ${
-                          student.inactiveReason === "Inativo por SPC"
-                            ? "bg-red-100 text-red-700"
-                            : student.inactiveReason ===
-                              "Inativo por Trancamento"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
+                      <span className={`px-2 py-1 font-semibold leading-tight rounded-full text-xs ${getReasonStyle(student.inactiveReason)}`}>
                         {student.inactiveReason}
                       </span>
                     </td>
@@ -237,7 +288,6 @@ const InactiveStudentsPage = () => {
                         >
                           <MessageSquareText size={18} />
                         </button>
-                        {/* ### BOTÃO DE EDITAR ATUALIZADO ### */}
                         <button
                           onClick={() => handleOpenEditReasonModal(student)}
                           className="text-gray-500 hover:text-blue-600"
@@ -263,7 +313,7 @@ const InactiveStudentsPage = () => {
           <div className="text-center py-16 bg-white rounded-lg shadow-md">
             <Users className="mx-auto text-gray-300 mb-4" size={56} />
             <p className="text-gray-500 text-lg">
-              Nenhum aluno inativo encontrado.
+              {searchTerm || filterReason !== 'todos' ? 'Nenhum aluno encontrado para os filtros aplicados.' : 'Nenhum aluno inativo encontrado.'}
             </p>
           </div>
         )}

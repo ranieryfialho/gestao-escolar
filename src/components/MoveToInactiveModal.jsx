@@ -21,6 +21,7 @@ const MoveToInactiveModal = ({ isOpen, onClose, onConfirm }) => {
           <option value="cancelamento">Inativo por Cancelamento</option>
           <option value="trancamento">Inativo por Trancamento</option>
           <option value="spc">Inativo por SPC</option>
+          <option value="mudanca_unidade">Mudança de Unidade</option>
         </select>
         <div className="mt-4 flex justify-end">
           <button
