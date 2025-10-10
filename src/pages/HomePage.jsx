@@ -478,14 +478,31 @@ function HomePage() {
       orderedCards.push(cardDefinitions.alunosAtivos);
     if (userRole !== "professor_nexus")
       orderedCards.push(cardDefinitions.turmasAtivas);
-    if (["coordenador", "auxiliar_coordenacao", "diretor"].includes(userRole))
+
+    if (
+      ["coordenador", "auxiliar_coordenacao", "diretor", "financeiro"].includes(
+        userRole
+      )
+    )
       orderedCards.push(cardDefinitions.alunosInativos);
+
     if (userRole !== "comercial" && userRole !== "professor_nexus")
       orderedCards.push(cardDefinitions.turmasFinalizando);
     if (userRole !== "comercial" && userRole !== "professor_nexus")
       orderedCards.push(cardDefinitions.modulosFinalizando);
-    if (["coordenador", "auxiliar_coordenacao", "diretor"].includes(userRole))
+
+    // ##### AJUSTE DE PERMISSÃO APLICADO AQUI #####
+    if (
+      [
+        "coordenador",
+        "auxiliar_coordenacao",
+        "diretor",
+        "professor",
+        "professor_apoio",
+      ].includes(userRole)
+    )
       orderedCards.push(cardDefinitions.retuf);
+
     if (userRole !== "professor_nexus")
       orderedCards.push(cardDefinitions.laboratorio);
     if (userRole !== "professor_nexus")
