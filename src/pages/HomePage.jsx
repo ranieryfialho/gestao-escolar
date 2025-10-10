@@ -1,8 +1,8 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import {
     Users,
     GraduationCap,
@@ -24,7 +24,6 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import BarChart from "../components/charts/BarChart";
 import DoughnutChart from "../components/charts/DoughnutChart";
-
 
 const StatCard = ({
     title,
@@ -118,12 +117,13 @@ const getDisplayModules = (turma) => {
     return { moduloAtual: currentModuleId };
 };
 
-
 function HomePage() {
     const { classes, loadingClasses } = useClasses();
     const { userProfile } = useAuth();
     const [taskCounts, setTaskCounts] = useState({ todo: 0, inprogress: 0 });
     const [inactiveStudentsCount, setInactiveStudentsCount] = useState(0);
+    const [schools, setSchools] = useState([]);
+    const [loadingSchools, setLoadingSchools] = useState(true);
 
     const navigate = useNavigate();
     const barChartRef = useRef();
@@ -133,15 +133,32 @@ function HomePage() {
     const isProfessorNexus = userRole === "professor_nexus";
 
     useEffect(() => {
+        setLoadingSchools(true);
+        const fetchSchools = async () => {
+            try {
+                const schoolsCollection = collection(db, "schools");
+                const schoolSnapshot = await getDocs(schoolsCollection);
+                const schoolList = schoolSnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+                setSchools(schoolList);
+            } catch (error) {
+                console.error("Erro ao buscar escolas:", error);
+            } finally {
+                setLoadingSchools(false);
+            }
+        };
+        fetchSchools();
+    }, []);
+
+    useEffect(() => {
         let unsubscribeTasks = () => {};
         let unsubscribeInactive = () => {};
         
         const canSeeTasks = !['comercial', 'financeiro', 'secretaria', 'professor_nexus'].includes(userRole);
         if (canSeeTasks) {
-            const tasksQuery = query(
-                collection(db, "tasks"),
-                where("status", "in", ["todo", "inprogress"])
-            );
+            const tasksQuery = query(collection(db, "tasks"), where("status", "in", ["todo", "inprogress"]));
             unsubscribeTasks = onSnapshot(tasksQuery, (querySnapshot) => {
                 const counts = { todo: 0, inprogress: 0 };
                 querySnapshot.forEach((doc) => {
@@ -167,41 +184,86 @@ function HomePage() {
         };
     }, [userRole]);
 
-    const activeClasses = classes.filter((c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly);
-    const totalStudents = activeClasses.reduce((sum, c) => sum + (c.students?.length || 0), 0);
-    const tbClassesCount = classes.filter((c) => (c.modules?.[0]?.id || "").toUpperCase() === "TB").length;
-    const extraCoursesCount = classes.filter((c) => (c.modules?.[0]?.id || "").toUpperCase() === "CURSO EXTRA").length;
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const classesWithModulesEndingThisMonth = activeClasses.filter((turma) => {
-        if (!turma.modules || turma.modules.length === 0) {
-            const termDate = parseDate(turma.dataTermino);
-            return (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
+    const calculatedValues = useMemo(() => {
+        if (loadingClasses || loadingSchools) {
+            return {
+                seniorStudentsCount: 0,
+                seniorClassesCount: 0,
+                tbClassesCount: 0,
+                extraCoursesCount: 0,
+                modulesEndingCount: 0,
+                courseEndingCount: 0,
+                activeClasses: [],
+            };
         }
-        return turma.modules.some((mod) => {
-            const termDate = parseDate(mod.endDate || mod.dataTermino || turma.dataTermino);
-            return (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
+        
+        const seniorSchool = schools.find(school => school.name === "Sênior Escola de Profissões");
+        const seniorSchoolId = seniorSchool ? seniorSchool.id : null;
+
+        const seniorFilteredClasses = seniorSchoolId 
+            ? classes.filter(c => 
+                c.schoolId === seniorSchoolId &&
+                !c.isMapaOnly && // <-- ESSA LINHA JÁ FAZ O FILTRO QUE VOCÊ PEDIU
+                c.name !== 'CONCLUDENTES' &&
+                c.module !== 'Curso Extra' &&
+                c.module !== 'TB'
+              )
+            : [];
+        
+        const seniorStudentsCount = seniorFilteredClasses.reduce((sum, c) => sum + (c.students?.length || 0), 0);
+        
+        const activeClasses = classes.filter((c) => c.name !== "CONCLUDENTES" && !c.isMapaOnly);
+        
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+
+        const classesWithModulesEndingThisMonth = activeClasses.filter((turma) => {
+            if (!turma.modules || turma.modules.length === 0) {
+                const termDate = parseDate(turma.dataTermino);
+                return (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
+            }
+            return turma.modules.some((mod) => {
+                const termDate = parseDate(mod.endDate || mod.dataTermino || turma.dataTermino);
+                return (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
+            });
         });
-    });
-    const modulesEndingCount = classesWithModulesEndingThisMonth.length;
-    const classesEndingCourseThisMonth = activeClasses.filter((turma) => {
-        const { moduloAtual } = getDisplayModules(turma);
-        const isLastModule = moduloAtual === "CMV";
-        const termDate = parseDate(turma.dataTermino);
-        const isEndingThisMonth = (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
-        return isLastModule && isEndingThisMonth;
-    });
-    const courseEndingCount = classesEndingCourseThisMonth.length;
+        
+        const classesEndingCourseThisMonth = activeClasses.filter((turma) => {
+            const { moduloAtual } = getDisplayModules(turma);
+            const isLastModule = moduloAtual === "CMV";
+            const termDate = parseDate(turma.dataTermino);
+            const isEndingThisMonth = (termDate && termDate.getMonth() === currentMonth && termDate.getFullYear() === currentYear);
+            return isLastModule && isEndingThisMonth;
+        });
+
+        return {
+            seniorStudentsCount,
+            seniorClassesCount: seniorFilteredClasses.length,
+            tbClassesCount: classes.filter((c) => (c.modules?.[0]?.id || "").toUpperCase() === "TB").length,
+            extraCoursesCount: classes.filter((c) => (c.modules?.[0]?.id || "").toUpperCase() === "CURSO EXTRA").length,
+            modulesEndingCount: classesWithModulesEndingThisMonth.length,
+            courseEndingCount: classesEndingCourseThisMonth.length,
+            activeClasses,
+        };
+
+    }, [classes, schools, loadingClasses, loadingSchools]);
     
-    // ### INÍCIO DA LÓGICA DE ORDENAÇÃO E PERMISSÃO DOS CARDS ###
     const getVisibleCardsData = () => {
         if (!userRole) return [];
 
-        // 1. Defina todos os cards possíveis em um objeto para fácil acesso
+        const {
+            seniorStudentsCount,
+            seniorClassesCount,
+            tbClassesCount,
+            extraCoursesCount,
+            courseEndingCount,
+            modulesEndingCount,
+        } = calculatedValues;
+
         const cardDefinitions = {
-            alunosAtivos: { key: "students", title: "Alunos Ativos", value: totalStudents, icon: Users, to: "/boletim" },
-            turmasAtivas: { key: "classes", title: "Turmas Ativas", value: activeClasses.length, icon: School, to: "/boletim" },
+            alunosAtivos: { key: "students", title: "Alunos Ativos (Sênior)", value: seniorStudentsCount, icon: Users, to: "/boletim" },
+            turmasAtivas: { key: "classes", title: "Turmas Ativas (Sênior)", value: seniorClassesCount, icon: School, to: "/boletim" },
             alunosInativos: { key: "inactive-students", title: "Alunos Inativos", value: inactiveStudentsCount, icon: UserX, to: "/alunos-inativos", bgColor: "bg-gray-100", textColor: "text-gray-600" },
             turmasFinalizando: { key: "course-ending", title: "Turmas Finalizando", value: courseEndingCount, icon: GraduationCap, to: "/mapa-turmas", state: { filter: "endingCourseThisMonth" }, bgColor: "bg-orange-100", textColor: "text-orange-600" },
             modulosFinalizando: { key: "modules-ending", title: "Módulos Finalizando", value: modulesEndingCount, icon: CalendarClock, to: "/mapa-turmas", state: { filter: "endingThisMonth" }, bgColor: "bg-teal-100", textColor: "text-teal-600" },
@@ -217,9 +279,7 @@ function HomePage() {
             tarefasPendentes: { key: "pending-tasks", title: "Tarefas Pendentes", value: taskCounts.todo + taskCounts.inprogress, icon: ClipboardList, to: "/kanban", bgColor: "bg-yellow-100", textColor: "text-yellow-600" },
         };
 
-        // 2. Crie a lista final de cards na ordem desejada, aplicando as permissões
         const orderedCards = [];
-
         if (userRole !== 'professor_nexus') orderedCards.push(cardDefinitions.alunosAtivos);
         if (userRole !== 'professor_nexus') orderedCards.push(cardDefinitions.turmasAtivas);
         if (['coordenador', 'auxiliar_coordenacao', 'diretor'].includes(userRole)) orderedCards.push(cardDefinitions.alunosInativos);
@@ -235,12 +295,10 @@ function HomePage() {
         if (['coordenador', 'auxiliar_coordenacao', 'diretor', 'financeiro', 'professor_nexus'].includes(userRole)) orderedCards.push(cardDefinitions.frequenciaNexus);
         if (['coordenador', 'diretor', 'comercial', 'secretaria', 'financeiro'].includes(userRole)) orderedCards.push(cardDefinitions.gerarContrato);
         if (!['comercial', 'financeiro', 'secretaria', 'professor_nexus'].includes(userRole)) orderedCards.push(cardDefinitions.tarefasPendentes);
-        
         return orderedCards;
     };
-    // ### FIM DA LÓGICA ###
 
-    if (loadingClasses) {
+    if (loadingClasses || loadingSchools) {
         return <div className="p-8 text-center">Carregando dados do dashboard...</div>;
     }
     
@@ -292,6 +350,7 @@ function HomePage() {
         );
     }
     
+    const { activeClasses } = calculatedValues;
     const moduleOrder = ["ICN", "OFFA", "ADM", "PWB", "TRI", "CMV"];
     const moduleCounts = activeClasses.reduce((acc, turma) => {
         const { moduloAtual } = getDisplayModules(turma);
@@ -364,7 +423,7 @@ function HomePage() {
             ))}
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className={`${userRole === 'comercial' ? 'lg:col-span-3' : 'lg:col-span-2'} h-80 sm:h-96`}>
+                <div className={`${userRole === 'comercial' ? 'lg-col-span-3' : 'lg:col-span-2'} h-80 sm:h-96`}>
                     <BarChart
                         chartRef={barChartRef}
                         chartData={moduleChartData}
