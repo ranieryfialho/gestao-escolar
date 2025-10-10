@@ -343,14 +343,14 @@ function HomePage() {
         title: "Alunos Ativos (Sênior)",
         value: seniorStudentsCount,
         icon: Users,
-        to: "/boletim",
+        to: "/alunos-ativos",
       },
       turmasAtivas: {
         key: "classes",
         title: "Turmas Ativas (Sênior)",
         value: seniorClassesCount,
         icon: School,
-        to: "/mapa-turmas",
+        to: "/boletim",
       },
       alunosInativos: {
         key: "inactive-students",
