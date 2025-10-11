@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage } from '../firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { X, Upload, Calendar, Clock, MapPin, User, FileText, Image, ChevronDown } from 'lucide-react';
+import { X, Upload, Calendar, Clock, MapPin, User, FileText, Image, ChevronDown, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useUsers } from '../contexts/UserContext';
 import toast from 'react-hot-toast';
 
 const EventModal = ({ isOpen, onClose, event }) => {
   const { users } = useUsers();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -18,22 +18,21 @@ const EventModal = ({ isOpen, onClose, event }) => {
     responsible: '',
     observations: '',
     imageUrl: '',
+    registrationOpen: true, // Novo campo
   });
-  
+
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [responsibleInput, setResponsibleInput] = useState('');
 
-  // ✅ CORREÇÃO: Usar useMemo para evitar recriação desnecessária
   const teacherUsers = useMemo(() => {
-    return users.filter(user => 
+    return users.filter(user =>
       ['professor', 'coordenador', 'diretor', 'auxiliar_coordenacao'].includes(user.role)
     );
   }, [users]);
 
-  // ✅ CORREÇÃO: Usar useMemo para filtrar usuários
   const filteredUsers = useMemo(() => {
     if (responsibleInput) {
       const filtered = teacherUsers.filter(user =>
@@ -56,6 +55,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
         responsible: event.responsible || '',
         observations: event.observations || '',
         imageUrl: event.imageUrl || '',
+        registrationOpen: event.registrationOpen !== false,
       });
       setResponsibleInput(event.responsible || '');
       if (event.imageUrl) {
@@ -76,6 +76,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
       responsible: '',
       observations: '',
       imageUrl: '',
+      registrationOpen: true,
     });
     setResponsibleInput('');
     setImageFile(null);
@@ -89,46 +90,32 @@ const EventModal = ({ isOpen, onClose, event }) => {
   };
 
   const handleResponsibleChange = (e) => {
-    const value = e.target.value;
-    setResponsibleInput(value);
-    setFormData((prev) => ({ ...prev, responsible: value }));
+    setResponsibleInput(e.target.value);
+    setFormData(prev => ({ ...prev, responsible: e.target.value }));
+    setShowUserDropdown(true);
   };
 
   const handleUserSelect = (user) => {
     setResponsibleInput(user.name);
-    setFormData((prev) => ({ ...prev, responsible: user.name }));
+    setFormData(prev => ({ ...prev, responsible: user.name }));
     setShowUserDropdown(false);
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('A imagem deve ter no máximo 5MB');
-        return;
-      }
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
       setImageFile(file);
       const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result);
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
       reader.readAsDataURL(file);
     }
   };
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      toast.error('Nome do evento é obrigatório');
-      return false;
-    }
-    if (!formData.date) {
-      toast.error('Data é obrigatória');
-      return false;
-    }
-    if (!formData.startTime) {
-      toast.error('Horário de início é obrigatório');
-      return false;
-    }
-    if (formData.endTime && formData.startTime >= formData.endTime) {
-      toast.error('Horário de término deve ser posterior ao horário de início');
+    if (!formData.name || !formData.date || !formData.startTime || !formData.endTime || !formData.lab || !formData.responsible) {
+      toast.error('Por favor, preencha todos os campos obrigatórios.');
       return false;
     }
     return true;
@@ -136,19 +123,17 @@ const EventModal = ({ isOpen, onClose, event }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-
     setIsUploading(true);
-    
+
     try {
       let imageUrl = formData.imageUrl;
-      
+
       if (imageFile) {
         const timestamp = Date.now();
         const fileName = `${timestamp}_${imageFile.name}`;
         const imageRef = ref(storage, `events/${fileName}`);
-        
+
         await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(imageRef);
       }
@@ -187,251 +172,118 @@ const EventModal = ({ isOpen, onClose, event }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6 rounded-t-2xl">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                {event ? 'Editar Evento' : 'Novo Evento'}
-              </h2>
-            </div>
-            <button 
-              onClick={handleClose} 
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              type="button"
-            >
-              <X size={24} className="text-gray-500" />
-            </button>
-          </div>
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6 rounded-t-2xl flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-800">{event ? 'Editar Evento' : 'Criar Novo Evento'}</h2>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Coluna da Esquerda */}
             <div className="space-y-6">
-              {/* Nome do Evento */}
               <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <FileText className="w-4 h-4" />
-                  Nome do Evento *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Digite o nome do evento"
-                  required
-                />
+                <label htmlFor="name" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><FileText size={16} /> Nome do Evento</label>
+                <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg" required />
               </div>
 
-              {/* Data */}
-              <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <Calendar className="w-4 h-4" />
-                  Data *
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                  required
-                />
-              </div>
-
-              {/* Horários */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                    <Clock className="w-4 h-4" />
-                    Hora Início *
-                  </label>
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={formData.startTime}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    required
-                  />
+                  <label htmlFor="date" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><Calendar size={16} /> Data</label>
+                  <input type="date" id="date" name="date" value={formData.date} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg" required />
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                    <Clock className="w-4 h-4" />
-                    Hora Término
-                  </label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={formData.endTime}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                  />
+                  <label htmlFor="lab" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><MapPin size={16} /> Laboratório</label>
+                  <select id="lab" name="lab" value={formData.lab} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg bg-white" required>
+                    <option value="">Selecione</option>
+                    <option value="Lab 1">Lab 1</option>
+                    <option value="Lab 2">Lab 2</option>
+                    <option value="Lab 3">Lab 3</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Laboratório */}
-              <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <MapPin className="w-4 h-4" />
-                  Laboratório
-                </label>
-                <input
-                  type="text"
-                  name="lab"
-                  value={formData.lab}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                  placeholder="Ex: Lab 01, Lab 02, EAD"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="startTime" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><Clock size={16} /> Horário de Início</label>
+                  <input type="time" id="startTime" name="startTime" value={formData.startTime} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg" required />
+                </div>
+                <div>
+                  <label htmlFor="endTime" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><Clock size={16} /> Horário de Fim</label>
+                  <input type="time" id="endTime" name="endTime" value={formData.endTime} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg" required />
+                </div>
               </div>
 
-              {/* Campo Responsável Híbrido */}
               <div className="relative">
+                <label htmlFor="responsible" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><User size={16} /> Responsável</label>
+                <input type="text" id="responsible" name="responsible" value={responsibleInput} onChange={handleResponsibleChange} onFocus={() => setShowUserDropdown(true)} onBlur={() => setTimeout(() => setShowUserDropdown(false), 150)} className="w-full p-3 border border-gray-300 rounded-lg" required />
+                {showUserDropdown && filteredUsers.length > 0 && (
+                  <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-lg">
+                    {filteredUsers.map(user => (
+                      <div key={user.id} onMouseDown={() => handleUserSelect(user)} className="p-3 hover:bg-gray-100 cursor-pointer">{user.name}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <User className="w-4 h-4" />
-                  Responsável
+                  Status das Inscrições
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={responsibleInput}
-                    onChange={handleResponsibleChange}
-                    onFocus={() => setShowUserDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowUserDropdown(false), 200)}
-                    className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="Digite ou selecione um responsável"
-                  />
-                  <ChevronDown 
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" 
-                  />
-                  
-                  {/* Dropdown de usuários */}
-                  {showUserDropdown && filteredUsers.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {filteredUsers.map((user) => (
-                        <div
-                          key={user.id}
-                          onClick={() => handleUserSelect(user)}
-                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 font-semibold text-sm">
-                                {user.name?.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-800">{user.name}</p>
-                              <p className="text-sm text-gray-500">{user.role} • {user.email}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                <div
+                  className="flex items-center gap-4 cursor-pointer"
+                  onClick={() => setFormData(prev => ({ ...prev, registrationOpen: !prev.registrationOpen }))}
+                >
+                  {formData.registrationOpen ? (
+                    <ToggleRight size={36} className="text-green-500" />
+                  ) : (
+                    <ToggleLeft size={36} className="text-gray-400" />
                   )}
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {formData.registrationOpen ? 'Abertas' : 'Fechadas'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formData.registrationOpen ? 'Alunos podem se inscrever.' : 'Novas inscrições estão bloqueadas.'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Coluna da Direita */}
             <div className="space-y-6">
-              {/* Upload de Imagem */}
               <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <Image className="w-4 h-4" />
-                  Imagem do Evento
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                  {imagePreview ? (
-                    <div className="space-y-4">
-                      <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="w-full h-48 object-cover rounded-lg mx-auto"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImagePreview(null);
-                          setImageFile(null);
-                          setFormData(prev => ({ ...prev, imageUrl: '' }));
-                        }}
-                        className="text-red-600 hover:text-red-700 font-medium"
-                      >
-                        Remover imagem
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <Upload className="w-12 h-12 text-gray-400 mx-auto" />
-                      <div>
-                        <label htmlFor="imageUpload" className="cursor-pointer">
-                          <span className="text-blue-600 hover:text-blue-700 font-medium">
-                            Clique para fazer upload
-                          </span>
-                          <p className="text-gray-500 text-sm mt-1">PNG, JPG até 5MB</p>
-                        </label>
-                        <input
-                          id="imageUpload"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="hidden"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <label htmlFor="observations" className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><FileText size={16} /> Observações</label>
+                <textarea id="observations" name="observations" value={formData.observations} onChange={handleChange} rows="5" className="w-full p-3 border border-gray-300 rounded-lg"></textarea>
               </div>
 
-              {/* Observações */}
               <div>
-                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  <FileText className="w-4 h-4" />
-                  Observações
-                </label>
-                <textarea
-                  name="observations"
-                  value={formData.observations}
-                  onChange={handleChange}
-                  rows={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                  placeholder="Adicione observações sobre o evento..."
-                />
+                <label className="flex items-center gap-2 text-gray-700 font-semibold mb-2"><Image size={16} /> Imagem do Evento</label>
+                <div className="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                  <div className="space-y-1 text-center">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="mx-auto h-32 w-auto object-contain rounded-md" />
+                    ) : (
+                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                    )}
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none">
+                        <span>Carregar um arquivo</span>
+                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" />
+                      </label>
+                      <p className="pl-1">ou arraste e solte</p>
+                    </div>
+                    <p className="text-xs text-gray-500">PNG, JPG, GIF até 10MB</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Footer com botões */}
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              disabled={isUploading}
-            >
+            <button type="button" onClick={handleClose} className="px-6 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={isUploading}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
-            >
-              {isUploading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Salvando...
-                </>
-              ) : (
-                `Salvar Evento`
-              )}
+            <button type="submit" disabled={isUploading} className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300">
+              {isUploading ? 'Salvando...' : (event ? 'Salvar Alterações' : 'Criar Evento')}
             </button>
           </div>
         </form>
