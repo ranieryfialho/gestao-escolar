@@ -197,6 +197,11 @@ function MapaTurmasPage() {
       setHomepageFilterType("endingThisMonth");
       setSelectedModule("");
       navigate(location.pathname, { replace: true, state: {} });
+    } else if (filterType === "module" && location.state?.moduleName) {
+      // *** ESTE É O NOVO BLOCO LÓGICO ***
+      setSelectedModule(location.state.moduleName);
+      // Limpa o state para não reaplicar o filtro ao recarregar
+      navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate]);
 
