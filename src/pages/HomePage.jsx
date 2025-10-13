@@ -367,7 +367,7 @@ function HomePage() {
         value: courseEndingCount,
         icon: GraduationCap,
         to: "/mapa-turmas",
-        state: { filter: "endingCourseThisMonth" },
+        state: { filter: "finishingCMV" },
         bgColor: "bg-orange-100",
         textColor: "text-orange-600",
       },
@@ -491,7 +491,6 @@ function HomePage() {
     if (userRole !== "comercial" && userRole !== "professor_nexus")
       orderedCards.push(cardDefinitions.modulosFinalizando);
 
-    // ##### AJUSTE DE PERMISSÃO APLICADO AQUI #####
     if (
       [
         "coordenador",

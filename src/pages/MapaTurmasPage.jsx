@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useClasses } from "../contexts/ClassContext";
 import { useUsers } from "../contexts/UserContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -23,6 +23,7 @@ import {
   FileDown,
   XCircle,
   FilterX,
+  Info,
 } from "lucide-react";
 import MapaClassModal from "../components/MapaClassModal";
 import InstructorStats from "../components/InstructorStats";
@@ -162,6 +163,9 @@ function MapaTurmasPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isHomepageFilterActive, setIsHomepageFilterActive] = useState(false);
+  const [homepageFilterType, setHomepageFilterType] = useState(null);
+
   const canEditMap =
     userProfile &&
     ["coordenador", "auxiliar_coordenacao", "diretor", "admin"].includes(
@@ -175,12 +179,26 @@ function MapaTurmasPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInstructor, setSelectedInstructor] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState(location.state || null);
 
-  const [classTypeFilter, setClassTypeFilter] = useState("todas"); // <-- VALOR PADRÃO AJUSTADO
+  const [classTypeFilter, setClassTypeFilter] = useState("todas");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedSchedule, setSelectedSchedule] = useState("");
   const [selectedModule, setSelectedModule] = useState("");
+
+  useEffect(() => {
+    const filterType = location.state?.filter;
+    if (filterType === "finishingCMV") {
+      setSelectedModule("CMV");
+      setIsHomepageFilterActive(true);
+      setHomepageFilterType("finishingCMV");
+      navigate(location.pathname, { replace: true, state: {} });
+    } else if (filterType === "endingThisMonth") {
+      setIsHomepageFilterActive(true);
+      setHomepageFilterType("endingThisMonth");
+      setSelectedModule("");
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
 
   const moduleOptions = Object.keys(masterModuleList);
 
@@ -230,6 +248,43 @@ function MapaTurmasPage() {
   const filteredClasses = useMemo(() => {
     let result = sortedClasses;
 
+    if (isHomepageFilterActive) {
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      if (homepageFilterType === "finishingCMV") {
+        result = result.filter((turma) => {
+          const termDate = parseDate(turma.dataTermino);
+          return (
+            termDate &&
+            termDate.getMonth() === currentMonth &&
+            termDate.getFullYear() === currentYear
+          );
+        });
+      } else if (homepageFilterType === "endingThisMonth") {
+        result = result.filter((turma) => {
+          if (!turma.modules || turma.modules.length === 0) {
+            const termDate = parseDate(turma.dataTermino);
+            return (
+              termDate &&
+              termDate.getMonth() === currentMonth &&
+              termDate.getFullYear() === currentYear
+            );
+          }
+          return turma.modules.some((mod) => {
+            const termDate = parseDate(
+              mod.endDate || mod.dataTermino || turma.dataTermino
+            );
+            return (
+              termDate &&
+              termDate.getMonth() === currentMonth &&
+              termDate.getFullYear() === currentYear
+            );
+          });
+        });
+      }
+    }
+
     if (classTypeFilter !== "todas") {
       if (classTypeFilter === "fixas") {
         result = result.filter((turma) => getTurmaType(turma) === "FIXA");
@@ -277,11 +332,12 @@ function MapaTurmasPage() {
     sortedClasses,
     selectedInstructor,
     searchTerm,
-    activeFilter,
     classTypeFilter,
     selectedDay,
     selectedSchedule,
     selectedModule,
+    isHomepageFilterActive,
+    homepageFilterType,
   ]);
 
   const instructorOptions = users.filter((u) =>
@@ -314,11 +370,12 @@ function MapaTurmasPage() {
   const handleClearFilters = () => {
     setSearchTerm("");
     setSelectedInstructor(null);
-    setClassTypeFilter("todas"); // <-- VALOR PADRÃO AJUSTADO AO LIMPAR
+    setClassTypeFilter("todas");
     setSelectedDay("");
     setSelectedSchedule("");
     setSelectedModule("");
-    setActiveFilter(null);
+    setIsHomepageFilterActive(false);
+    setHomepageFilterType(null);
     navigate(location.pathname, { replace: true, state: {} });
   };
 
@@ -424,20 +481,6 @@ function MapaTurmasPage() {
     const doc = new jsPDF();
     autoTable(doc, { html: "#mapa-turmas-table" });
     doc.save("mapa-de-turmas.pdf");
-  };
-
-  const getActiveFilterText = () => {
-    if (!activeFilter || !activeFilter.filter) return "";
-    switch (activeFilter.filter) {
-      case "endingCourseThisMonth":
-        return "Turmas finalizando em CMV este mês";
-      case "endingThisMonth":
-        return "Módulos finalizando este mês";
-      case "module":
-        return activeFilter.moduleName;
-      default:
-        return "";
-    }
   };
 
   if (loadingClasses)
@@ -562,6 +605,31 @@ function MapaTurmasPage() {
           </button>
         </div>
       </div>
+
+      {isHomepageFilterActive && (
+        <div
+          className={`mb-6 p-3 rounded-lg flex items-center justify-between gap-4 ${
+            homepageFilterType === "finishingCMV"
+              ? "bg-orange-100 text-orange-800 border border-orange-200"
+              : "bg-teal-100 text-teal-800 border border-teal-200"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Info size={18} />
+            <span className="font-semibold text-sm">
+              {homepageFilterType === "finishingCMV"
+                ? "Filtro ativo: Mostrando turmas com módulo CMV finalizando este mês."
+                : "Filtro ativo: Mostrando turmas com módulos finalizando este mês."}
+            </span>
+          </div>
+          <button
+            onClick={handleClearFilters}
+            className="flex items-center gap-1 text-sm font-bold hover:underline"
+          >
+            <XCircle size={14} /> Limpar
+          </button>
+        </div>
+      )}
 
       <InstructorStats
         stats={instructorStats}
