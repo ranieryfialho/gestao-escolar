@@ -42,6 +42,65 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+// --- INÍCIO DA LÓGICA IMPORTADA DO MAPA DE TURMAS ---
+
+// Função auxiliar para converter datas em um formato consistente
+const parseDate = (dateValue) => {
+  if (!dateValue) return null;
+  // Se for uma string no formato 'YYYY-MM-DD', adiciona o fuso horário para evitar problemas
+  if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return new Date(`${dateValue}T00:00:00`);
+  }
+  // Se for um objeto do Firestore (timestamp)
+  if (dateValue.toDate) {
+    return dateValue.toDate();
+  }
+  // Se já for um objeto Date
+  if (dateValue instanceof Date) {
+    return dateValue;
+  }
+  // Tenta converter outros formatos de string
+  const parsed = new Date(dateValue);
+  return !isNaN(parsed) ? parsed : null;
+};
+
+// Lógica principal para determinar o módulo atual (adaptada de getDisplayModules)
+const getModuloAtual = (turma) => {
+  if (!turma.modules || turma.modules.length === 0) {
+    return { id: "Sem Grade", name: "Sem Grade Definida" };
+  }
+
+  // 1. Verifica se há uma substituição manual definida no mapa de turmas
+  if (
+    turma.mapa_modulo_atual_id &&
+    turma.mapa_modulo_atual_id !== "AUTOMATICO"
+  ) {
+    // Procura o módulo correspondente na lista de módulos da turma para obter o nome
+    const moduloManual = turma.modules.find(mod => mod.id === turma.mapa_modulo_atual_id);
+    return moduloManual || { id: turma.mapa_modulo_atual_id, name: turma.mapa_modulo_atual_id };
+  }
+
+  // 2. Se for automático, calcula com base na data atual
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0); // Zera o tempo para comparar apenas a data
+
+  const moduloAtivoHoje = turma.modules.find((mod) => {
+    const inicio = parseDate(mod.dataInicio || mod.startDate);
+    const termino = parseDate(mod.dataTermino || mod.endDate);
+    return inicio && termino && hoje >= inicio && hoje <= termino;
+  });
+
+  if (moduloAtivoHoje) {
+    return moduloAtivoHoje; // Retorna o objeto completo do módulo (ex: {id: "ADM", name: "Administrativo"})
+  }
+
+  // 3. Se nenhum módulo estiver ativo hoje, retorna o primeiro da lista como padrão
+  return turma.modules[0];
+};
+
+// --- FIM DA LÓGICA IMPORTADA ---
+
+
 const RetufPage = () => {
   const { classes } = useContext(ClassContext);
   const { userProfile } = useAuth();
@@ -144,11 +203,6 @@ const RetufPage = () => {
     }
     return averages;
   }, [frequenciaData, classes]);
-
-  const getModuloAtual = (turma) => {
-    if (!turma.modules || turma.modules.length === 0) return null;
-    return turma.modules[0];
-  };
 
   const formatDate = (dateString) => {
     if (!dateString) return null;
@@ -279,9 +333,12 @@ const RetufPage = () => {
     () =>
       Array.from(
         new Set(classes.map((t) => t.professorName).filter(Boolean))
-      ).sort(),
+      )
+      .filter((prof) => prof !== "Kalel Araujo Ramos")
+      .sort(),
     [classes]
   );
+  
   const uniqueModulos = useMemo(
     () =>
       Array.from(
@@ -290,9 +347,17 @@ const RetufPage = () => {
             .map((t) => getModuloAtual(t)?.name || getModuloAtual(t)?.id)
             .filter(Boolean)
         )
-      ).sort(),
+      )
+      .filter(
+        (mod) =>
+          mod !== "Curso Extra" &&
+          mod !== "Sem Grade Definida" &&
+          mod !== "TB" // <-- AJUSTE FINAL AQUI
+      )
+      .sort(),
     [classes]
   );
+
   const uniqueDiasSemana = useMemo(
     () =>
       Array.from(
