@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Check, Repeat, Clock } from 'lucide-react';
 
 const activityOptions = [
-  "Digitação", "Currículo", "Segunda Chamada de Prova", "Reposição de Aula", "Reforço de Aula"
+  "Digitação", "Currículo", "Hora Livre", "Segunda Chamada de Prova", "Reposição de Aula", "Reforço de Aula"
 ];
 
 const moduleOptions = [

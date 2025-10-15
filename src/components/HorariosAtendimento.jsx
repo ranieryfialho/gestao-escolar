@@ -5,6 +5,7 @@ const horarios = [
   { dia: "Segunda", horario: "13h30 às 17h20" },
   { dia: "Terça", horario: "13h às 15h20" },
   { dia: "Quarta", horario: "13h30 às 17h20" },
+  { dia: "Quinta", horario: "07:30 às 11:30 e 13:20 às 17:20" },
   { dia: "Sexta", horario: "13h30 às 15h20" },
   { dia: "Sábado", horario: "7h30 às 9h20" },
 ];
@@ -16,11 +17,11 @@ function HorariosAtendimento() {
         <Clock size={20} className="text-blue-600" />
         Horários Preferenciais de Atendimento
       </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
         {horarios.map((item) => (
-          <div key={item.dia} className="bg-gray-50 p-3 rounded-md">
+          <div key={item.dia} className="bg-gray-50 p-4 rounded-lg shadow-sm">
             <p className="font-semibold text-gray-700">{item.dia}</p>
-            <p className="text-sm text-gray-600">{item.horario}</p>
+            <p className="text-sm text-gray-600 mt-1">{item.horario}</p>
           </div>
         ))}
       </div>
