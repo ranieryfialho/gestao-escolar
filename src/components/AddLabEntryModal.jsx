@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Check, Repeat, Clock } from 'lucide-react';
+import { Check, Repeat, Clock, UserPlus, ToggleLeft, ToggleRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const activityOptions = [
   "Digitação", "Currículo", "Hora Livre", "Segunda Chamada de Prova", "Reposição de Aula", "Reforço de Aula"
@@ -13,7 +14,6 @@ const conditionalActivities = [
   "Segunda Chamada de Prova", "Reposição de Aula", "Reforço de Aula"
 ];
 
-// Lista de horários disponíveis
 const timeSlotOptions = [
     "07:30 - 08:30", "08:30 - 09:30", "09:30 - 10:30", "10:30 - 11:30",
     "13:30 - 14:30", "14:30 - 15:30", "15:30 - 16:30", "16:30 - 17:30"
@@ -30,11 +30,12 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
   const [isJustified, setIsJustified] = useState('Não');
   const [observation, setObservation] = useState('');
   
-  // Alterado: O estado para horários agora é um array
   const [selectedTimes, setSelectedTimes] = useState([]);
 
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(4);
+  
+  const [isNewStudent, setIsNewStudent] = useState(false);
 
   useEffect(() => {
     if (studentCode) {
@@ -55,22 +56,25 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
     }
   }, [studentCode, allStudentsMap]);
 
-  // Função para lidar com a seleção de múltiplos horários
   const handleTimeChange = (time) => {
     setSelectedTimes(prevTimes =>
       prevTimes.includes(time)
-        ? prevTimes.filter(t => t !== time) // Desmarca se já estiver selecionado
-        : [...prevTimes, time] // Marca se não estiver selecionado
+        ? prevTimes.filter(t => t !== time)
+        : [...prevTimes, time]
     );
   };
 
   const clearForm = () => {
     setStudentCode('');
     setStudentName('');
-    // ... (resetar todos os outros estados)
-    setSelectedTimes([]); // Limpa os horários selecionados
+    setActivity(activityOptions[0]);
+    setSubject(moduleOptions[0]);
+    setIsJustified('Não');
+    setObservation('');
+    setSelectedTimes([]);
     setRepeatWeekly(false);
     setRepeatWeeks(4);
+    setIsNewStudent(false);
   };
   
   const handleSubmit = (e) => {
@@ -92,8 +96,8 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
       subject: conditionalActivities.includes(activity) ? subject : null,
       isJustified,
       observation,
-      // Salva o array de horários ordenado
-      timeSlot: selectedTimes.sort()
+      timeSlot: selectedTimes.sort(),
+      isNewStudent: isNewStudent
     };
 
     onSave(entryData, repeatWeekly ? repeatWeeks : 1);
@@ -108,7 +112,6 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
         <h2 className="text-2xl font-bold mb-6">Adicionar Atendimento ao Laboratório</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* Seção de Aluno */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="studentCode" className="block text-sm font-medium text-gray-700">Código do Aluno</label>
@@ -120,7 +123,6 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
             </div>
           </div>
           
-          {/* Seção de Horários (agora com checkboxes) */}
           <div>
              <label className="block text-sm font-medium text-gray-700 mb-2"><Clock size={14} className="inline mr-1"/> Horários do Atendimento</label>
              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 p-4 border rounded-lg">
@@ -139,7 +141,6 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
              </div>
           </div>
           
-          {/* Seção de Atividade e Matéria */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="activity" className="block text-sm font-medium text-gray-700">Atividade</label>
@@ -162,7 +163,29 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
             <textarea id="observation" value={observation} onChange={(e) => setObservation(e.target.value)} rows="2" className="w-full px-3 py-2 border rounded-lg mt-1" />
           </div>
 
-          {/* Seção de Repetição */}
+          <div className="pt-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsNewStudent(!isNewStudent)}
+                className={`flex items-center cursor-pointer transition-colors duration-200 ease-in-out ${
+                  isNewStudent ? 'text-blue-600' : 'text-gray-400 hover:text-gray-500'
+                }`}
+                aria-pressed={isNewStudent}
+              >
+                {isNewStudent ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} />
+                )}
+              </button>
+              <span className="ml-1 text-sm font-medium text-gray-700 flex items-center gap-1">
+                <UserPlus size={14} className={isNewStudent ? "text-blue-600" : "text-gray-500"}/>
+                Marcar como Aluno(a) Novo(a)
+              </span>
+            </div>
+          </div>
+
           <div className="pt-2 border-t">
             <div className="flex items-center gap-4">
                 <div className="flex items-center">
@@ -181,7 +204,6 @@ function AddLabEntryModal({ isOpen, onClose, onSave, allStudentsMap }) {
             </div>
           </div>
 
-          {/* Botões */}
           <div className="flex justify-end gap-4 pt-4">
             <button type="button" onClick={() => { onClose(); clearForm(); }} className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
             <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">

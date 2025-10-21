@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, CheckCircle2, Save, XCircle } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, Save, XCircle, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const activityOptions = [
@@ -24,7 +24,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
   const handleEditClick = (entry) => {
     setEditingRowId(entry.id);
     const times = Array.isArray(entry.timeSlot) ? entry.timeSlot : (entry.timeSlot ? [entry.timeSlot] : []);
-    
+
     setEditFormData({
       studentName: entry.studentName,
       activity: entry.activity,
@@ -86,7 +86,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
     }
     return slots;
   }
-  
+
   const sortedEntries = [...entries].sort((a, b) => {
       const timeA = Array.isArray(a.timeSlot) ? a.timeSlot[0] : a.timeSlot;
       const timeB = Array.isArray(b.timeSlot) ? b.timeSlot[0] : b.timeSlot;
@@ -112,6 +112,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
         <tbody>
           {sortedEntries.map((entry) => (
               editingRowId === entry.id ? (
+                // --- Linha de Edição (sem alterações aqui) ---
                 <tr key={entry.id} className="bg-yellow-50">
                   <td className="px-2 py-2 text-center">-</td>
                   <td className="px-4 py-2">
@@ -169,6 +170,7 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                   </td>
                 </tr>
               ) : (
+                // --- Linha Normal (Alterações aqui) ---
                 <tr key={entry.id} className="bg-white border-b hover:bg-blue-50">
                   <td className="px-2 py-2 text-center">
                     <button onClick={() => onStatusChange(entry.id, !entry.isDone)} title={entry.isDone ? "Marcar como não realizado" : "Marcar como realizado"}>
@@ -177,13 +179,27 @@ function LabEntriesTable({ entries, onStatusChange, onEntryUpdate, onEntryDelete
                   </td>
                   <td className="px-4 py-2 font-mono">{formatTimeSlots(entry.timeSlot)}</td>
 
+                  {/* --- Célula Aluno(a) Modificada --- */}
                   <td className="px-4 py-2">
-                    <div className="font-bold text-gray-900">{entry.studentName}</div>
-                    {entry.studentCode && entry.studentCode !== 'VISITANTE' && (
-                      <div className="text-xs text-gray-500">Matrícula: {entry.studentCode}</div>
-                    )}
+                    <div className="flex items-center gap-2"> {/* Container Flex */}
+                      <div className="flex-grow"> {/* Div para nome e matrícula */}
+                        <div className="font-bold text-gray-900">{entry.studentName}</div>
+                        {entry.studentCode && entry.studentCode !== 'VISITANTE' && (
+                          <div className="text-xs text-gray-500">Matrícula: {entry.studentCode}</div>
+                        )}
+                      </div>
+                      {/* --- TAG DE ALUNO NOVO (reposicionada e com animação) --- */}
+                      {entry.isNewStudent && (
+                        <span className="animate-pulse inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap">
+                          <UserPlus size={12} />
+                          Novo(a)
+                        </span>
+                      )}
+                      {/* --- FIM DA TAG --- */}
+                    </div>
                   </td>
-                  
+                  {/* --- Fim da Célula Aluno(a) Modificada --- */}
+
                   <td className="px-4 py-2 text-gray-600">{entry.studentClassName}</td>
                   <td className="px-4 py-2">
                     {entry.subject ? `${entry.activity} (${entry.subject})` : entry.activity}
