@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Calendar } from "lucide-react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import toast from "react-hot-toast";
 import HorariosAtendimento from "../components/HorariosAtendimento";
+import { getWeekdayName } from "../utils/labScheduleConfig";
 
 function LabSupportPage() {
   const { userProfile } = useAuth();
@@ -29,6 +30,14 @@ function LabSupportPage() {
   );
   const [labEntries, setLabEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
+  const [weekdayName, setWeekdayName] = useState("");
+
+  useEffect(() => {
+    if (selectedDate) {
+      const dayName = getWeekdayName(selectedDate);
+      setWeekdayName(dayName);
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     setLoadingEntries(true);
@@ -47,7 +56,7 @@ function LabSupportPage() {
     return () => unsubscribe();
   }, [selectedDate]);
 
-  const handleAddEntry = async (entryData, repeatWeeks) => {
+  const handleAddEntry = async (entryData, repeatWeeks, entryDate) => {
     if (!entryData.studentCode || !entryData.studentName) {
       return toast.error("Código e nome do aluno são obrigatórios.");
     }
@@ -56,7 +65,7 @@ function LabSupportPage() {
 
     try {
       const batch = writeBatch(db);
-      const initialDate = new Date(selectedDate + "T12:00:00");
+      const initialDate = new Date(entryDate + "T12:00:00");
 
       for (let i = 0; i < numberOfEntries; i++) {
         const targetDate = new Date(initialDate);
@@ -127,6 +136,16 @@ function LabSupportPage() {
     }
   };
 
+  // Formata a data para exibição
+  const formatDate = (dateString) => {
+    const date = new Date(dateString + "T12:00:00");
+    return date.toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  };
+
   return (
     <div className="p-4 md:p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">
@@ -134,18 +153,31 @@ function LabSupportPage() {
       </h1>
 
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-8">
-        <div className="flex items-center gap-4">
-          <label htmlFor="date-filter" className="font-semibold text-gray-700">
-            Selecione a Data:
-          </label>
-          <input
-            id="date-filter"
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="p-2 border border-gray-300 rounded-lg"
-          />
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+          <div className="flex items-center gap-4">
+            <label htmlFor="date-filter" className="font-semibold text-gray-700 whitespace-nowrap">
+              Selecione a Data:
+            </label>
+            <input
+              id="date-filter"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="p-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          
+          {/* Exibição do dia da semana */}
+          {weekdayName && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+              <Calendar size={16} className="text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">
+                {weekdayName} - {formatDate(selectedDate)}
+              </span>
+            </div>
+          )}
         </div>
+        
         {userProfile && userProfile.role !== "financeiro" && (
           <button
             onClick={() => setIsModalOpen(true)}
@@ -179,6 +211,7 @@ function LabSupportPage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleAddEntry}
         allStudentsMap={allStudentsMap}
+        selectedDate={selectedDate}
       />
     </div>
   );
