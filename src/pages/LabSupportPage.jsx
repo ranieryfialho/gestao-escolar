@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
-import { PlusCircle, Calendar } from "lucide-react";
+import { PlusCircle, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
@@ -32,6 +32,7 @@ function LabSupportPage() {
   const [loadingEntries, setLoadingEntries] = useState(true);
   const [weekdayName, setWeekdayName] = useState("");
 
+  // Atualiza o nome do dia da semana quando a data muda
   useEffect(() => {
     if (selectedDate) {
       const dayName = getWeekdayName(selectedDate);
@@ -56,6 +57,17 @@ function LabSupportPage() {
     return () => unsubscribe();
   }, [selectedDate]);
 
+  // Função para navegar entre datas
+  const changeDate = (days) => {
+    const currentDate = new Date(selectedDate + "T12:00:00");
+    currentDate.setDate(currentDate.getDate() + days);
+    setSelectedDate(currentDate.toISOString().split("T")[0]);
+  };
+
+  const goToPreviousDay = () => changeDate(-1);
+  const goToNextDay = () => changeDate(1);
+
+  // Modificado para receber a data do modal
   const handleAddEntry = async (entryData, repeatWeeks, entryDate) => {
     if (!entryData.studentCode || !entryData.studentName) {
       return toast.error("Código e nome do aluno são obrigatórios.");
@@ -65,6 +77,7 @@ function LabSupportPage() {
 
     try {
       const batch = writeBatch(db);
+      // Usa a data que veio do modal ao invés da selectedDate
       const initialDate = new Date(entryDate + "T12:00:00");
 
       for (let i = 0; i < numberOfEntries; i++) {
@@ -154,10 +167,21 @@ function LabSupportPage() {
 
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <label htmlFor="date-filter" className="font-semibold text-gray-700 whitespace-nowrap">
               Selecione a Data:
             </label>
+            
+            {/* Botão Anterior */}
+            <button
+              onClick={goToPreviousDay}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
+              title="Dia anterior"
+            >
+              <ChevronLeft size={20} className="text-gray-700" />
+            </button>
+            
+            {/* Input de data */}
             <input
               id="date-filter"
               type="date"
@@ -165,6 +189,15 @@ function LabSupportPage() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="p-2 border border-gray-300 rounded-lg"
             />
+            
+            {/* Botão Próximo */}
+            <button
+              onClick={goToNextDay}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
+              title="Próximo dia"
+            >
+              <ChevronRight size={20} className="text-gray-700" />
+            </button>
           </div>
           
           {/* Exibição do dia da semana */}
