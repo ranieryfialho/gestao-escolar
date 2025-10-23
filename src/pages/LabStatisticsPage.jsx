@@ -15,7 +15,7 @@ import {
   Star
 } from "lucide-react";
 import { db } from "../firebase";
-import { collection, query, onSnapshot, where } from "firebase/firestore";
+import { collection, query, onSnapshot } from "firebase/firestore";
 import { getWeekdayName } from "../utils/labScheduleConfig";
 
 function LabStatisticsPage() {
@@ -85,15 +85,23 @@ function LabStatisticsPage() {
   const totalVisitors = filteredEntries.filter(e => e.studentCode === "VISITANTE").length;
   
   // ESTATÍSTICAS DE ALUNOS NOVOS
-  const newStudentsEntries = filteredEntries.filter(e => e.isNewStudent);
+  const newStudentsEntries = filteredEntries.filter(e => e.isNewStudent === true);
   const totalNewStudentsAttendances = newStudentsEntries.length;
   
-  // Alunos novos únicos (diferentes alunos que foram marcados como novos)
+  // Alunos novos únicos (INCLUINDO visitantes marcados como novos)
+  const allNewStudentsUnique = new Set(
+    newStudentsEntries.map(e => `${e.studentCode}-${e.studentName}`)
+  ).size;
+  
+  // Alunos novos únicos (EXCLUINDO visitantes)
   const uniqueNewStudents = new Set(
     newStudentsEntries
       .filter(e => e.studentCode !== "VISITANTE")
       .map(e => e.studentCode)
   ).size;
+  
+  // Visitantes novos
+  const newVisitors = newStudentsEntries.filter(e => e.studentCode === "VISITANTE").length;
   
   // Percentual de atendimentos para alunos novos
   const newStudentsPercentage = totalAttendances > 0 
@@ -160,37 +168,105 @@ function LabStatisticsPage() {
   const topWeekdays = Object.entries(weekdayCount)
     .sort((a, b) => b[1] - a[1]);
 
-  // Atendimentos por mês (últimos 6 meses)
-  const monthlyData = {};
-  const monthlyNewStudentsData = {};
-  const last6Months = [];
-  for (let i = 5; i >= 0; i--) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-    last6Months.push({ key, label });
-    monthlyData[key] = 0;
-    monthlyNewStudentsData[key] = 0;
-  }
-  
-  allEntries.forEach(entry => {
-    const entryDate = entry.entryDate.substring(0, 7); // YYYY-MM
-    if (monthlyData.hasOwnProperty(entryDate)) {
-      monthlyData[entryDate]++;
-      if (entry.isNewStudent) {
-        monthlyNewStudentsData[entryDate]++;
+  // GRÁFICO DINÂMICO - Muda conforme o filtro selecionado
+  const getChartData = () => {
+    const now = new Date();
+    
+    if (selectedPeriod === "week") {
+      // Últimos 7 dias (semana)
+      const chartData = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const key = date.toISOString().split('T')[0];
+        const label = date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' });
+        chartData.push({ key, label, value: 0, newStudents: 0, regularStudents: 0 });
       }
+      
+      filteredEntries.forEach(entry => {
+        const found = chartData.find(d => d.key === entry.entryDate);
+        if (found) {
+          found.value++;
+          if (entry.isNewStudent === true) {
+            found.newStudents++;
+          } else {
+            found.regularStudents++;
+          }
+        }
+      });
+      
+      return { data: chartData, title: "Atendimentos nos Últimos 7 Dias" };
     }
-  });
+    
+    if (selectedPeriod === "month") {
+      // Últimas 4 semanas
+      const chartData = [];
+      for (let i = 3; i >= 0; i--) {
+        const startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - (i + 1) * 7);
+        const endDate = new Date(now);
+        endDate.setDate(endDate.getDate() - i * 7);
+        
+        const label = `Sem ${4 - i}`;
+        chartData.push({ 
+          key: `week-${i}`, 
+          label, 
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          value: 0, 
+          newStudents: 0, 
+          regularStudents: 0 
+        });
+      }
+      
+      filteredEntries.forEach(entry => {
+        const entryDate = new Date(entry.entryDate + "T12:00:00");
+        chartData.forEach(week => {
+          const start = new Date(week.startDate + "T00:00:00");
+          const end = new Date(week.endDate + "T23:59:59");
+          if (entryDate >= start && entryDate <= end) {
+            week.value++;
+            if (entry.isNewStudent === true) {
+              week.newStudents++;
+            } else {
+              week.regularStudents++;
+            }
+          }
+        });
+      });
+      
+      return { data: chartData, title: "Atendimentos nas Últimas 4 Semanas" };
+    }
+    
+    // Padrão: Últimos 6 meses
+    const chartData = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+      chartData.push({ key, label, value: 0, newStudents: 0, regularStudents: 0 });
+    }
+    
+    allEntries.forEach(entry => {
+      const entryDate = entry.entryDate.substring(0, 7); // YYYY-MM
+      const found = chartData.find(d => d.key === entryDate);
+      if (found) {
+        found.value++;
+        if (entry.isNewStudent === true) {
+          found.newStudents++;
+        } else {
+          found.regularStudents++;
+        }
+      }
+    });
+    
+    return { data: chartData, title: "Atendimentos nos Últimos 6 Meses" };
+  };
 
-  const monthlyChartData = last6Months.map(month => ({
-    label: month.label,
-    value: monthlyData[month.key],
-    newStudents: monthlyNewStudentsData[month.key]
-  }));
+  const { data: monthlyChartData, title: chartTitle } = getChartData();
 
-  // Função para exportar dados (básico)
+  // Função para exportar dados
   const exportData = () => {
     const data = {
       periodo: selectedPeriod === "all" ? "Todos" : selectedPeriod === "month" ? "Este mês" : "Esta semana",
@@ -203,7 +279,9 @@ function LabStatisticsPage() {
       visitantes: totalVisitors,
       alunosNovos: {
         totalAtendimentos: totalNewStudentsAttendances,
-        alunosUnicoNovos: uniqueNewStudents,
+        todosUnicos: allNewStudentsUnique,
+        alunosUnicosComMatricula: uniqueNewStudents,
+        visitantesNovos: newVisitors,
         percentualDoTotal: newStudentsPercentage + "%",
         atendimentosConcluidos: completedNewStudentsAttendances,
         taxaConclusao: newStudentsCompletionRate + "%"
@@ -211,7 +289,8 @@ function LabStatisticsPage() {
       atividadesMaisComuns: topActivities,
       atividadesMaisComunsAlunosNovos: topNewStudentsActivities,
       horariosMaisProcurados: topTimeSlots,
-      diasMaisProcurados: topWeekdays
+      diasMaisProcurados: topWeekdays,
+      modulosMaisTrabalhados: topSubjects
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -340,13 +419,16 @@ function LabStatisticsPage() {
         <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <UserPlus size={28} className="text-cyan-600" />
           Estatísticas de Alunos Novos
+          <span className="text-sm font-normal text-gray-600 ml-2">
+            (Toggle "Aluno Novo" marcado)
+          </span>
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Atendimentos de Alunos Novos</p>
+                <p className="text-sm text-gray-600 font-medium">Atendimentos Marcados</p>
                 <p className="text-3xl font-bold text-cyan-600 mt-1">{totalNewStudentsAttendances}</p>
                 <p className="text-xs text-gray-500 mt-1">{newStudentsPercentage}% do total</p>
               </div>
@@ -359,12 +441,38 @@ function LabStatisticsPage() {
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Alunos Novos Únicos</p>
-                <p className="text-3xl font-bold text-blue-600 mt-1">{uniqueNewStudents}</p>
-                <p className="text-xs text-gray-500 mt-1">Diferentes alunos</p>
+                <p className="text-sm text-gray-600 font-medium">Total Únicos</p>
+                <p className="text-3xl font-bold text-blue-600 mt-1">{allNewStudentsUnique}</p>
+                <p className="text-xs text-gray-500 mt-1">Pessoas diferentes</p>
               </div>
               <div className="p-3 rounded-full bg-blue-100">
                 <Users size={24} className="text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Alunos Únicos</p>
+                <p className="text-3xl font-bold text-purple-600 mt-1">{uniqueNewStudents}</p>
+                <p className="text-xs text-gray-500 mt-1">Com matrícula</p>
+              </div>
+              <div className="p-3 rounded-full bg-purple-100">
+                <Award size={24} className="text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Visitantes Novos</p>
+                <p className="text-3xl font-bold text-orange-600 mt-1">{newVisitors}</p>
+                <p className="text-xs text-gray-500 mt-1">Atendimentos</p>
+              </div>
+              <div className="p-3 rounded-full bg-orange-100">
+                <UserPlus size={24} className="text-orange-600" />
               </div>
             </div>
           </div>
@@ -381,34 +489,32 @@ function LabStatisticsPage() {
               </div>
             </div>
           </div>
-
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Média por Aluno Novo</p>
-                <p className="text-3xl font-bold text-purple-600 mt-1">
-                  {uniqueNewStudents > 0 ? (totalNewStudentsAttendances / uniqueNewStudents).toFixed(1) : 0}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Atendimentos/aluno</p>
-              </div>
-              <div className="p-3 rounded-full bg-purple-100">
-                <BarChart3 size={24} className="text-purple-600" />
-              </div>
-            </div>
-          </div>
         </div>
+
+        {/* Explicação sobre o filtro */}
+        {totalNewStudentsAttendances === 0 && (
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              ℹ️ <strong>Nenhum atendimento marcado como "Aluno Novo".</strong> Para aparecer aqui, é necessário marcar o toggle "Aluno Novo" ao criar o atendimento.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Gráfico de Atendimentos Mensais com Alunos Novos */}
+      {/* Gráfico DINÂMICO - Muda conforme o filtro */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <Calendar size={24} className="text-blue-600" />
-          Atendimentos nos Últimos 6 Meses
+          {chartTitle}
         </h2>
-        <div className="flex gap-4 mb-4">
+        <div className="flex gap-4 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-500 rounded"></div>
             <span className="text-sm text-gray-600">Total de Atendimentos</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-400 rounded"></div>
+            <span className="text-sm text-gray-600">Alunos Regulares</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-cyan-400 rounded"></div>
@@ -418,34 +524,81 @@ function LabStatisticsPage() {
         <div className="flex items-end justify-between h-64 gap-2">
           {monthlyChartData.map((data, index) => {
             const maxValue = Math.max(...monthlyChartData.map(d => d.value));
-            const height = maxValue > 0 ? (data.value / maxValue) * 100 : 0;
-            const newStudentsHeight = maxValue > 0 ? (data.newStudents / maxValue) * 100 : 0;
+            const totalHeight = maxValue > 0 ? (data.value / maxValue) * 100 : 0;
+            const regularHeight = maxValue > 0 ? (data.regularStudents / maxValue) * 100 : 0;
+            const newHeight = maxValue > 0 ? (data.newStudents / maxValue) * 100 : 0;
             
             return (
-              <div key={index} className="flex-1 flex flex-col items-center">
-                <div className="w-full relative" style={{ height: `${height}%`, minHeight: data.value > 0 ? '20px' : '0px' }}>
-                  {/* Barra total */}
-                  <div className="absolute bottom-0 w-full bg-blue-200 rounded-t-lg group">
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
-                      Total: {data.value}
+              <div key={index} className="flex-1 flex flex-col items-center relative">
+                <div 
+                  className="w-full relative" 
+                  style={{ height: `${totalHeight}%`, minHeight: data.value > 0 ? '20px' : '0px' }}
+                >
+                  {/* Barra de fundo (total) - invisível mas mantém a altura */}
+                  <div className="absolute bottom-0 w-full h-full"></div>
+                  
+                  {/* Barra de Alunos Regulares */}
+                  {data.regularStudents > 0 && (
+                    <div 
+                      className="absolute bottom-0 w-full bg-gray-300 rounded-t-lg group cursor-pointer transition-all hover:bg-gray-400"
+                      style={{ height: `${regularHeight}%` }}
+                    >
+                      <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20">
+                        Regulares: {data.regularStudents}
+                      </div>
                     </div>
-                  </div>
-                  {/* Barra de alunos novos sobreposta */}
+                  )}
+                  
+                  {/* Barra de Alunos Novos (empilhada em cima) */}
                   {data.newStudents > 0 && (
                     <div 
-                      className="absolute bottom-0 w-full bg-cyan-400 rounded-t-lg group" 
-                      style={{ height: `${(newStudentsHeight / height) * 100}%` }}
+                      className="absolute w-full bg-cyan-400 rounded-t-lg group cursor-pointer transition-all hover:bg-cyan-500"
+                      style={{ 
+                        bottom: `${regularHeight}%`,
+                        height: `${newHeight}%`
+                      }}
                     >
-                      <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-cyan-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
+                      <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-cyan-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20">
                         Novos: {data.newStudents}
                       </div>
                     </div>
                   )}
+                  
+                  {/* Tooltip do Total (aparece ao passar mouse na área) */}
+                  <div className="absolute bottom-0 w-full h-full group cursor-pointer">
+                    <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-blue-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-30 font-bold">
+                      Total: {data.value}
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-600 text-center">{data.label}</div>
               </div>
             );
           })}
+        </div>
+        
+        {/* Resumo abaixo do gráfico */}
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-blue-600">
+                {monthlyChartData.reduce((sum, month) => sum + month.value, 0)}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">Total (período)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-600">
+                {monthlyChartData.reduce((sum, month) => sum + month.regularStudents, 0)}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">Regulares (período)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-cyan-600">
+                {monthlyChartData.reduce((sum, month) => sum + month.newStudents, 0)}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">Novos (período)</p>
+            </div>
+          </div>
         </div>
       </div>
 
