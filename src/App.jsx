@@ -25,6 +25,7 @@ import EventAttendeesPage from './pages/EventAttendeesPage';
 import RetufPage from './pages/RetufPage';
 import InactiveStudentsPage from './pages/InactiveStudentsPage';
 import ActiveStudentsPage from './pages/ActiveStudentsPage';
+import LabStatisticsPage from './pages/LabStatisticsPage';
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
           <Route path="alunos-ativos" element={<ActiveStudentsPage />} />
           <Route path="/eventos" element={<EventosPage />} />
           <Route path="/eventos/:eventId/inscritos" element={<EventAttendeesPage />} />
+          <Route path="/laboratorio/estatisticas" element={<LabStatisticsPage />} />
           
         </Route>
       </Route>

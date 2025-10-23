@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import AddLabEntryModal from "../components/AddLabEntryModal";
 import LabEntriesTable from "../components/LabEntriesTable";
-import { PlusCircle, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, Calendar, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
 import { useClasses } from "../contexts/ClassContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import {
   collection,
@@ -24,6 +25,7 @@ import { getWeekdayName } from "../utils/labScheduleConfig";
 function LabSupportPage() {
   const { userProfile } = useAuth();
   const { allStudentsMap } = useClasses();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -77,7 +79,6 @@ function LabSupportPage() {
 
     try {
       const batch = writeBatch(db);
-      // Usa a data que veio do modal ao invés da selectedDate
       const initialDate = new Date(entryDate + "T12:00:00");
 
       for (let i = 0; i < numberOfEntries; i++) {
@@ -149,7 +150,6 @@ function LabSupportPage() {
     }
   };
 
-  // Formata a data para exibição
   const formatDate = (dateString) => {
     const date = new Date(dateString + "T12:00:00");
     return date.toLocaleDateString('pt-BR', { 
@@ -161,9 +161,20 @@ function LabSupportPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        Controle do Laboratório de Apoio
-      </h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">
+          Controle do Laboratório de Apoio
+        </h1>
+        
+        {/* Botão para Estatísticas */}
+        <button
+          onClick={() => navigate("/laboratorio/estatisticas")}
+          className="mt-4 md:mt-0 flex items-center gap-2 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition shadow-md"
+        >
+          <BarChart3 size={20} />
+          Ver Estatísticas
+        </button>
+      </div>
 
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
@@ -172,7 +183,6 @@ function LabSupportPage() {
               Selecione a Data:
             </label>
             
-            {/* Botão Anterior */}
             <button
               onClick={goToPreviousDay}
               className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
@@ -181,7 +191,6 @@ function LabSupportPage() {
               <ChevronLeft size={20} className="text-gray-700" />
             </button>
             
-            {/* Input de data */}
             <input
               id="date-filter"
               type="date"
@@ -190,7 +199,6 @@ function LabSupportPage() {
               className="p-2 border border-gray-300 rounded-lg"
             />
             
-            {/* Botão Próximo */}
             <button
               onClick={goToNextDay}
               className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
@@ -200,7 +208,6 @@ function LabSupportPage() {
             </button>
           </div>
           
-          {/* Exibição do dia da semana */}
           {weekdayName && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
               <Calendar size={16} className="text-blue-600" />
