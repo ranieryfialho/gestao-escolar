@@ -10,9 +10,7 @@ function ObservationModal({ isOpen, onClose, onSave, student }) {
   }, [isOpen, student]);
 
   const handleSave = () => {
-    // ##### AQUI ESTÁ A CORREÇÃO #####
-    // A função agora usa student.id, que é o ID correto do documento na coleção 'inativos'.
-    onSave(student.id, observation);
+    onSave(observation);
     onClose();
   };
 

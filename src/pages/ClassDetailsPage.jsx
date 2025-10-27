@@ -625,21 +625,32 @@ function ClassDetailsPage() {
     setIsObservationModalOpen(false);
     setStudentToObserve(null);
   };
-  const handleSaveObservation = async (studentId, observationText) => {
-    if (!turma) return;
+
+  const handleSaveObservation = async (observationText) => {
+    if (!turma || !studentToObserve) {
+      toast.error("Nenhum aluno selecionado para salvar observação.");
+      return;
+    }
+
+    const studentId = studentToObserve.studentId || studentToObserve.id;
+
     const studentToUpdate = turma.students.find(
       (s) => (s.studentId || s.id) === studentId
     );
+
     if (!studentToUpdate) {
       toast.error("Aluno não encontrado para salvar a observação.");
       return;
     }
+
     const studentPayload = { ...studentToUpdate, observation: observationText };
+
     try {
       if (turma.isVirtual) {
         await handleApiAction("updateGraduatesBatch", {
           updatedStudents: [studentPayload],
         });
+        toast.success("Observação salva com sucesso!");
       } else {
         const updatedStudents = turma.students.map((student) =>
           (student.studentId || student.id) === studentId
@@ -649,6 +660,7 @@ function ClassDetailsPage() {
         await updateClass(turma.id, { students: updatedStudents });
         toast.success("Observação salva com sucesso!");
       }
+      
       handleCloseObservationModal();
       setRefetchTrigger((prev) => prev + 1);
     } catch (error) {
