@@ -199,115 +199,199 @@ exports.deleteUserAccount = functions.https.onRequest((req, res) => {
 exports.transferStudent = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
-      return res.status(405).send("Método não permitido");
+      return res.status(405).json({ error: "Método não permitido" });
     }
 
     const idToken = req.headers.authorization?.split("Bearer ")[1];
     if (!(await isAdmin(idToken))) {
-      return res.status(403).json({ error: "Ação não autorizada." });
+      return res.status(403).json({ 
+        error: "Ação não autorizada. Permissão insuficiente." 
+      });
     }
 
     const { studentData, sourceClassId, targetClassId } = req.body.data;
 
     if (!studentData || !studentData.code || !sourceClassId || !targetClassId) {
-      return res.status(400).json({
-        error:
-          "Dados inválidos para a transferência (código do aluno, turma de origem e destino são obrigatórios).",
+      return res.status(400).json({ 
+        error: "Dados inválidos (código do aluno, turma de origem e destino são obrigatórios)." 
       });
     }
 
-    // CASO 1: O ALUNO ESTÁ SENDO MOVIDO PARA CONCLUDENTES
+    const studentCodeStr = String(studentData.code);
+
+    // ===================================================================
+    // CASO 3 (NOVO): REATIVAR DE CONCLUDENTES -> TURMA REGULAR
+    // ===================================================================
+    if (sourceClassId === "concludentes") {
+      if (targetClassId === "concludentes") {
+        return res.status(400).json({ 
+          error: "Aluno já está em concludentes." 
+        });
+      }
+
+      const concludenteRef = db.collection("concludentes").doc(studentCodeStr);
+      const targetClassRef = db.collection("classes").doc(targetClassId);
+
+      try {
+        const concludenteDoc = await concludenteRef.get();
+        if (!concludenteDoc.exists) {
+          return res.status(404).json({ 
+            error: "Aluno não encontrado nos concludentes." 
+          });
+        }
+        
+        const targetClassDoc = await targetClassRef.get();
+        if (!targetClassDoc.exists) {
+          return res.status(404).json({ 
+            error: "Turma de destino não encontrada." 
+          });
+        }
+
+        const concludenteData = concludenteDoc.data();
+        
+        // Prepara o objeto do aluno para o array 'students' da turma
+        const newStudentData = {
+          code: studentCodeStr,
+          name: studentData.name || concludenteData.name,
+          grades: studentData.grades || concludenteData.grades || {},
+          observation: studentData.observation || concludenteData.observation || "",
+          ...(concludenteData.studentId && { studentId: concludenteData.studentId }),
+        };
+
+        // Usa transação para garantir atomicidade
+        await db.runTransaction(async (transaction) => {
+          // Adiciona o aluno no array 'students' da turma de destino
+          const targetStudents = targetClassDoc.data().students || [];
+          
+          // Verifica se o aluno já existe na turma de destino
+          if (!targetStudents.some(s => String(s.code) === studentCodeStr)) {
+            targetStudents.push(newStudentData);
+            transaction.update(targetClassRef, { students: targetStudents });
+          }
+
+          // Remove o aluno da coleção de concludentes
+          transaction.delete(concludenteRef);
+        });
+
+        return res.status(200).json({ 
+          result: { message: "Aluno reativado e movido para a turma com sucesso!" }
+        });
+      } catch (error) {
+        console.error("Erro ao reativar aluno:", error);
+        return res.status(500).json({ 
+          error: `Erro ao reativar aluno: ${error.message}` 
+        });
+      }
+    }
+
+    // ===================================================================
+    // CASO 1: TURMA REGULAR -> CONCLUDENTES
+    // ===================================================================
     if (targetClassId === "concludentes") {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
-      const concludentesRef = db
-        .collection("concludentes")
-        .doc(String(studentData.code));
+      const concludentesRef = db.collection("concludentes").doc(studentCodeStr);
 
       try {
         await db.runTransaction(async (transaction) => {
           const sourceDoc = await transaction.get(sourceClassRef);
-          if (!sourceDoc.exists)
+          if (!sourceDoc.exists) {
             throw new Error("Turma de origem não encontrada.");
+          }
 
-          // ✅ INCLUIR O schoolId DA TURMA DE ORIGEM
           const sourceClass = sourceDoc.data();
+          const sourceStudents = sourceClass.students || [];
           
+          let studentIndex = sourceStudents.findIndex(
+            (s) => String(s.code) === studentCodeStr
+          );
+          
+          if (studentIndex === -1 && studentData.studentId) {
+            studentIndex = sourceStudents.findIndex(
+              (s) => s.studentId === studentData.studentId
+            );
+          }
+          
+          if (studentIndex === -1) {
+            throw new Error("Aluno não encontrado na turma de origem.");
+          }
+          
+          const [studentToGraduate] = sourceStudents.splice(studentIndex, 1);
+
           const graduateData = {
-            code: String(studentData.code),
-            name: studentData.name,
-            grades: studentData.grades || {},
-            observation: studentData.observation || "",
+            ...studentToGraduate,
             graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
             certificateStatus: "nao_impresso",
             schoolId: sourceClass.schoolId,
+            code: studentCodeStr,
           };
 
-          // Remove o aluno da lista de estudantes da turma de origem
-          const sourceStudents = sourceDoc.data().students || [];
-          const updatedSourceStudents = sourceStudents.filter(
-            (s) => String(s.code) !== String(studentData.code)
-          );
-
-          transaction.update(sourceClassRef, {
-            students: updatedSourceStudents,
-          });
-
-          // Cria o documento na coleção concludentes
+          transaction.update(sourceClassRef, { students: sourceStudents });
           transaction.set(concludentesRef, graduateData);
         });
-        return res
-          .status(200)
-          .json({ message: "Aluno movido para Concludentes com sucesso!" });
+        
+        return res.status(200).json({ 
+          result: { message: "Aluno movido para Concludentes com sucesso!" }
+        });
       } catch (error) {
         console.error("Erro ao mover para concludentes:", error);
-        return res
-          .status(500)
-          .json({ error: `Erro ao graduar aluno: ${error.message}` });
+        return res.status(500).json({ 
+          error: `Erro ao graduar aluno: ${error.message}` 
+        });
       }
     }
 
-    // CASO 2: TRANSFERÊNCIA NORMAL ENTRE DUAS TURMAS
+    // ===================================================================
+    // CASO 2: TURMA REGULAR -> TURMA REGULAR
+    // ===================================================================
     else {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const targetClassRef = db.collection("classes").doc(targetClassId);
+
       try {
         await db.runTransaction(async (transaction) => {
           const sourceDoc = await transaction.get(sourceClassRef);
           const targetDoc = await transaction.get(targetClassRef);
-          if (!sourceDoc.exists || !targetDoc.exists)
+          
+          if (!sourceDoc.exists || !targetDoc.exists) {
             throw new Error("Turma de origem ou destino não encontrada.");
+          }
 
           const sourceStudents = sourceDoc.data().students || [];
           const targetStudents = targetDoc.data().students || [];
-
-          const studentIndex = sourceStudents.findIndex(
-            (s) => String(s.code) === String(studentData.code)
+          
+          let studentIndex = sourceStudents.findIndex(
+            (s) => String(s.code) === studentCodeStr
           );
-          if (studentIndex === -1)
-            throw new Error(
-              `Aluno com código ${studentData.code} não encontrado na turma de origem.`
-            );
-          const [studentToMove] = sourceStudents.splice(studentIndex, 1);
 
-          if (
-            !targetStudents.some(
-              (s) => String(s.code) === String(studentToMove.code)
-            )
-          ) {
+          if (studentIndex === -1 && studentData.studentId) {
+            studentIndex = sourceStudents.findIndex(
+              (s) => s.studentId === studentData.studentId
+            );
+          }
+          
+          if (studentIndex === -1) {
+            throw new Error("Aluno não encontrado na turma de origem.");
+          }
+
+          const [studentToMove] = sourceStudents.splice(studentIndex, 1);
+          studentToMove.code = studentCodeStr;
+
+          if (!targetStudents.some((s) => String(s.code) === studentCodeStr)) {
             targetStudents.push(studentToMove);
           }
 
           transaction.update(sourceClassRef, { students: sourceStudents });
           transaction.update(targetClassRef, { students: targetStudents });
         });
-        return res
-          .status(200)
-          .json({ message: "Aluno transferido com sucesso!" });
+        
+        return res.status(200).json({ 
+          result: { message: "Aluno transferido com sucesso!" }
+        });
       } catch (error) {
         console.error("Erro na transação de transferência:", error);
-        return res
-          .status(500)
-          .json({ error: `Erro ao transferir aluno: ${error.message}` });
+        return res.status(500).json({ 
+          error: `Erro ao transferir aluno: ${error.message}` 
+        });
       }
     }
   });

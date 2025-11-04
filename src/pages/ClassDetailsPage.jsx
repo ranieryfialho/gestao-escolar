@@ -17,6 +17,7 @@ import MoveToInactiveModal from "../components/MoveToInactiveModal";
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
+// Esta função (callApi) permanece, pois é usada por outras funções (addStudent, etc)
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -295,6 +296,7 @@ function ClassDetailsPage() {
     location.state,
   ]);
 
+  // Esta função (handleApiAction) permanece, pois é usada por outras funções
   const handleApiAction = async (functionName, payload, successCallback) => {
     const toastId = toast.loading("Executando operação...");
     try {
@@ -433,20 +435,21 @@ function ClassDetailsPage() {
     setIsTransferModalOpen(false);
     setStudentToTransfer(null);
   };
-  const handleConfirmTransfer = async (
-    studentData,
-    sourceClassId,
-    targetClassId
-  ) => {
-    await handleApiAction(
-      "transferStudent",
-      { studentData, sourceClassId, targetClassId },
-      () => {
-        handleCloseTransferModal();
-        setRefetchTrigger((prev) => prev + 1);
-      }
-    );
-  };
+
+const handleConfirmTransfer = async (
+  studentData,
+  sourceClassId,
+  targetClassId
+) => {
+  await handleApiAction(
+    "transferStudent",
+    { studentData, sourceClassId, targetClassId },
+    () => {
+      handleCloseTransferModal();
+      setRefetchTrigger((prev) => prev + 1);
+    }
+  );
+};
 
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module });
