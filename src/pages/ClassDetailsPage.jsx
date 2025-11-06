@@ -17,7 +17,6 @@ import MoveToInactiveModal from "../components/MoveToInactiveModal";
 import { UserPlus, QrCode, Pencil, Save, X } from "lucide-react";
 import toast from "react-hot-toast";
 
-// Esta função (callApi) permanece, pois é usada por outras funções (addStudent, etc)
 const callApi = async (functionName, payload, token) => {
   const functionUrl = `https://us-central1-boletim-escolar-app.cloudfunctions.net/${functionName}`;
   const response = await fetch(functionUrl, {
@@ -95,8 +94,7 @@ function ClassDetailsPage() {
   const [studentToEdit, setStudentToEdit] = useState(null);
   const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
   const [studentToObserve, setStudentToObserve] = useState(null);
-  const [isMoveToInactiveModalOpen, setIsMoveToInactiveModalOpen] =
-    useState(false);
+  const [isMoveToInactiveModalOpen, setIsMoveToInactiveModalOpen] = useState(false);
   const [studentToMove, setStudentToMove] = useState(null);
   const [editingSubGrades, setEditingSubGrades] = useState({});
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -296,7 +294,6 @@ function ClassDetailsPage() {
     location.state,
   ]);
 
-  // Esta função (handleApiAction) permanece, pois é usada por outras funções
   const handleApiAction = async (functionName, payload, successCallback) => {
     const toastId = toast.loading("Executando operação...");
     try {
@@ -385,43 +382,140 @@ function ClassDetailsPage() {
     );
   };
 
-  const handleSaveGrades = async (newGrades, newCertificateStatuses) => {
-    if (!turma || !turma.students) return;
+  const handleSaveGrades = async (newGrades, newCertificateStatuses, newReleaseChecklist) => {
+    if (!turma || !turma.students) {
+      console.log("⚠️ Turma ou alunos não carregados");
+      return;
+    }
+    
+    console.log("🔍 Iniciando handleSaveGrades...");
+    
     if (turma.isVirtual) {
       const changedStudents = turma.students
         .map((student) => {
           const studentId = student.studentId || student.id;
-          const hasGradeChanged =
-            newGrades[studentId] &&
-            JSON.stringify(newGrades[studentId]) !==
-              JSON.stringify(student.grades);
-          const hasCertChanged =
-            newCertificateStatuses[studentId] &&
-            newCertificateStatuses[studentId] !==
-              (student.certificateStatus || "nao_impresso");
-          if (hasGradeChanged || hasCertChanged) {
-            return {
-              ...student,
-              grades: { ...student.grades, ...newGrades[studentId] },
-              certificateStatus: newCertificateStatuses[studentId],
-            };
+          
+          // 🔍 COMPARAÇÕES ROBUSTAS
+          const studentCurrentGrades = student.grades || {};
+          const studentNewGrades = newGrades[studentId] || {};
+          
+          // Verifica se há notas diferentes
+          const hasGradeChanged = Object.keys(studentNewGrades).some(moduleId => {
+            const currentValue = studentCurrentGrades[moduleId];
+            const newValue = studentNewGrades[moduleId];
+            
+            // Comparação considerando objetos e valores simples
+            if (typeof newValue === 'object' && typeof currentValue === 'object') {
+              return JSON.stringify(newValue) !== JSON.stringify(currentValue);
+            }
+            
+            // Normaliza valores para comparação (0.0, 0, "0.0" devem ser iguais)
+            const normalizedCurrent = currentValue ? parseFloat(currentValue) : null;
+            const normalizedNew = newValue ? parseFloat(newValue) : null;
+            
+            return normalizedCurrent !== normalizedNew;
+          });
+          
+          const currentCertStatus = student.certificateStatus || "nao_impresso";
+          const newCertStatus = newCertificateStatuses[studentId];
+          const hasCertChanged = newCertStatus && newCertStatus !== currentCertStatus;
+          
+          const currentChecklist = student.releaseChecklist || { 
+            pagamento: false, 
+            notas: false, 
+            frequencia: false 
+          };
+          const newChecklist = newReleaseChecklist ? newReleaseChecklist[studentId] : null;
+          const hasChecklistChanged = newChecklist && (
+            currentChecklist.pagamento !== newChecklist.pagamento ||
+            currentChecklist.notas !== newChecklist.notas ||
+            currentChecklist.frequencia !== newChecklist.frequencia
+          );
+          
+          // ✅ SÓ RETORNA SE HOUVER MUDANÇA REAL
+          if (!hasGradeChanged && !hasCertChanged && !hasChecklistChanged) {
+            return null;
           }
-          return null;
+          
+          const updatedStudent = {
+            ...student,
+            grades: hasGradeChanged ? { ...studentCurrentGrades, ...studentNewGrades } : studentCurrentGrades,
+            certificateStatus: hasCertChanged ? newCertStatus : currentCertStatus,
+            releaseChecklist: hasChecklistChanged ? newChecklist : currentChecklist,
+          };
+          
+          console.log("✏️ Aluno com alterações:", student.name, {
+            hasGradeChanged,
+            hasCertChanged,
+            hasChecklistChanged,
+            data: {
+              certificateStatus: updatedStudent.certificateStatus,
+              releaseChecklist: updatedStudent.releaseChecklist,
+            }
+          });
+          
+          return updatedStudent;
         })
-        .filter(Boolean);
+        .filter(Boolean); // Remove nulls
+      
+      // ⛔ CANCELA SE NÃO HÁ MUDANÇAS
       if (changedStudents.length === 0) {
-        return toast.success("Nenhuma alteração foi feita.");
+        console.log("✅ Nenhuma alteração detectada - salvamento cancelado");
+        return; // NÃO FAZ NADA!
       }
+      
+      console.log("📊 Total de alunos com alterações:", changedStudents.length);
+      
       await handleApiAction(
         "updateGraduatesBatch",
         { updatedStudents: changedStudents },
-        () => setRefetchTrigger((prev) => prev + 1)
+        () => {
+          console.log("✅ Salvamento concluído com sucesso");
+          setRefetchTrigger((prev) => prev + 1);
+        }
       );
     } else {
-      const allUpdatedStudents = turma.students.map((s) => ({
-        ...s,
-        grades: { ...s.grades, ...newGrades[s.studentId || s.id] },
-      }));
+      // PARA TURMAS NORMAIS
+      let hasAnyChange = false;
+      
+      const allUpdatedStudents = turma.students.map((s) => {
+        const studentId = s.studentId || s.id;
+        const currentGrades = s.grades || {};
+        const newStudentGrades = newGrades[studentId] || {};
+        
+        // Verifica se há mudanças reais nas notas
+        const gradeChanged = Object.keys(newStudentGrades).some(moduleId => {
+          const currentValue = currentGrades[moduleId];
+          const newValue = newStudentGrades[moduleId];
+          
+          // Comparação considerando objetos
+          if (typeof newValue === 'object' && typeof currentValue === 'object') {
+            return JSON.stringify(newValue) !== JSON.stringify(currentValue);
+          }
+          
+          const normalizedCurrent = currentValue ? parseFloat(currentValue) : null;
+          const normalizedNew = newValue ? parseFloat(newValue) : null;
+          
+          return normalizedCurrent !== normalizedNew;
+        });
+        
+        if (gradeChanged) {
+          hasAnyChange = true;
+          return {
+            ...s,
+            grades: { ...currentGrades, ...newStudentGrades }
+          };
+        }
+        
+        return s;
+      });
+      
+      // ⛔ CANCELA SE NÃO HÁ MUDANÇAS
+      if (!hasAnyChange) {
+        console.log("✅ Nenhuma alteração detectada - salvamento cancelado");
+        return;
+      }
+      
       await updateClass(turma.id, { students: allUpdatedStudents });
       toast.success("Notas salvas com sucesso!");
     }
@@ -436,20 +530,20 @@ function ClassDetailsPage() {
     setStudentToTransfer(null);
   };
 
-const handleConfirmTransfer = async (
-  studentData,
-  sourceClassId,
-  targetClassId
-) => {
-  await handleApiAction(
-    "transferStudent",
-    { studentData, sourceClassId, targetClassId },
-    () => {
-      handleCloseTransferModal();
-      setRefetchTrigger((prev) => prev + 1);
-    }
-  );
-};
+  const handleConfirmTransfer = async (
+    studentData,
+    sourceClassId,
+    targetClassId
+  ) => {
+    await handleApiAction(
+      "transferStudent",
+      { studentData, sourceClassId, targetClassId },
+      () => {
+        handleCloseTransferModal();
+        setRefetchTrigger((prev) => prev + 1);
+      }
+    );
+  };
 
   const handleOpenSubGradesModal = (student, module) => {
     setSelectedGradeData({ student, module });
@@ -675,251 +769,254 @@ const handleConfirmTransfer = async (
   if (!turma) return <div className="p-8">Carregando turma...</div>;
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block">
-        &larr; Voltar para o Boletim
-      </Link>
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        {!isEditingName ? (
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-800">{turma.name}</h1>
-            {canUserEditClass && !turma.isVirtual && (
-              <button
-                onClick={() => setIsEditingName(true)}
-                className="text-sm text-blue-600 font-semibold"
-              >
-                Editar
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newClassName}
-              onChange={(e) => setNewClassName(e.target.value)}
-              className="text-3xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"
-            />
-            <button
-              onClick={handleSaveName}
-              className="bg-green-500 text-white px-3 py-1 rounded"
-            >
-              Salvar
-            </button>
-            <button
-              onClick={() => setIsEditingName(false)}
-              className="text-sm text-gray-500"
-            >
-              Cancelar
-            </button>
-          </div>
-        )}
-        {canUserEditClass && !turma.isVirtual ? (
-          <div className="mt-4">
-            <label
-              htmlFor="teacher-select"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Professor(a) Responsável:
-            </label>
-            <select
-              id="teacher-select"
-              value={selectedTeacherId}
-              onChange={handleTeacherChange}
-              className="mt-1 block w-full md:w-1/2 p-2 border rounded-md"
-            >
-              <option value="" disabled>
-                Selecione um professor
-              </option>
-              {teacherList.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          !turma.isVirtual && (
-            <p className="text-md text-gray-600 mt-2">
-              Professor(a) Responsável: {turma.professorName || "A definir"}
-            </p>
-          )
-        )}
-        {!turma.isVirtual && (
-          <div className="mt-6 border-t pt-4">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">
-              Grupo do WhatsApp
-            </h3>
-            {isEditingWhatsappLink && canUserEditClass ? (
-              <div className="flex flex-col sm:flex-row items-stretch gap-2">
-                <input
-                  type="url"
-                  placeholder="Cole aqui o link do grupo"
-                  value={whatsappLinkInput}
-                  onChange={(e) => setWhatsappLinkInput(e.target.value)}
-                  className="flex-grow p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                />
+    <div className="min-h-screen bg-gray-50">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+        <Link to="/boletim" className="text-blue-600 hover:underline mb-6 block text-lg">
+          &larr; Voltar para o Boletim
+        </Link>
+        
+        <div className="bg-white p-8 rounded-xl shadow-md mb-8">
+          {!isEditingName ? (
+            <div className="flex justify-between items-center">
+              <h1 className="text-4xl font-bold text-gray-800">{turma.name}</h1>
+              {canUserEditClass && !turma.isVirtual && (
                 <button
-                  onClick={handleSaveWhatsappLink}
-                  className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                  onClick={() => setIsEditingName(true)}
+                  className="text-base text-blue-600 font-semibold hover:text-blue-700"
                 >
-                  <Save size={18} />
-                  Salvar
+                  Editar
                 </button>
-                <button
-                  onClick={handleCancelEditWhatsappLink}
-                  className="flex items-center justify-center gap-2 bg-gray-500 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-600 transition"
-                >
-                  <X size={18} />
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="flex-grow bg-gray-100 p-2 rounded-md text-gray-700 truncate">
-                  {turma.whatsappLink ? (
-                    <a
-                      href={turma.whatsappLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {turma.whatsappLink}
-                    </a>
-                  ) : (
-                    <span className="text-gray-400">
-                      Nenhum link cadastrado.
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {canUserEditClass && (
-                    <button
-                      onClick={() => setIsEditingWhatsappLink(true)}
-                      className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                    >
-                      <Pencil size={16} />
-                      {turma.whatsappLink ? "Editar" : "Adicionar"}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setIsQrModalOpen(true)}
-                    disabled={!turma.whatsappLink}
-                    className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    title="Exibir QR Code"
-                  >
-                    <QrCode size={18} />
-                    <span>QR Code</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-10">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-          <h2 className="text-2xl font-semibold">Alunos e Notas</h2>
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              placeholder="Buscar por nome ou código do aluno..."
-              value={studentSearchTerm}
-              onChange={(e) => setStudentSearchTerm(e.target.value)}
-              className="w-full md:w-auto p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-            />
-            {canAddStudents && !turma.isVirtual && (
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                className="text-4xl font-bold text-gray-800 border-b-2 border-blue-500 focus:outline-none flex-grow"
+              />
               <button
-                onClick={handleOpenAddStudentModal}
-                className="flex items-center gap-2 bg-blue-600 text-white font-bold px-4 py-3 rounded-lg hover:bg-blue-700 transition shadow-md"
+                onClick={handleSaveName}
+                className="bg-green-500 text-white px-5 py-2 rounded-lg text-base hover:bg-green-600"
               >
-                <UserPlus size={18} />
-                <span>Adicionar</span>
+                Salvar
               </button>
-            )}
-          </div>
-        </div>
-
-        {canAddStudents && !turma.isVirtual && (
-          <div className="my-4">
-            <StudentImporter onStudentsImported={handleStudentsImported} />
-          </div>
-        )}
-
-        <Gradebook
-          students={filteredStudents}
-          modules={turma.modules || []}
-          onSaveGrades={handleSaveGrades}
-          onTransferClick={handleOpenTransferModal}
-          onEditClick={handleOpenEditStudentModal}
-          onDeleteClick={handleDeleteStudent}
-          onObservationClick={handleOpenObservationModal}
-          isUserAdmin={canUserEditClass}
-          isUserProfessor={isUserProfessor}
-          isVirtual={turma.isVirtual}
-          isReadOnly={
-            isGradebookReadOnly || (turma.isVirtual && !canEditGraduates)
-          }
-          onOpenSubGradesModal={handleOpenSubGradesModal}
-        />
-      </div>
-
-      {!turma.isVirtual && (
-        <div className="mt-10">
-          <h2 className="text-2xl font-semibold">Módulos e Ementas da Turma</h2>
-          <div className="mt-4 space-y-4">
-            {turma.modules && turma.modules.length > 0 ? (
-              turma.modules.map((module) => (
-                <div
-                  key={module.id}
-                  className="bg-white p-4 rounded-lg shadow flex justify-between items-start"
-                >
-                  <div>
-                    <h3 className="font-bold text-lg">{module.title}</h3>
-                    <p className="text-gray-700 mt-1">{module.syllabus}</p>
-                  </div>
-                  {canUserEditClass && (
-                    <button
-                      onClick={() => handleRemoveModule(module.id)}
-                      className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0"
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-500 bg-white p-4 rounded-lg shadow">
-                Nenhum módulo cadastrado para esta turma.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {isUserAdmin && !turma.isVirtual && (
-        <div className="mt-10 border-t-2 border-red-200 pt-6">
-          <h2 className="text-xl font-semibold text-red-700">Zona de Perigo</h2>
-          <div className="mt-4 bg-red-50 p-6 rounded-lg shadow-inner">
-            <div className="flex flex-col sm:flex-row justify-between items-center">
-              <div>
-                <h3 className="font-bold">Apagar esta Turma</h3>
-                <p className="text-sm text-red-800 mt-1 max-w-2xl">
-                  Uma vez que a turma for apagada, todos os seus dados serão
-                  permanentemente perdidos. Esta ação não pode ser desfeita.
-                </p>
-              </div>
               <button
-                onClick={handleDeleteClass}
-                className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0"
+                onClick={() => setIsEditingName(false)}
+                className="text-base text-gray-500 hover:text-gray-700"
               >
-                Apagar Turma
+                Cancelar
               </button>
             </div>
-          </div>
+          )}
+          {canUserEditClass && !turma.isVirtual ? (
+            <div className="mt-6">
+              <label
+                htmlFor="teacher-select"
+                className="block text-base font-medium text-gray-700 mb-2"
+              >
+                Professor(a) Responsável:
+              </label>
+              <select
+                id="teacher-select"
+                value={selectedTeacherId}
+                onChange={handleTeacherChange}
+                className="block w-full md:w-1/2 p-3 text-base border rounded-lg"
+              >
+                <option value="" disabled>
+                  Selecione um professor
+                </option>
+                {teacherList.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            !turma.isVirtual && (
+              <p className="text-lg text-gray-600 mt-3">
+                Professor(a) Responsável: {turma.professorName || "A definir"}
+              </p>
+            )
+          )}
+          {!turma.isVirtual && (
+            <div className="mt-8 border-t pt-6">
+              <h3 className="text-xl font-semibold text-gray-700 mb-3">
+                Grupo do WhatsApp
+              </h3>
+              {isEditingWhatsappLink && canUserEditClass ? (
+                <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                  <input
+                    type="url"
+                    placeholder="Cole aqui o link do grupo"
+                    value={whatsappLinkInput}
+                    onChange={(e) => setWhatsappLinkInput(e.target.value)}
+                    className="flex-grow p-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleSaveWhatsappLink}
+                    className="flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-green-700 transition"
+                  >
+                    <Save size={20} />
+                    Salvar
+                  </button>
+                  <button
+                    onClick={handleCancelEditWhatsappLink}
+                    className="flex items-center justify-center gap-2 bg-gray-500 text-white font-bold px-6 py-3 rounded-lg hover:bg-gray-600 transition"
+                  >
+                    <X size={20} />
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex-grow bg-gray-100 p-3 rounded-lg text-gray-700 truncate text-base">
+                    {turma.whatsappLink ? (
+                      <a
+                        href={turma.whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {turma.whatsappLink}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">
+                        Nenhum link cadastrado.
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {canUserEditClass && (
+                      <button
+                        onClick={() => setIsEditingWhatsappLink(true)}
+                        className="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-blue-700 transition"
+                      >
+                        <Pencil size={18} />
+                        {turma.whatsappLink ? "Editar" : "Adicionar"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsQrModalOpen(true)}
+                      disabled={!turma.whatsappLink}
+                      className="flex items-center justify-center gap-2 bg-gray-700 text-white font-bold px-6 py-3 rounded-lg hover:bg-gray-800 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      title="Exibir QR Code"
+                    >
+                      <QrCode size={20} />
+                      <span>QR Code</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="mt-12">
+          <div className="flex flex-col gap-6 mb-6">
+            <h2 className="text-3xl font-semibold text-gray-800">Alunos e Notas</h2>
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+              <input
+                type="text"
+                placeholder="Buscar por nome ou código do aluno..."
+                value={studentSearchTerm}
+                onChange={(e) => setStudentSearchTerm(e.target.value)}
+                className="flex-1 p-5 text-lg border-2 border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              {canAddStudents && !turma.isVirtual && (
+                <button
+                  onClick={handleOpenAddStudentModal}
+                  className="flex items-center justify-center gap-3 bg-blue-600 text-white font-bold px-8 py-5 rounded-xl hover:bg-blue-700 transition shadow-md whitespace-nowrap text-lg"
+                >
+                  <UserPlus size={22} />
+                  <span>Adicionar Aluno</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {canAddStudents && !turma.isVirtual && (
+            <div className="my-6">
+              <StudentImporter onStudentsImported={handleStudentsImported} />
+            </div>
+          )}
+
+          <Gradebook
+            students={filteredStudents}
+            modules={turma.modules || []}
+            onSaveGrades={handleSaveGrades}
+            onTransferClick={handleOpenTransferModal}
+            onEditClick={handleOpenEditStudentModal}
+            onDeleteClick={handleDeleteStudent}
+            onObservationClick={handleOpenObservationModal}
+            isUserAdmin={canUserEditClass}
+            isUserProfessor={isUserProfessor}
+            isVirtual={turma.isVirtual}
+            isReadOnly={
+              isGradebookReadOnly || (turma.isVirtual && !canEditGraduates)
+            }
+            onOpenSubGradesModal={handleOpenSubGradesModal}
+          />
+        </div>
+
+        {!turma.isVirtual && (
+          <div className="mt-12">
+            <h2 className="text-3xl font-semibold text-gray-800 mb-6">Módulos e Ementas da Turma</h2>
+            <div className="space-y-4">
+              {turma.modules && turma.modules.length > 0 ? (
+                turma.modules.map((module) => (
+                  <div
+                    key={module.id}
+                    className="bg-white p-6 rounded-xl shadow-sm flex justify-between items-start"
+                  >
+                    <div>
+                      <h3 className="font-bold text-xl text-gray-800">{module.title}</h3>
+                      <p className="text-gray-700 mt-2 text-base">{module.syllabus}</p>
+                    </div>
+                    {canUserEditClass && (
+                      <button
+                        onClick={() => handleRemoveModule(module.id)}
+                        className="text-red-500 hover:text-red-700 font-semibold ml-4 flex-shrink-0 text-base"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 bg-white p-6 rounded-xl shadow-sm text-base">
+                  Nenhum módulo cadastrado para esta turma.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isUserAdmin && !turma.isVirtual && (
+          <div className="mt-12 border-t-2 border-red-200 pt-8">
+            <h2 className="text-2xl font-semibold text-red-700 mb-4">Zona de Perigo</h2>
+            <div className="bg-red-50 p-8 rounded-xl shadow-inner">
+              <div className="flex flex-col sm:flex-row justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-lg">Apagar esta Turma</h3>
+                  <p className="text-base text-red-800 mt-2 max-w-2xl">
+                    Uma vez que a turma for apagada, todos os seus dados serão
+                    permanentemente perdidos. Esta ação não pode ser desfeita.
+                  </p>
+                </div>
+                <button
+                  onClick={handleDeleteClass}
+                  className="bg-red-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-red-700 transition-colors w-full sm:w-auto mt-4 sm:mt-0 text-base"
+                >
+                  Apagar Turma
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <QrCodeModal
         isOpen={isQrModalOpen}

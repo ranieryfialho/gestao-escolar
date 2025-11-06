@@ -143,7 +143,6 @@ exports.createNewUserAccount = functions.https.onRequest((req, res) => {
   });
 });
 
-// E substitua esta também
 exports.updateUserProfile = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== "POST") {
@@ -219,9 +218,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
 
     const studentCodeStr = String(studentData.code);
 
-    // ===================================================================
-    // CASO 3 (NOVO): REATIVAR DE CONCLUDENTES -> TURMA REGULAR
-    // ===================================================================
     if (sourceClassId === "concludentes") {
       if (targetClassId === "concludentes") {
         return res.status(400).json({ 
@@ -249,7 +245,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
 
         const concludenteData = concludenteDoc.data();
         
-        // Prepara o objeto do aluno para o array 'students' da turma
         const newStudentData = {
           code: studentCodeStr,
           name: studentData.name || concludenteData.name,
@@ -258,18 +253,14 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
           ...(concludenteData.studentId && { studentId: concludenteData.studentId }),
         };
 
-        // Usa transação para garantir atomicidade
         await db.runTransaction(async (transaction) => {
-          // Adiciona o aluno no array 'students' da turma de destino
           const targetStudents = targetClassDoc.data().students || [];
           
-          // Verifica se o aluno já existe na turma de destino
           if (!targetStudents.some(s => String(s.code) === studentCodeStr)) {
             targetStudents.push(newStudentData);
             transaction.update(targetClassRef, { students: targetStudents });
           }
 
-          // Remove o aluno da coleção de concludentes
           transaction.delete(concludenteRef);
         });
 
@@ -284,9 +275,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
       }
     }
 
-    // ===================================================================
-    // CASO 1: TURMA REGULAR -> CONCLUDENTES
-    // ===================================================================
     if (targetClassId === "concludentes") {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const concludentesRef = db.collection("concludentes").doc(studentCodeStr);
@@ -321,6 +309,11 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
             ...studentToGraduate,
             graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
             certificateStatus: "nao_impresso",
+            releaseChecklist: {
+              pagamento: false,
+              notas: false,
+              frequencia: false
+            },
             schoolId: sourceClass.schoolId,
             code: studentCodeStr,
           };
@@ -340,9 +333,6 @@ exports.transferStudent = functions.https.onRequest((req, res) => {
       }
     }
 
-    // ===================================================================
-    // CASO 2: TURMA REGULAR -> TURMA REGULAR
-    // ===================================================================
     else {
       const sourceClassRef = db.collection("classes").doc(sourceClassId);
       const targetClassRef = db.collection("classes").doc(targetClassId);
@@ -564,6 +554,11 @@ exports.removeStudentFromClass = functions.https.onRequest((req, res) => {
           observation: studentData.observation || "",
           graduatedAt: admin.firestore.FieldValue.serverTimestamp(),
           certificateStatus: "nao_impresso",
+          releaseChecklist: {
+            pagamento: false,
+            notas: false,
+            frequencia: false
+          },
         };
         transaction.set(concludentesRef, graduateData);
       });
@@ -690,51 +685,80 @@ exports.listGraduates = functions.https.onRequest((req, res) => {
   });
 });
 
+// FUNÇÃO CORRIGIDA - SALVA releaseChecklist
 exports.updateGraduatesBatch = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     const { updatedStudents } = req.body.data;
+    
     if (!Array.isArray(updatedStudents)) {
       return res.status(400).json({ error: "Dados dos alunos inválidos." });
     }
 
+    console.log("📥 Recebendo atualização de", updatedStudents.length, "aluno(s)");
+
     try {
       const batch = db.batch();
+      
       updatedStudents.forEach((student) => {
         if (student.code) {
-          const docRef = db
-            .collection("concludentes")
-            .doc(String(student.code));
+          const docRef = db.collection("concludentes").doc(String(student.code));
 
-          const dataToUpdate = {};
+          const dataToUpdate = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          };
 
+          // Salva grades
           if (student.grades) {
             dataToUpdate.grades = student.grades;
+            console.log("✅ Salvando grades do aluno", student.name);
           }
+
+          // Salva certificateStatus
           if (student.certificateStatus) {
             dataToUpdate.certificateStatus = student.certificateStatus;
+            console.log("✅ Salvando certificateStatus:", student.certificateStatus);
           }
+
+          // Salva releaseChecklist - CORREÇÃO PRINCIPAL
+          if (student.releaseChecklist) {
+            dataToUpdate.releaseChecklist = {
+              pagamento: student.releaseChecklist.pagamento || false,
+              notas: student.releaseChecklist.notas || false,
+              frequencia: student.releaseChecklist.frequencia || false
+            };
+            console.log("✅ Salvando releaseChecklist:", dataToUpdate.releaseChecklist);
+          }
+
+          // Salva observation
           if (typeof student.observation === "string") {
             dataToUpdate.observation = student.observation;
           }
 
-          if (Object.keys(dataToUpdate).length > 0) {
-            batch.update(docRef, dataToUpdate);
+          // Salva name (se fornecido)
+          if (student.name) {
+            dataToUpdate.name = student.name;
           }
+
+          console.log("📝 Dados completos a salvar para", student.code, ":", dataToUpdate);
+
+          batch.update(docRef, dataToUpdate);
         }
       });
+
       await batch.commit();
-      return res
-        .status(200)
-        .json({ message: "Dados dos concludentes atualizados com sucesso!" });
+      console.log("✅ Batch commit realizado com sucesso!");
+      
+      return res.status(200).json({ 
+        message: "Dados dos concludentes atualizados com sucesso!" 
+      });
     } catch (error) {
-      console.error("Erro ao atualizar dados dos concludentes:", error);
-      return res
-        .status(500)
-        .json({ error: "Erro no servidor ao atualizar dados." });
+      console.error("❌ Erro ao atualizar dados dos concludentes:", error);
+      return res.status(500).json({ 
+        error: "Erro no servidor ao atualizar dados: " + error.message 
+      });
     }
   });
 });
-
 
 exports.saveAttendance = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
