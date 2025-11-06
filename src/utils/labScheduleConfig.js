@@ -1,5 +1,3 @@
-// Configuração dos horários disponíveis por dia da semana no Laboratório de Apoio
-
 export const LAB_SCHEDULE = {
   0: [], // Domingo - sem atendimento
   1: [ // Segunda-feira
@@ -54,19 +52,18 @@ export const WEEKDAY_NAMES = {
 
 /**
  * Retorna os horários disponíveis para uma data específica
- * @param {string} dateString - Data no formato YYYY-MM-DD
- * @returns {Array} Array com os horários disponíveis
+ * @param {string} dateString
+ * @returns {Array}
  */
 export function getAvailableTimeSlotsForDate(dateString) {
-  const date = new Date(dateString + "T12:00:00"); // Meio-dia para evitar problemas de timezone
+  const date = new Date(dateString + "T12:00:00");
   const dayOfWeek = date.getDay();
   return LAB_SCHEDULE[dayOfWeek] || [];
 }
 
 /**
  * Verifica se uma data tem horários disponíveis
- * @param {string} dateString - Data no formato YYYY-MM-DD
- * @returns {boolean}
+ * @param {string} dateString
  */
 export function hasAvailableSlots(dateString) {
   return getAvailableTimeSlotsForDate(dateString).length > 0;
@@ -74,7 +71,7 @@ export function hasAvailableSlots(dateString) {
 
 /**
  * Retorna o nome do dia da semana para uma data
- * @param {string} dateString - Data no formato YYYY-MM-DD
+ * @param {string} dateString
  * @returns {string}
  */
 export function getWeekdayName(dateString) {
