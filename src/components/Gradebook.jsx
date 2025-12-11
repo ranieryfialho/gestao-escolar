@@ -309,6 +309,9 @@ function Gradebook({
                           : gradeValue || "";
                       const hasSubGrades =
                         module.subGrades && module.subGrades.length > 0;
+                      
+                      // LÓGICA DE TRAVAMENTO
+                      const isRestricted = module.id === "OFFA" || module.id === "ADM";
 
                       return (
                         <td key={module.id} className="px-4 py-5 text-center">
@@ -316,16 +319,21 @@ function Gradebook({
                             <input
                               type="text"
                               value={displayValue}
+                              // Se for restrito, não permite edição (input não chama onChange)
                               onChange={(e) =>
-                                handleGradeChange(studentId, module.id, e.target.value)
+                                isRestricted ? undefined : handleGradeChange(studentId, module.id, e.target.value)
                               }
                               onBlur={(e) =>
-                                handleGradeBlur(studentId, module.id, e.target.value)
+                                isRestricted ? undefined : handleGradeBlur(studentId, module.id, e.target.value)
                               }
+                              // Aplica readOnly se for restrito
+                              readOnly={isRestricted}
                               disabled={isReadOnly}
-                              className={`w-20 px-3 py-2.5 text-center text-base font-bold rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${getGradeStyle(
-                                gradeValue
-                              )} ${isReadOnly ? "cursor-not-allowed" : ""}`}
+                              className={`w-20 px-3 py-2.5 text-center text-base font-bold rounded-lg border-2 border-gray-300 transition 
+                                ${getGradeStyle(gradeValue)} 
+                                ${isReadOnly ? "cursor-not-allowed" : ""}
+                                ${isRestricted ? "cursor-default focus:outline-none focus:ring-0" : "focus:ring-2 focus:ring-blue-500 focus:border-blue-500"}
+                              `}
                               placeholder="0.0"
                             />
                             {hasSubGrades && !isReadOnly && (
@@ -542,6 +550,9 @@ function Gradebook({
                         : gradeValue || "";
                     const hasSubGrades =
                       module.subGrades && module.subGrades.length > 0;
+                    
+                    // LÓGICA DE TRAVAMENTO MOBILE
+                    const isRestricted = module.id === "OFFA" || module.id === "ADM";
 
                     return (
                       <div key={module.id} className="flex flex-col gap-2">
@@ -553,15 +564,18 @@ function Gradebook({
                             type="text"
                             value={displayValue}
                             onChange={(e) =>
-                              handleGradeChange(studentId, module.id, e.target.value)
+                              isRestricted ? undefined : handleGradeChange(studentId, module.id, e.target.value)
                             }
                             onBlur={(e) =>
-                              handleGradeBlur(studentId, module.id, e.target.value)
+                              isRestricted ? undefined : handleGradeBlur(studentId, module.id, e.target.value)
                             }
+                            readOnly={isRestricted}
                             disabled={isReadOnly}
-                            className={`w-full px-3 py-3 text-center text-base font-bold rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${getGradeStyle(
-                              gradeValue
-                            )} ${isReadOnly ? "cursor-not-allowed" : ""}`}
+                            className={`w-full px-3 py-3 text-center text-base font-bold rounded-lg border-2 border-gray-300 transition 
+                              ${getGradeStyle(gradeValue)} 
+                              ${isReadOnly ? "cursor-not-allowed" : ""}
+                              ${isRestricted ? "cursor-default focus:outline-none focus:ring-0" : "focus:ring-2 focus:ring-blue-500 focus:border-blue-500"}
+                            `}
                             placeholder="0.0"
                           />
                           {hasSubGrades && !isReadOnly && (
