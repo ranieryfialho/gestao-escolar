@@ -565,34 +565,60 @@ function ClassDetailsPage() {
       [subGradeName]: sanitizedValue,
     }));
   };
+
+  // -----------------------------------------------------------------------
+  // FUNÇÃO ATUALIZADA - CÁLCULO DA MÉDIA COM DIVISOR FIXO PARA OFFA E ADM
+  // -----------------------------------------------------------------------
   const handleSaveSubGrades = async () => {
     const { student, module } = selectedGradeData;
     if (!student || !module) return;
+
     const uniqueStudentId = student.studentId || student.id;
     const gradesAsNumbers = Object.values(editingSubGrades)
-      .map((g) => Number.parseFloat(String(g).replace(",", ".")))
+      .map((g) => Number. parseFloat(String(g).replace(",", ".")))
       .filter((g) => !isNaN(g));
-    const average =
-      gradesAsNumbers.length > 0
-        ? gradesAsNumbers.reduce((a, b) => a + b, 0) / gradesAsNumbers.length
-        : 0;
+
+      const sum = gradesAsNumbers.reduce((a, b) => a + b, 0);
+
+    console.log("💾 Salvando Sub-notas.  Módulo ID:", module.id);
+    console.log("📝 Notas capturadas:", gradesAsNumbers);
+    console.log("➕ Soma:", sum);
+
+    let divisor = gradesAsNumbers.length;
+
+    if (module.id === "OFFA" || module.id === "ADM") {
+      divisor = 3;
+      console.log("⚡ Módulo especial detectado (OFFA/ADM). Forçando divisor = 3");
+    }
+
+    if (divisor === 0) divisor = 1;
+
+    const average = sum / divisor;
+
+    console.log("➗ Divisor usado:", divisor);
+    console.log("🎯 Média Final Calculada:", average. toFixed(1));
+
     const updatedGradeObject = {
-      finalGrade: average.toFixed(1),
+      finalGrade: average. toFixed(1),
       subGrades: editingSubGrades,
     };
+
     const currentStudentInClass = turma.students.find(
       (s) => (s.studentId || s.id) === uniqueStudentId
     );
-    const currentStudentGrades = currentStudentInClass?.grades || {};
+
+    const currentStudentGrades = currentStudentInClass?. grades || {};
     const updatedGradesForStudent = {
       ...currentStudentGrades,
       [module.id]: updatedGradeObject,
     };
+
     const updatedStudents = turma.students.map((s) =>
       (s.studentId || s.id) === uniqueStudentId
         ? { ...s, grades: updatedGradesForStudent }
         : s
     );
+
     if (turma.isVirtual) {
       await handleApiAction("updateGraduatesBatch", { updatedStudents }, () =>
         setRefetchTrigger((prev) => prev + 1)
@@ -600,9 +626,11 @@ function ClassDetailsPage() {
     } else {
       await updateClass(turma.id, { students: updatedStudents });
     }
-    toast.success("Notas do módulo salvas com sucesso!");
+
+    toast. success("Notas do módulo salvas com sucesso!");
     handleCloseSubGradesModal();
   };
+  // -----------------------------------------------------------------------
 
   const handleOpenAddStudentModal = () => setIsAddStudentModalOpen(true);
   const handleCloseAddStudentModal = () => setIsAddStudentModalOpen(false);
