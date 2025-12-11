@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
-import { Menu, X, ChevronDown, CalendarPlus, ListChecks } from "lucide-react";
-import { db } from "../firebase"; // Importação necessária
-import { collection, onSnapshot } from "firebase/firestore"; // Importação necessária
+import { Menu, X, ChevronDown, CalendarPlus, ListChecks, Calculator } from "lucide-react"; // Importei Calculator
+import { db } from "../firebase"; 
+import { collection, onSnapshot } from "firebase/firestore"; 
 
 // Função auxiliar para contar dias úteis (mesma lógica do Kanban)
 const getBusinessDays = (startDate, endDate) => {
@@ -20,7 +20,7 @@ const getBusinessDays = (startDate, endDate) => {
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
-  const [stuckTaskCount, setStuckTaskCount] = useState(0); // Estado para o contador
+  const [stuckTaskCount, setStuckTaskCount] = useState(0); 
 
   const adminRoles = [
     "coordenador",
@@ -70,7 +70,6 @@ const MainLayout = () => {
 
   // --- EFEITO PARA CONTAR TAREFAS PARADAS EM TEMPO REAL ---
   useEffect(() => {
-    // Se o usuário não tiver permissão de ver tarefas, nem escuta o banco
     if (!userProfile) return;
 
     const unsubscribe = onSnapshot(collection(db, "tasks"), (snapshot) => {
@@ -80,16 +79,11 @@ const MainLayout = () => {
 
       snapshot.forEach((doc) => {
         const task = doc.data();
-        
-        // Ignora tarefas concluídas ('done')
         if (task.status === 'done') return;
 
-        // Se tiver data de movimentação
         if (task.movedAt && task.movedAt.toDate) {
           const movedDate = task.movedAt.toDate();
           const days = getBusinessDays(movedDate, today);
-          
-          // Se estiver parada há mais de 3 dias úteis
           if (days > 3) {
             count++;
           }
@@ -160,7 +154,6 @@ const MainLayout = () => {
                           className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none relative"
                         >
                           <span>Acadêmico</span>
-                          {/* Bolinha no menu pai se houver notificações */}
                           {stuckTaskCount > 0 && (
                              <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -226,7 +219,6 @@ const MainLayout = () => {
                                 Laboratório de Apoio
                               </NavLink>
                               
-                              {/* --- LINK DE TAREFAS COM NOTIFICAÇÃO --- */}
                               <NavLink
                                 to="/kanban"
                                 className={getDropdownNavLinkClass}
@@ -241,7 +233,6 @@ const MainLayout = () => {
                                   )}
                                 </div>
                               </NavLink>
-                              {/* -------------------------------------- */}
 
                               <NavLink
                                 to="/alunos-inativos"
@@ -307,6 +298,15 @@ const MainLayout = () => {
                               >
                                 Calculadora de Reposição
                               </NavLink>
+                              {/* --- NOVA CALCULADORA DE NOTAS --- */}
+                              <NavLink
+                                to="/gerador-notas"
+                                className={getDropdownNavLinkClass}
+                                onClick={() => setOperationalMenuOpen(false)}
+                              >
+                                Gerador de Notas
+                              </NavLink>
+                              {/* ------------------------------- */}
                             </div>
                           </div>
                         )}
@@ -429,7 +429,6 @@ const MainLayout = () => {
                   Laboratório de Apoio
                 </NavLink>
 
-                {/* TAREFAS MOBILE */}
                 <NavLink
                   to="/kanban"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
@@ -487,6 +486,13 @@ const MainLayout = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Calculadora de Reposição
+                </NavLink>
+                <NavLink
+                  to="/gerador-notas"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Gerador de Notas
                 </NavLink>
 
                 {isUserAdmin && (

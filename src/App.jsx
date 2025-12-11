@@ -26,6 +26,7 @@ import RetufPage from './pages/RetufPage';
 import InactiveStudentsPage from './pages/InactiveStudentsPage';
 import ActiveStudentsPage from './pages/ActiveStudentsPage';
 import LabStatisticsPage from './pages/LabStatisticsPage';
+import GradeGenerator from "./pages/GradeGenerator";
 
 function App() {
   return (
@@ -55,6 +56,7 @@ function App() {
           <Route path="/eventos" element={<EventosPage />} />
           <Route path="/eventos/:eventId/inscritos" element={<EventAttendeesPage />} />
           <Route path="/laboratorio/estatisticas" element={<LabStatisticsPage />} />
+          <Route path="gerador-notas" element={<GradeGenerator />} />
           
         </Route>
       </Route>
