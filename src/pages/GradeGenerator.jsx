@@ -33,16 +33,16 @@ const COURSES = {
     label: 'Profissionalizante (12 Meses)',
     modules: [
       { id: 'ICN', name: 'ICN - Internet e Nuvem', context: 'Geral' },
-      ...SUB_INFORMATICA.map(m => ({ ...m, name: `${m.name} (OFFA)` })),
-      ...SUB_ADM.map(m => ({ ...m, name: `${m.name} (ADM)` }))
+      ...SUB_INFORMATICA.map(m => ({ ...m, name: `OFFA - ${m.name}` })),
+      ...SUB_ADM.map(m => ({ ...m, name: `ADM - ${m.name}` }))
     ]
   },
   '19_meses': {
     label: 'Especialização (19 Meses)',
     modules: [
       { id: 'ICN', name: 'ICN - Internet e Nuvem', context: 'Geral' },
-      ...SUB_INFORMATICA.map(m => ({ ...m, name: `${m.name} (OFFA)` })),
-      ...SUB_ADM.map(m => ({ ...m, name: `${m.name} (ADM)` })),
+      ...SUB_INFORMATICA.map(m => ({ ...m, name: `OFFA - ${m.name}` })),
+      ...SUB_ADM.map(m => ({ ...m, name: `ADM - ${m.name} ` })),
       { id: 'PWB', name: 'PWB - Power BI', context: 'Geral' },
       { id: 'TRI', name: 'TRI - Photoshop', context: 'Geral' },
       { id: 'CMV', name: 'CMV - Illustrator', context: 'Geral' }
