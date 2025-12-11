@@ -3,9 +3,24 @@ import { NavLink, Outlet, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import Footer from "./Footer";
 import { Menu, X, ChevronDown, CalendarPlus, ListChecks } from "lucide-react";
+import { db } from "../firebase"; // Importação necessária
+import { collection, onSnapshot } from "firebase/firestore"; // Importação necessária
+
+// Função auxiliar para contar dias úteis (mesma lógica do Kanban)
+const getBusinessDays = (startDate, endDate) => {
+  let count = 0;
+  const curDate = new Date(startDate.getTime());
+  while (curDate <= endDate) {
+      const dayOfWeek = curDate.getDay();
+      if (dayOfWeek !== 0) count++; // 0 é Domingo
+      curDate.setDate(curDate.getDate() + 1);
+  }
+  return count;
+};
 
 const MainLayout = () => {
   const { userProfile, logout } = useAuth();
+  const [stuckTaskCount, setStuckTaskCount] = useState(0); // Estado para o contador
 
   const adminRoles = [
     "coordenador",
@@ -52,6 +67,40 @@ const MainLayout = () => {
 
   const academicMenuRef = useRef(null);
   const operationalMenuRef = useRef(null);
+
+  // --- EFEITO PARA CONTAR TAREFAS PARADAS EM TEMPO REAL ---
+  useEffect(() => {
+    // Se o usuário não tiver permissão de ver tarefas, nem escuta o banco
+    if (!userProfile) return;
+
+    const unsubscribe = onSnapshot(collection(db, "tasks"), (snapshot) => {
+      let count = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      snapshot.forEach((doc) => {
+        const task = doc.data();
+        
+        // Ignora tarefas concluídas ('done')
+        if (task.status === 'done') return;
+
+        // Se tiver data de movimentação
+        if (task.movedAt && task.movedAt.toDate) {
+          const movedDate = task.movedAt.toDate();
+          const days = getBusinessDays(movedDate, today);
+          
+          // Se estiver parada há mais de 3 dias úteis
+          if (days > 3) {
+            count++;
+          }
+        }
+      });
+      setStuckTaskCount(count);
+    });
+
+    return () => unsubscribe();
+  }, [userProfile]);
+  // ---------------------------------------------------------
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -108,9 +157,16 @@ const MainLayout = () => {
                             setAcademicMenuOpen(!academicMenuOpen);
                             setOperationalMenuOpen(false);
                           }}
-                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none"
+                          className="flex items-center text-blue-100 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium focus:outline-none relative"
                         >
                           <span>Acadêmico</span>
+                          {/* Bolinha no menu pai se houver notificações */}
+                          {stuckTaskCount > 0 && (
+                             <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
+                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                             </span>
+                          )}
                           <ChevronDown
                             size={16}
                             className={`ml-1 transition-transform ${
@@ -169,14 +225,24 @@ const MainLayout = () => {
                               >
                                 Laboratório de Apoio
                               </NavLink>
+                              
+                              {/* --- LINK DE TAREFAS COM NOTIFICAÇÃO --- */}
                               <NavLink
                                 to="/kanban"
                                 className={getDropdownNavLinkClass}
                                 onClick={() => setAcademicMenuOpen(false)}
                               >
-                                Tarefas
+                                <div className="flex items-center justify-between">
+                                  <span>Tarefas</span>
+                                  {stuckTaskCount > 0 && (
+                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                                      {stuckTaskCount}
+                                    </span>
+                                  )}
+                                </div>
                               </NavLink>
-                              {/* ### INÍCIO DA CORREÇÃO ### */}
+                              {/* -------------------------------------- */}
+
                               <NavLink
                                 to="/alunos-inativos"
                                 className={getDropdownNavLinkClass}
@@ -184,7 +250,6 @@ const MainLayout = () => {
                               >
                                 Alunos Inativos
                               </NavLink>
-                              {/* ### FIM DA CORREÇÃO ### */}
                             </div>
                           </div>
                         )}
@@ -304,9 +369,17 @@ const MainLayout = () => {
               <></>
             ) : (
               <>
-                <h4 className="px-4 pt-2 text-sm font-bold text-blue-200 uppercase">
-                  Acadêmico
-                </h4>
+                <div className="flex items-center justify-between px-4 pt-2">
+                  <h4 className="text-sm font-bold text-blue-200 uppercase">
+                    Acadêmico
+                  </h4>
+                  {stuckTaskCount > 0 && (
+                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                       {stuckTaskCount}
+                     </span>
+                  )}
+                </div>
+                
                 {canAccessNexusAttendance && (
                   <NavLink
                     to="/frequencia-nexus"
@@ -355,12 +428,29 @@ const MainLayout = () => {
                 >
                   Laboratório de Apoio
                 </NavLink>
+
+                {/* TAREFAS MOBILE */}
                 <NavLink
                   to="/kanban"
                   className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  Tarefas
+                  <div className="flex items-center justify-between">
+                    <span>Tarefas</span>
+                    {stuckTaskCount > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        {stuckTaskCount}
+                      </span>
+                    )}
+                  </div>
+                </NavLink>
+                
+                <NavLink
+                  to="/alunos-inativos"
+                  className="block py-2 px-4 text-lg text-white hover:bg-blue-700 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Alunos Inativos
                 </NavLink>
 
                 <h4 className="px-4 pt-4 text-sm font-bold text-blue-200 uppercase">
